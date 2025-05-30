@@ -20,4 +20,12 @@ router.use('/technicians', require('./technicianRoutes'));
 router.use('/video-call', require('./videoCallRoutes'));
 router.get('/test', (req, res) => res.json('This Is API test page'));
 
+
+
+
+
+
+
+
+
 module.exports = router;

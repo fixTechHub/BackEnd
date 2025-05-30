@@ -8,7 +8,7 @@ const addressSchema = new Schema({
 }, { _id: false });
 
 const userSchema = new Schema({
-    userCode: { type: String, unique: true, required: true },
+    userCode: { type: String, unique: true, required: true, index: true },
     fullName: String,
     email: String,
     phone: Number,
