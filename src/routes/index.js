@@ -3,7 +3,7 @@ const Role = require('../models/Role');
 const router = express.Router();
 
 // Mount router
-router.use('/auth', require('./authRoutes'));                       
+router.use('/auth', require('./authRoutes'));
 router.use('/admin', require('./adminRoutes'));
 router.use('/users', require('./userRoutes'));
 router.use('/bookings', require('./bookingRoutes'));
@@ -28,6 +28,5 @@ router.get('/roles', async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 });
-
 
 module.exports = router;
