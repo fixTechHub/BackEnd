@@ -17,14 +17,17 @@ const technicianSchema = new Schema({
     identification: Number,
     certificate: [String],
     certificateVerificationStatus: Boolean,
+    isApproved: Boolean,
     jobCompleted: Number,
     specialties: String,
     availability: { type: String, enum: ['ONJOB', 'FREE'], default: 'FREE' },
     contractAccepted: Boolean,
+    contractSignature:String,
     balance: Number,
-    technicianActive: Boolean,
-    depositHistory: [{ type: Schema.Types.ObjectId, ref: 'DepositLog' }],
-    bankAccount: bankAccountSchema
+    isAvailableForAssignment: Boolean,
+    bankAccount: bankAccountSchema,
+    isBanned: Boolean,
+    bannedReason:String
 }, { timestamps: true });
 
 technicianSchema.index({ currentLocation: '2dsphere' });

@@ -13,5 +13,7 @@ const generateToken = (user, expiresIn = '2h') => {
         { expiresIn }
     );
 };
-
-module.exports = generateToken;
+const decodeToken = (token) => {
+    return jwt.verify(token, process.env.JWT_SECRET);
+}
+module.exports = {generateToken, decodeToken};

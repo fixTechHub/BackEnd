@@ -1,16 +1,17 @@
 const authService = require('../services/authService');
-const { loginSchema } = require('../validations/authValidation');
+const { loginSchema,passwordSchema } = require('../validations/authValidation');
 const { generateCookie } = require('../utils/generateCode');
 const { createUserSchema } = require('../validations/userValidation');
+const { createTechnicianSchema } = require('../validations/technicianValidation');
 
 exports.googleAuthController = async (req, res) => {
     const { credential } = req.body;
     if (!credential) return res.status(400).json({ error: "Missing credential token" });
 
     try {
-        const { user, token } = await authService.googleAuth(credential);
+        const { user, token,technician } = await authService.googleAuth(credential);
         generateCookie(token, res);
-        return res.status(200).json({ user });
+        return res.status(200).json({ user,technician });
     } catch (error) {
         console.error("GoogleAuthController Error:", error);
         return res.status(error.statusCode || 500).json({ error: error.message });
@@ -31,14 +32,7 @@ exports.logout = async (req, res) => {
     }
 };
 
-exports.getMe = async (req, res) => {
-    try {
-        return res.status(200).json({ user: req.user });
-    } catch (error) {
-        console.error("GetMe Error:", error);
-        res.status(500).json({ error: 'Failed to fetch user' });
-    }
-};
+
 
 exports.login = async (req, res) => {
     const { error } = loginSchema.validate(req.body);
@@ -46,9 +40,9 @@ exports.login = async (req, res) => {
 
     try {
         const { email, password } = req.body;
-        const { user, token } = await authService.normalLogin(email, password);
+        const { user, token,technician } = await authService.normalLogin(email, password);
         generateCookie(token, res);
-        return res.status(200).json({ user });
+        return res.status(200).json({ user,technician });
     } catch (error) {
         console.error("Login Error:", error);
         return res.status(error.statusCode || 401).json({ error: error.message });
@@ -56,12 +50,24 @@ exports.login = async (req, res) => {
 };
 
 exports.register = async (req, res) => {
-    const { userData } = req.body;
-    const { error } = createUserSchema.validate(userData);
-    if (error) return res.status(400).json({ error: error.details[0].message });
+    const { userData, technicianData } = req.body;
+    console.log(req.body);
+    
+    // Validate userData
+    const { error: userError } = createUserSchema.validate(userData);
+    if (userError) return res.status(400).json({ error: userError.details[0].message });
+    
+    // If role is TECHNICIAN, validate technicianData
+   
+    
+    if (userData.role === 'TECHNICIAN') {
+        
+        const { error: technicianError } = createTechnicianSchema.validate(technicianData);
+        if (technicianError) return res.status(400).json({ error: technicianError.details[0].message });
+    }
 
     try {
-        await authService.register(userData);
+        await authService.register(userData, technicianData);
         return res.status(201).json({ message: "Registration successful. Please check your email to verify your account." });
     } catch (error) {
         console.error("Register Error:", error);
@@ -79,3 +85,30 @@ exports.verifyEmail = async (req, res) => {
         res.status(error.statusCode || 500).json({ error: error.message });
     }
 };
+exports.forgotPassword = async (req, res) => {
+    try {
+        const { email } = req.body;
+
+       await authService.forgotPassword(email)
+        
+        
+        // Generate a reset token (expires in 15 minutes)
+        return res.status(201).json({ message: "Send Email successful. Please check your email to reset your password." });
+    } catch (error) {
+        console.error("Forgot Password Error:", error.message);
+        res.status(500).json({  error : error.message});
+    }
+};
+exports.resetPassword = async (req,res) => {
+    try {
+        const { token, password } = req.body;
+        console.log(req.body);
+        
+        const { error } = passwordSchema.validate(password);
+        if (error) return res.status(400).json({ error: error.details[0].message });
+        await authService.resetPassword(token,password)
+        return res.status(201).json({ message: "Reset Password successful. Please try to log in again." });
+    } catch (error) {
+        
+    }
+}

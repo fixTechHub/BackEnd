@@ -41,4 +41,29 @@ exports.sendVerificationEmail = async (email, token) => {
     }
 };
 
-module.exports = sendVerificationEmail;
+exports.sendResetPassword = async (email, resetLink) => {
+
+    const emailHTML = `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+            <h2>Welcome!</h2>
+            <p>Please reset your password by clicking the link below:</p>
+            <a href="${resetLink}" style="display: inline-block; padding: 10px 15px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px;">Reset Password</a>
+            <p>If you did not change for this account, you can safely ignore this email.</p>
+        </div>
+    `;
+
+    const mailOptions = {
+        from: `"FixHub" <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: "Reset Password -FixHub",
+        html: emailHTML,
+        text: `Reset your password by visiting this link: ${resetLink}`,
+    };
+
+    try {
+        await transporter.sendMail(mailOptions);
+        console.log(`Reset password sent to ${email}`);
+    } catch (error) {
+        console.error(`Failed to reset password to ${email}:`, error.message);
+    }
+};

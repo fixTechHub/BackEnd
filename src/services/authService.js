@@ -1,13 +1,15 @@
 const { OAuth2Client } = require("google-auth-library");
-const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
 
-const generateToken = require('../utils/jwt');
+const { generateToken, decodeToken } = require('../utils/jwt');
 const HttpError = require('../utils/error');
 const userService = require('./userService');
 const technicianService = require('./technicianService');
-const { sendVerificationEmail } = require('../utils/mail');
-
+const { sendVerificationEmail, sendResetPassword } = require('../utils/mail');
+const { token } = require("morgan");
+const { hashingPassword,comparePassword } = require('../utils/password');
+const { passwordSchema } = require("../validations/authValidation");
 const oAuth2Client = new OAuth2Client(process.env.CLIENT_ID);
 
 // Google Auth
@@ -35,13 +37,17 @@ exports.googleAuth = async (credential) => {
                 email: payload.email,
                 googleId,
                 status: 'ACTIVE',
+                emailVerified: true
             });
         }
-
-        const populatedUser = await userService.populateUserRole(user);
+ 
+        let technician = null
+        if(user.role.name==='TECHNICIAN'){
+            technician = await technicianService.findTechnicianByUserId(user._id)
+        }
         const token = generateToken(user);
 
-        return { user: populatedUser, token };
+        return { user, token,technician };
     } catch (error) {
         throw new HttpError(500, `Google authentication failed: ${error.message}`);
     }
@@ -53,37 +59,46 @@ exports.normalLogin = async (email, password) => {
         const user = await userService.findUserByEmail(email);
         if (!user) throw new HttpError(400, "Invalid email");
 
-        if (user.status === "PENDING") {
+        if (user.emailVerified === false) {
             throw new HttpError(400, "Please verify your email before logging in.");
         }
 
-        const isMatch = await bcrypt.compare(password, user.passwordHash);
-        if (!isMatch) throw new HttpError(400, "Invalid password");
+        const isMatch = await comparePassword(password, user.passwordHash)
 
+        if (!isMatch) throw new HttpError(400, "Invalid password");
+        
         const token = generateToken(user);
-        return { user, token };
+        let technician = null
+        if(user.role.name==='TECHNICIAN'){
+            technician = await technicianService.findTechnicianByUserId(user._id)
+        }
+        console.log(technician);
+        
+        return { user, token, technician };
     } catch (error) {
+        console.log(error.message);
+
         throw new HttpError(error.statusCode || 500, error.message);
     }
 };
 
 // Register
-exports.register = async (userData) => {
+exports.register = async (userData, technicianData = null) => {
     try {
+        const hashedPassword = await hashingPassword(userData.password)
+        userData.password = hashedPassword
         const user = await userService.createNewUser(userData);
-        const populatedUser = await userService.populateUserRole(user);
 
-        if (populatedUser.role.name === "TECHNICIAN") {
-            await technicianService.createNewTechnician(populatedUser._id);
+        if (userData.role === "TECHNICIAN" && technicianData) {
+            await technicianService.createNewTechnician(user._id, technicianData);
         }
 
         const verificationToken = generateToken(user);
-        await sendVerificationEmail(populatedUser.email, verificationToken);
+        await sendVerificationEmail(user.email, verificationToken);
     } catch (error) {
         throw new HttpError(500, `Registration failed: ${error.message}`);
     }
 };
-
 // Email verification
 exports.verifyEmail = async (token) => {
     try {
@@ -91,9 +106,9 @@ exports.verifyEmail = async (token) => {
         const user = await userService.findUserById(decoded.userId);
 
         if (!user) throw new HttpError(400, "Invalid token");
-        if (user.status === "ACTIVE") throw new HttpError(400, "Email already verified");
+        if (user.emailVerified === true) throw new HttpError(400, "Email already verified");
 
-        user.status = "ACTIVE";
+        user.emailVerified = true;
         await user.save();
 
         return `${process.env.FRONT_END_URL}/login`;
@@ -101,3 +116,36 @@ exports.verifyEmail = async (token) => {
         throw new HttpError(500, `Email verification failed: ${error.message}`);
     }
 };
+exports.forgotPassword = async (email) => {
+    try {
+        const user = await userService.findUserByEmail(email)
+
+        if (!user) {
+            throw new HttpError(404, "User not found");
+        }
+
+        // Generate a reset token (expires in 15 minutes)
+        const resetToken = generateToken(user)
+        const resetLink = `${process.env.FRONT_END_URL}/reset-password?token=${resetToken}`
+
+        await sendResetPassword(user.email, resetLink);
+
+
+    } catch (error) {
+        console.error("Forgot Password Error:", error.message);
+        throw new HttpError(500, `Failed to process request  ${error.message}`);
+
+    }
+}
+exports.resetPassword = async (token, password) => {
+    const decoded = await decodeToken(token)
+    const user = await userService.findUserByEmail(decoded.email)
+    
+    if (!user) {
+        throw new HttpError(400, "Invalid or expired token");
+    }
+    const hashedPassword = await hashingPassword(password)
+    user.passwordHash = hashedPassword
+    await user.save()
+
+}

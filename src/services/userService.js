@@ -2,7 +2,7 @@ const User = require('../models/User');
 const Role = require('../models/Role');
 const {generateUserCode} = require('../utils/generateCode')
 exports.findUserByEmail = async (email) => {
-    return await User.findOne({ email }).select('-passwordHash');
+    return await User.findOne({ email }).populate('role')
 };
 
 exports.updateUserGoogleId = async (user, googleId) => {
@@ -17,9 +17,7 @@ exports.findRoleById = async (roleId) => {
     return await Role.findById({roleId})
       
 }
-exports.populateUserRole = async (user) => {
-    return await user.populate('role,-passwordHash')
-}
+
 exports.findUserById = async (userId) => {
     return await User.findById(userId)
 }
@@ -28,22 +26,24 @@ exports.createNewUser = async (userData) => {
         fullName,
         email,
         googleId = null, // default null
-        status = 'INACTIVE',
+        status = 'PENDING',
         role = null, //default
-        password = null // for google Login
+        password = null, // for google Login
+        emailVerified = false
     } = userData;
 
     const userRole = await this.findRoleByName(role)
     
-    const userCode = await generateUserCode(role);
+    const userCode = await generateUserCode();
 
     const newUser = new User({
         userCode,
         fullName,
         email,
         googleId: googleId || null,
-        password: password || null,
+        passwordHash: password || null,
         status,
+        emailVerified: emailVerified,
         role: userRole ? userRole._id : null,
     });
 

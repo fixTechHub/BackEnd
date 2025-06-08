@@ -7,26 +7,25 @@ exports.generateCookie = async (token, res) => {
         maxAge: 24 * 60 * 60 * 1000,
     });
 };
-exports.generateUserCode = async (roleName) => {
-    let prefix;
-    if (roleName === 'CUSTOMER') {
-        prefix = 'C';
-    } else if (roleName === 'TECHNICIAN') {
-        prefix = 'T';
-    } else if (roleName === 'ADMIN'){
-        prefix = 'A'
+
+exports.generateUserCode = async () => {
+    const prefix = 'U';
+    
+    // Generate 10 random digits
+    let randomDigits = '';
+    for (let i = 0; i < 10; i++) {
+        randomDigits += Math.floor(Math.random() * 10);
     }
 
-    const lastUser = await User.findOne({ userCode: new RegExp(`^${prefix}\\d{3}$`) })
-        .sort({ userCode: -1 })
-        .collation({ locale: "en", numericOrdering: true });
+    const userCode = `${prefix}${randomDigits}`;
 
-    let nextNumber = 1;
-    if (lastUser) {
-        const currentNumber = parseInt(lastUser.userCode.substring(1), 10);
-        nextNumber = currentNumber + 1;
+    // Optional: ensure uniqueness in DB
+    const existingUser = await User.findOne({ userCode });
+    if (existingUser) {
+        // Recursively generate a new one if already taken
+        return exports.generateUserCode();
     }
 
-    const userCode = `${prefix}${String(nextNumber).padStart(3, '0')}`;
     return userCode;
 };
+
