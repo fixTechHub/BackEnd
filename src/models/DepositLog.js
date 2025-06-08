@@ -1,14 +1,49 @@
 const mongoose = require('mongoose');
-const { Schema } = mongoose;
 
-const depositLogSchema = new Schema({
-    technicianId: { type: Schema.Types.ObjectId, ref: 'Technician' },
-    type: { type: String, enum: ['DEPOSIT', 'WITHDRAW'], required: true },
-    amount: Number,
-    status: { type: String, enum: ['PENDING', 'APPROVED', 'COMPLETED', 'CANCELLED'], default: 'PENDING' },
+const depositLogSchema = new mongoose.Schema({
+    technicianId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Technician',
+        required: true
+    },
+    type: {
+        type: String,
+        enum: ['DEPOSIT', 'WITHDRAW'],
+        required: true
+    },
+    amount: {
+        type: Number,
+        required: true
+    },
+    status: {
+        type: String,
+        enum: ['PENDING', 'APPROVED', 'COMPLETED', 'CANCELLED'],
+        default: 'PENDING'
+    },
+    paymentMethod: {
+        type: String,
+        enum: ['BANK', 'MISA']
+    },
+    paymentGatewayTransactionId: String,
     transactionCode: String,
-    balanceBefore: Number,
-    balanceAfter: Number
-}, { timestamps: true });
+    balanceBefore: {
+        type: Number,
+        required: true
+    },
+    balanceAfter: Number,
+    approvedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    approvedAt: Date,
+    note: String
+}, {
+    timestamps: true
+});
+
+depositLogSchema.index({ technicianId: 1 });
+depositLogSchema.index({ status: 1 });
+depositLogSchema.index({ type: 1 });
+depositLogSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('DepositLog', depositLogSchema);
