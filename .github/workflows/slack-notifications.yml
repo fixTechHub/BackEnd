@@ -15,11 +15,11 @@ on:
 
 jobs:
   notify-slack:
-    name: Notify Slack
+    name: Gửi thông báo đến Slack
     runs-on: ubuntu-latest
     steps:
-      # Push lên nhánh main và là merge
-      - name: Notify: Merge into MAIN
+      # --- THÔNG BÁO MERGE VÀO MAIN ---
+      - name: Gửi thông báo Merge vào Main
         if: |
           github.event_name == 'push' &&
           github.ref_name == 'main' &&
@@ -28,13 +28,13 @@ jobs:
         with:
           payload: |
             {
-              "text": "✅ Đã gộp code vào MAIN bởi ${{ github.actor }}\n<${{ github.event.compare }}|Xem các thay đổi>\nNội dung: `${{ github.event.head_commit.message }}`"
+              "text": "✅ *Đã gộp code vào MAIN*\n*Người thực hiện:* `${{ github.actor }}`\n*Nội dung:* `${{ github.event.head_commit.message }}`\n<${{ github.event.compare }}|Xem các thay đổi>"
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
-      # Push lên nhánh phụ
-      - name: Notify: Push to feature branch
+      # --- THÔNG BÁO PUSH LÊN CÁC NHÁNH PHỤ ---
+      - name: Gửi thông báo Push (Nhánh phụ)
         if: |
           github.event_name == 'push' &&
           github.ref_name != 'main'
@@ -42,31 +42,31 @@ jobs:
         with:
           payload: |
             {
-              "text": "🚀 Code mới trên nhánh `${{ github.ref_name }}` bởi `${{ github.actor }}`\nNội dung: `${{ github.event.head_commit.message }}`\n<${{ github.event.compare }}|Xem các thay đổi>"
+              "text": "🚀 *Đã có code mới trên nhánh `${{ github.ref_name }}`*\n*Người thực hiện:* `${{ github.actor }}`\n*Nội dung commit:* `${{ github.event.head_commit.message }}`\n<${{ github.event.compare }}|Xem các thay đổi>"
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
-      # Mở Pull Request
-      - name: Notify: Opened Pull Request
+      # --- THÔNG BÁO MỞ PULL REQUEST ---
+      - name: Gửi thông báo Pull Request đã mở
         if: github.event_name == 'pull_request' && github.event.action == 'opened'
         uses: slackapi/slack-github-action@v1.26.0
         with:
           payload: |
             {
-              "text": "📥 Yêu cầu gộp code mới bởi `${{ github.actor }}`\n*Tiêu đề:* <${{ github.event.pull_request.html_url }}|${{ github.event.pull_request.title }}>\nGộp từ `${{ github.event.pull_request.head.ref }}` → `${{ github.event.pull_request.base.ref }}`"
+              "text": "📥 *Yêu cầu gộp code mới*\n*Người tạo:* `${{ github.actor }}`\n*Tiêu đề:* <${{ github.event.pull_request.html_url }}|${{ github.event.pull_request.title }}>\n*Chi tiết:* Gộp nhánh `${{ github.event.pull_request.head.ref }}` vào `${{ github.event.pull_request.base.ref }}`"
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
-      # Đóng Pull Request mà KHÔNG MERGE
-      - name: Notify: Pull Request Closed (Not Merged)
+      # --- THÔNG BÁO ĐÓNG PULL REQUEST (KHÔNG MERGE) ---
+      - name: Gửi thông báo Pull Request đã bị Đóng
         if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == false
         uses: slackapi/slack-github-action@v1.26.0
         with:
           payload: |
             {
-              "text": "❌ Đã đóng yêu cầu gộp code: *${{ github.event.pull_request.title }}* bởi `${{ github.actor }}`\n<${{ github.event.pull_request.html_url }}|Xem chi tiết>"
+              "text": "❌ *Đã đóng yêu cầu gộp code (Không Merge)*\n*Người thực hiện:* `${{ github.actor }}`\n*Tiêu đề:* <${{ github.event.pull_request.html_url }}|${{ github.event.pull_request.title }}>"
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
