@@ -1,4 +1,4 @@
-name: Slack Notifications
+name: Simple Text Slack Notifications
 
 on:
   push:
@@ -26,31 +26,28 @@ jobs:
           contains(github.event.head_commit.message, 'Merge pull request')
         uses: slackapi/slack-github-action@v1.26.0
         with:
-          payload: '{"text": "✅ Đã gộp code vào MAIN | Người thực hiện: ${{ github.actor }} | Nội dung: ${{ github.event.head_commit.message }} | <${{ github.event.compare }}|Xem thay đổi>"}'
+          payload: '{"text": "✅ Đã gộp code vào MAIN | Người thực hiện: ${{ github.actor }} | <${{ github.event.compare }}|Xem thay đổi>"}'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
-      # --- THÔNG BÁO PUSH LÊN CÁC NHÁNH PHỤ (Định dạng nhiều dòng theo yêu cầu) ---
+      # --- THÔNG BÁO PUSH LÊN CÁC NHÁNH PHỤ ---
       - name: Gửi thông báo Push (Nhánh phụ)
         if: |
           github.event_name == 'push' &&
           github.ref_type == 'branch' &&
           github.ref_name != 'main'
         uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: '{"text": "🚀 PUSH: Nhánh `${{ github.ref_name }}` | Người thực hiện: ${{ github.actor }} | Nội dung: `${{ github.event.head_commit.message }}` | <${{ github.event.compare }}|Xem thay đổi>"}'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          MESSAGE: |
-            🚀 `${{ github.actor }}` *đã PUSH code mới trên nhánh `${{ github.ref_name }}` với nội dung commit: *`${{ github.event.head_commit.message }}`
-            <${{ github.event.compare }}|Xem các thay đổi>
-        with:
-          payload: ${{ toJson({ "text": env.MESSAGE }) }}
 
       # --- THÔNG BÁO MỞ PULL REQUEST ---
       - name: Gửi thông báo Pull Request đã mở
         if: github.event_name == 'pull_request' && github.event.action == 'opened'
         uses: slackapi/slack-github-action@v1.26.0
         with:
-          payload: '{"text": "📥 PULL REQUEST MỚI: `${{ github.event.pull_request.title }}` | Người tạo: ${{ github.actor }} | Chi tiết: `${{ github.event.pull_request.head.ref }}` → `${{ github.event.pull_request.base.ref }}` | <${{ github.event.pull_request.html_url }}|Xem chi tiết>"}'
+          payload: '{"text": "📥 PULL REQUEST MỚI: `${{ github.event.pull_request.title }}` | Người tạo: ${{ github.actor }} | <${{ github.event.pull_request.html_url }}|Xem chi tiết>"}'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
