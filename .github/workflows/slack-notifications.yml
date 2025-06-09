@@ -38,7 +38,7 @@ jobs:
           github.ref_name != 'main'
         uses: slackapi/slack-github-action@v1.26.0
         with:
-          payload: '{"text": "🚀 PUSH: Nhánh `${{ github.ref_name }}` | Người thực hiện: ${{ github.actor }} | Nội dung: `${{ github.event.head_commit.message }}` | <${{ github.event.compare }}|Xem thay đổi>"}'
+          payload: '{"text": "🚀 `${{ github.actor }}` đã PUSH code mới lên nhánh `${{ github.ref_name }}` với nội dung commit: `${{ github.event.head_commit.message }}` | <${{ github.event.compare }}|Xem thay đổi>"}'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
