@@ -11,75 +11,151 @@ on:
       - bop
       - tuan
   pull_request:
-    types: [opened, closed] # Bỏ 'reopened' nếu không cần thiết để gọn hơn
+    types: [opened, closed]
 
 jobs:
   notify-slack:
     name: Gửi thông báo đến Slack
     runs-on: ubuntu-latest
     steps:
-      # --- THÔNG BÁO MERGE VÀO MAIN (QUAN TRỌNG NHẤT) ---
+      # --- THÔNG BÁO MERGE VÀO MAIN ---
       - name: Gửi thông báo Merge vào Main
         if: |
           github.event_name == 'push' &&
           github.ref_name == 'main' &&
           contains(github.event.head_commit.message, 'Merge pull request')
-        uses: rtCamp/action-slack-notify@v2
-        env:
-          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+        uses: slackapi/slack-github-action@v1.26.0
         with:
-          slack_message: |
-            *Người thực hiện:* `${{ github.actor }}`
-            *Sự kiện:* Gộp code vào nhánh *`main`*
-            *Nội dung:* `${{ github.event.head_commit.message }}`
-            <${{ github.event.compare }}|Xem các thay đổi>
-          slack_title: "✅ Đã gộp code vào MAIN"
-          slack_color: '#8A2BE2' # Màu tím cho sự kiện quan trọng
-          slack_footer: ''
+          payload: |
+            {
+              "text": "✅ Đã gộp code vào MAIN bởi ${{ github.actor }}",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "✅ Đã gộp code vào MAIN"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    { "type": "mrkdwn", "text": "*Người thực hiện:*\n${{ github.actor }}" },
+                    { "type": "mrkdwn", "text": "*Chi tiết:*\n<${{ github.event.compare }}|Xem các thay đổi>" }
+                  ]
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    { "type": "mrkdwn", "text": "Nội dung: `${{ github.event.head_commit.message }}`" }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
       # --- THÔNG BÁO PUSH LÊN CÁC NHÁNH PHỤ ---
       - name: Gửi thông báo Push (Nhánh phụ)
         if: |
           github.event_name == 'push' &&
           github.ref_name != 'main'
-        uses: rtCamp/action-slack-notify@v2
-        env:
-          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+        uses: slackapi/slack-github-action@v1.26.0
         with:
-          slack_message: |
-            *Người thực hiện:* `${{ github.actor }}`
-            *Sự kiện:* Đẩy code lên nhánh *`${{ github.ref_name }}`*
-            *Nội dung commit:* `${{ github.event.head_commit.message }}`
-            <${{ github.event.compare }}|Xem các thay đổi>
-          slack_title: "🚀 Đã có code mới"
-          slack_color: '#24a0ed'
-          slack_footer: ''
+          payload: |
+            {
+              "text": "🚀 Code mới trên nhánh ${{ github.ref_name }} bởi ${{ github.actor }}",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "🚀 Đã có code mới"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    { "type": "mrkdwn", "text": "*Người thực hiện:*\n${{ github.actor }}" },
+                    { "type": "mrkdwn", "text": "*Nhánh:*\n`${{ github.ref_name }}`" }
+                  ]
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    { "type": "mrkdwn", "text": "Nội dung commit: `${{ github.event.head_commit.message }}`\n<${{ github.event.compare }}|Xem các thay đổi>" }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
       # --- THÔNG BÁO MỞ PULL REQUEST ---
       - name: Gửi thông báo Pull Request đã mở
         if: github.event_name == 'pull_request' && github.event.action == 'opened'
-        uses: rtCamp/action-slack-notify@v2
-        env:
-          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+        uses: slackapi/slack-github-action@v1.26.0
         with:
-          slack_message: |
-            *Người tạo:* `${{ github.actor }}`
-            *Yêu cầu gộp nhánh:* `${{ github.event.pull_request.head.ref }}` → `${{ github.event.pull_request.base.ref }}`
-            *Nội dung:* <${{ github.event.pull_request.html_url }}|${{ github.event.pull_request.title }}>
-          slack_title: "📥 Yêu cầu gộp code mới"
-          slack_color: '#f2c744'
-          slack_footer: ''
+          payload: |
+            {
+              "text": "📥 Yêu cầu gộp code mới từ ${{ github.actor }}",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "📥 Yêu cầu gộp code mới"
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Nội dung:* <${{ github.event.pull_request.html_url }}|${{ github.event.pull_request.title }}>"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    { "type": "mrkdwn", "text": "*Người tạo:*\n`${{ github.actor }}`" },
+                    { "type": "mrkdwn", "text": "*Gộp từ nhánh:*\n`${{ github.event.pull_request.head.ref }}` → `${{ github.event.pull_request.base.ref }}`" }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
       # --- THÔNG BÁO ĐÓNG PULL REQUEST (KHÔNG MERGE) ---
       - name: Gửi thông báo Pull Request đã bị Đóng
         if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == false
-        uses: rtCamp/action-slack-notify@v2
-        env:
-          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+        uses: slackapi/slack-github-action@v1.26.0
         with:
-          slack_message: |
-            *Người thực hiện:* `${{ github.actor }}`
-            *Nội dung:* <${{ github.event.pull_request.html_url }}|${{ github.event.pull_request.title }}>
-          slack_title: "❌ Đã đóng yêu cầu gộp code (Không Merge)"
-          slack_color: '#d12f2f'
-          slack_footer: ''
+          payload: |
+            {
+              "text": "❌ Đã đóng yêu cầu gộp code: ${{ github.event.pull_request.title }}",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "❌ Đã đóng yêu cầu gộp code (Không Merge)"
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Nội dung:* <${{ github.event.pull_request.html_url }}|${{ github.event.pull_request.title }}>"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    { "type": "mrkdwn", "text": "*Người đóng:*\n`${{ github.actor }}`" }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
