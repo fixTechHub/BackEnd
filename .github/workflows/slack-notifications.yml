@@ -24,15 +24,14 @@ jobs:
     
     # Các bước thực thi
     steps:
-      # Bước 1: Sử dụng một Action có sẵn từ Marketplace để gửi thông báo
+      # Bước 1: Gửi thông báo khi có Push
       - name: Gửi thông báo Push
-        # Chỉ chạy bước này nếu sự kiện là 'push'
         if: github.event_name == 'push'
         uses: slackapi/slack-github-action@v1.26.0
         with:
-          # Payload là nội dung tin nhắn, sử dụng định dạng Block Kit của Slack cho đẹp
           payload: |
             {
+              "text": "🚀 Push to ${{ github.repository }} by ${{ github.actor }}",
               "blocks": [
                 {
                   "type": "section",
@@ -51,16 +50,16 @@ jobs:
               ]
             }
         env:
-          # Lấy Webhook URL từ GitHub Secrets đã tạo ở Bước 2
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
+      # Bước 2: Gửi thông báo khi Pull Request được mở
       - name: Gửi thông báo Pull Request đã mở
-        # Chỉ chạy nếu sự kiện là Pull Request và hành động là 'opened'
         if: github.event_name == 'pull_request' && github.event.action == 'opened'
         uses: slackapi/slack-github-action@v1.26.0
         with:
           payload: |
             {
+              "text": "📥 New Pull Request in ${{ github.repository }} by ${{ github.actor }}",
               "blocks": [
                 {
                   "type": "section",
@@ -81,13 +80,14 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
+      # Bước 3: Gửi thông báo khi Pull Request được Merge
       - name: Gửi thông báo Pull Request đã được Merge
-        # Chỉ chạy nếu PR được 'closed' và trạng thái 'merged' là true
         if: github.event.pull_request.merged == true
         uses: slackapi/slack-github-action@v1.26.0
         with:
           payload: |
             {
+              "text": "✅ Pull Request Merged in ${{ github.repository }}",
               "blocks": [
                 {
                   "type": "section",
@@ -101,13 +101,14 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
+      # Bước 4: Gửi thông báo khi Pull Request bị Đóng
       - name: Gửi thông báo Pull Request đã bị Đóng
-        # Chỉ chạy nếu PR được 'closed' và trạng thái 'merged' là false
         if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == false
         uses: slackapi/slack-github-action@v1.26.0
         with:
           payload: |
             {
+              "text": "❌ Pull Request Closed in ${{ github.repository }}",
               "blocks": [
                 {
                   "type": "section",
