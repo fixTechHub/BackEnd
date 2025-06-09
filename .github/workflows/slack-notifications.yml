@@ -18,7 +18,7 @@ jobs:
     name: Gửi thông báo đến Slack
     runs-on: ubuntu-latest
     steps:
-      # --- THÔNG BÁO MERGE VÀO MAIN ---
+      # --- THÔNG BÁO MERGE VÀO MAIN (Giữ dạng đơn giản, ổn định) ---
       - name: Gửi thông báo Merge vào Main
         if: |
           github.event_name == 'push' &&
@@ -26,35 +26,41 @@ jobs:
           contains(github.event.head_commit.message, 'Merge pull request')
         uses: slackapi/slack-github-action@v1.26.0
         with:
-          payload: ${{ toJson({
-            "text": "✅ *Đã gộp code vào MAIN*\n*Người thực hiện:* `${{ github.actor }}`\n*Nội dung:* `${{ github.event.head_commit.message }}`\n<${{ github.event.compare }}|Xem các thay đổi>"
-          }) }}
+          payload: '{"text": "✅ Đã gộp code vào MAIN | Người thực hiện: ${{ github.actor }} | Nội dung: ${{ github.event.head_commit.message }} | <${{ github.event.compare }}|Xem thay đổi>"}'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
-      # --- THÔNG BÁO PUSH LÊN CÁC NHÁNH PHỤ ---
+      # --- THÔNG BÁO PUSH LÊN CÁC NHÁNH PHỤ (Sửa lại theo yêu cầu của bạn) ---
       - name: Gửi thông báo Push (Nhánh phụ)
         if: |
           github.event_name == 'push' &&
           github.ref_type == 'branch' &&
           github.ref_name != 'main'
         uses: slackapi/slack-github-action@v1.26.0
-        with:
-          payload: ${{ toJson({
-            "text": "🚀 `${{ github.actor }}` *đã PUSH code mới trên nhánh `${{ github.ref_name }}` với nội dung commit: *`${{ github.event.head_commit.message }}`\n<${{ github.event.compare }}|Xem các thay đổi>"
-          }) }}
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          # Định nghĩa nội dung tin nhắn nhiều dòng một cách an toàn
+          MESSAGE: |
+            🚀 `${{ github.actor }}` *đã PUSH code mới trên nhánh `${{ github.ref_name }}` với nội dung commit: *`${{ github.event.head_commit.message }}`
+            <${{ github.event.compare }}|Xem các thay đổi>
+        with:
+          # Sử dụng toJson để đóng gói tin nhắn một cách an toàn
+          payload: ${{ toJson({ "text": env.MESSAGE }) }}
 
-      # --- THÔNG BÁO MỞ PULL REQUEST ---
+      # --- THÔNG BÁO MỞ PULL REQUEST (Giữ dạng đơn giản, ổn định) ---
       - name: Gửi thông báo Pull Request đã mở
         if: github.event_name == 'pull_request' && github.event.action == 'opened'
         uses: slackapi/slack-github-action@v1.26.0
         with:
-          payload: ${{ toJson({
-            "text": "📥 *Yêu cầu gộp code mới*\n*Người tạo:* `${{ github.actor }}`\n*Tiêu đề:* <${{ github.event.pull_request.html_url }}|${{ github.event.pull_request.title }}>\n*Chi tiết:* Gộp nhánh `${{ github.event.pull_request.head.ref }}` vào `${{ github.event.pull_request.base.ref }}`"
-          }) }}
+          payload: '{"text": "📥 PULL REQUEST MỚI: `${{ github.event.pull_request.title }}` | Người tạo: ${{ github.actor }} | Chi tiết: `${{ github.event.pull_request.head.ref }}` → `${{ github.event.pull_request.base.ref }}` | <${{ github.event.pull_request.html_url }}|Xem chi tiết>"}'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
-      # --- THÔNG BÁO ĐÓNG PULL REQUEST (KHÔNG MERGE) ---
+      # --- THÔNG BÁO ĐÓNG PULL REQUEST (KHÔNG MERGE) (Giữ dạng đơn giản, ổn định) ---
+      - name: Gửi thông báo Pull Request đã bị Đóng
+        if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == false
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: '{"text": "❌ ĐÃ ĐÓNG PULL REQUEST (Không merge): `${{ github.event.pull_request.title }}` | Người thực hiện: ${{ github.actor }} | <${{ github.event.pull_request.html_url }}|Xem chi tiết>"}'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
