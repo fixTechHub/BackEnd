@@ -18,7 +18,7 @@ jobs:
     name: Gửi thông báo đến Slack
     runs-on: ubuntu-latest
     steps:
-      # --- THÔNG BÁO MERGE VÀO MAIN (Giữ dạng đơn giản, ổn định) ---
+      # --- THÔNG BÁO MERGE VÀO MAIN ---
       - name: Gửi thông báo Merge vào Main
         if: |
           github.event_name == 'push' &&
@@ -30,7 +30,7 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
-      # --- THÔNG BÁO PUSH LÊN CÁC NHÁNH PHỤ (Sửa lại theo yêu cầu của bạn) ---
+      # --- THÔNG BÁO PUSH LÊN CÁC NHÁNH PHỤ (Định dạng nhiều dòng theo yêu cầu) ---
       - name: Gửi thông báo Push (Nhánh phụ)
         if: |
           github.event_name == 'push' &&
@@ -39,15 +39,13 @@ jobs:
         uses: slackapi/slack-github-action@v1.26.0
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          # Định nghĩa nội dung tin nhắn nhiều dòng một cách an toàn
           MESSAGE: |
             🚀 `${{ github.actor }}` *đã PUSH code mới trên nhánh `${{ github.ref_name }}` với nội dung commit: *`${{ github.event.head_commit.message }}`
             <${{ github.event.compare }}|Xem các thay đổi>
         with:
-          # Sử dụng toJson để đóng gói tin nhắn một cách an toàn
           payload: ${{ toJson({ "text": env.MESSAGE }) }}
 
-      # --- THÔNG BÁO MỞ PULL REQUEST (Giữ dạng đơn giản, ổn định) ---
+      # --- THÔNG BÁO MỞ PULL REQUEST ---
       - name: Gửi thông báo Pull Request đã mở
         if: github.event_name == 'pull_request' && github.event.action == 'opened'
         uses: slackapi/slack-github-action@v1.26.0
@@ -56,7 +54,7 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
-      # --- THÔNG BÁO ĐÓNG PULL REQUEST (KHÔNG MERGE) (Giữ dạng đơn giản, ổn định) ---
+      # --- THÔNG BÁO ĐÓNG PULL REQUEST (KHÔNG MERGE) ---
       - name: Gửi thông báo Pull Request đã bị Đóng
         if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == false
         uses: slackapi/slack-github-action@v1.26.0
