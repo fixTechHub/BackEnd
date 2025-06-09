@@ -1,0 +1,123 @@
+name: Slack Notifications
+
+on:
+  # Kích hoạt khi có ai đó push code lên các nhánh được chỉ định
+  push:
+    branches:
+      - main
+      - master
+      - develop
+      - tri
+      - duy
+      - bop
+      - tuan
+
+  # Kích hoạt khi có hoạt động liên quan đến Pull Request
+  pull_request:
+    types: [opened, closed, reopened]
+
+# Các công việc (jobs) sẽ được thực thi
+jobs:
+  notify-slack:
+    name: Gửi thông báo đến Slack
+    
+    runs-on: ubuntu-latest
+    
+    # Các bước thực thi
+    steps:
+      # Bước 1: Sử dụng một Action có sẵn từ Marketplace để gửi thông báo
+      - name: Gửi thông báo Push
+        # Chỉ chạy bước này nếu sự kiện là 'push'
+        if: github.event_name == 'push'
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          # Payload là nội dung tin nhắn, sử dụng định dạng Block Kit của Slack cho đẹp
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "🚀 *Push Event*\n<${{ github.event.compare }}|*${{ github.repository }}*>\n*${{ github.actor }}* vừa push code lên nhánh `*${{ github.ref_name }}*`"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    { "type": "mrkdwn", "text": "*Commits:*\n${{ github.event.commits_length }}" },
+                    { "type": "mrkdwn", "text": "*Repository:*\n${{ github.repository }}" }
+                  ]
+                }
+              ]
+            }
+        env:
+          # Lấy Webhook URL từ GitHub Secrets đã tạo ở Bước 2
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Gửi thông báo Pull Request đã mở
+        # Chỉ chạy nếu sự kiện là Pull Request và hành động là 'opened'
+        if: github.event_name == 'pull_request' && github.event.action == 'opened'
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "📥 *New Pull Request*\n<${{ github.event.pull_request.html_url }}|*${{ github.event.pull_request.title }}*>\n*${{ github.actor }}* vừa tạo một pull request mới."
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    { "type": "mrkdwn", "text": "*Từ nhánh:*\n`${{ github.event.pull_request.head.ref }}`" },
+                    { "type": "mrkdwn", "text": "*Vào nhánh:*\n`${{ github.event.pull_request.base.ref }}`" }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Gửi thông báo Pull Request đã được Merge
+        # Chỉ chạy nếu PR được 'closed' và trạng thái 'merged' là true
+        if: github.event.pull_request.merged == true
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "✅ *Pull Request Merged*\n<${{ github.event.pull_request.html_url }}|*${{ github.event.pull_request.title }}*>\nPull request đã được merge bởi *${{ github.actor }}*."
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Gửi thông báo Pull Request đã bị Đóng
+        # Chỉ chạy nếu PR được 'closed' và trạng thái 'merged' là false
+        if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == false
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "❌ *Pull Request Closed*\n<${{ github.event.pull_request.html_url }}|*${{ github.event.pull_request.title }}*>\nPull request đã bị đóng bởi *${{ github.actor }}*."
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
