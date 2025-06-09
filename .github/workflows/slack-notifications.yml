@@ -35,7 +35,8 @@ jobs:
         if: |
           github.event_name == 'push' &&
           github.ref_type == 'branch' &&
-          github.ref_name != 'main'
+          github.ref_name != 'main' &&
+          !contains(github.event.head_commit.message, 'Merge pull request')
         uses: slackapi/slack-github-action@v1.26.0
         with:
           payload: '{"text": "🚀 `${{ github.actor }}` đã PUSH code mới lên nhánh `${{ github.ref_name }}` với nội dung commit: `${{ github.event.head_commit.message }}` | <${{ github.event.compare }}|Xem thay đổi>"}'
