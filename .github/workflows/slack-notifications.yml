@@ -1,7 +1,6 @@
-name: Slack Notifications
+name: Simple Text Slack Notifications
 
 on:
-  # Kích hoạt khi có ai đó push code lên các nhánh được chỉ định
   push:
     branches:
       - main
@@ -11,113 +10,53 @@ on:
       - duy
       - bop
       - tuan
-
-  # Kích hoạt khi có hoạt động liên quan đến Pull Request
   pull_request:
-    types: [opened, closed, reopened]
+    types: [opened, closed]
 
-# Các công việc (jobs) sẽ được thực thi
 jobs:
   notify-slack:
     name: Gửi thông báo đến Slack
     runs-on: ubuntu-latest
-    
-    # Các bước thực thi
     steps:
-      # Bước 1: Gửi thông báo khi có Push
-      - name: Gửi thông báo Push
-        if: github.event_name == 'push'
+      # --- THÔNG BÁO MERGE VÀO MAIN ---
+      - name: Gửi thông báo Merge vào Main
+        if: |
+          github.event_name == 'push' &&
+          github.ref_name == 'main' &&
+          contains(github.event.head_commit.message, 'Merge pull request')
         uses: slackapi/slack-github-action@v1.26.0
         with:
-          payload: |
-            {
-              "text": "🚀 Push to ${{ github.repository }} by ${{ github.actor }}",
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "🚀 *Push Event*\n<${{ github.event.compare }}|*${{ github.repository }}*>\n*${{ github.actor }}* vừa push code lên nhánh `*${{ github.ref_name }}*`"
-                  }
-                },
-                {
-                  "type": "section",
-                  "fields": [
-                    { "type": "mrkdwn", "text": "*Commits:*\n<${{ github.event.compare }}|Xem chi tiết>" },
-                    { "type": "mrkdwn", "text": "*Repository:*\n${{ github.repository }}" }
-                  ]
-                }
-              ]
-            }
+          payload: '{"text": "✅ Đã gộp code vào MAIN | Người thực hiện: ${{ github.actor }} | <${{ github.event.compare }}|Xem thay đổi>"}'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
-      # Bước 2: Gửi thông báo khi Pull Request được mở
+      # --- THÔNG BÁO PUSH LÊN CÁC NHÁNH PHỤ ---
+      - name: Gửi thông báo Push (Nhánh phụ)
+        if: |
+          github.event_name == 'push' &&
+          github.ref_type == 'branch' &&
+          github.ref_name != 'main' &&
+          !contains(github.event.head_commit.message, 'Merge pull request')
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: '{"text": "🚀 `${{ github.actor }}` đã PUSH code mới lên nhánh `${{ github.ref_name }}` với nội dung commit: `${{ github.event.head_commit.message }}` | <${{ github.event.compare }}|Xem thay đổi>"}'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      # --- THÔNG BÁO MỞ PULL REQUEST ---
       - name: Gửi thông báo Pull Request đã mở
         if: github.event_name == 'pull_request' && github.event.action == 'opened'
         uses: slackapi/slack-github-action@v1.26.0
         with:
-          payload: |
-            {
-              "text": "📥 New Pull Request in ${{ github.repository }} by ${{ github.actor }}",
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "📥 *New Pull Request*\n<${{ github.event.pull_request.html_url }}|*${{ github.event.pull_request.title }}*>\n*${{ github.actor }}* vừa tạo một pull request mới."
-                  }
-                },
-                {
-                  "type": "section",
-                  "fields": [
-                    { "type": "mrkdwn", "text": "*Từ nhánh:*\n`${{ github.event.pull_request.head.ref }}`" },
-                    { "type": "mrkdwn", "text": "*Vào nhánh:*\n`${{ github.event.pull_request.base.ref }}`" }
-                  ]
-                }
-              ]
-            }
+          payload: '{"text": "📥 PULL REQUEST MỚI: `${{ github.event.pull_request.title }}` | Người tạo: ${{ github.actor }} | <${{ github.event.pull_request.html_url }}|Xem chi tiết>"}'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
-      # Bước 3: Gửi thông báo khi Pull Request được Merge
-      - name: Gửi thông báo Pull Request đã được Merge
-        if: github.event.pull_request.merged == true
-        uses: slackapi/slack-github-action@v1.26.0
-        with:
-          payload: |
-            {
-              "text": "✅ Pull Request Merged in ${{ github.repository }}",
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "✅ *Pull Request Merged*\n<${{ github.event.pull_request.html_url }}|*${{ github.event.pull_request.title }}*>\nPull request đã được merge bởi *${{ github.actor }}*."
-                  }
-                }
-              ]
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-
-      # Bước 4: Gửi thông báo khi Pull Request bị Đóng
+      # --- THÔNG BÁO ĐÓNG PULL REQUEST (KHÔNG MERGE) ---
       - name: Gửi thông báo Pull Request đã bị Đóng
         if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == false
         uses: slackapi/slack-github-action@v1.26.0
         with:
-          payload: |
-            {
-              "text": "❌ Pull Request Closed in ${{ github.repository }}",
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "❌ *Pull Request Closed*\n<${{ github.event.pull_request.html_url }}|*${{ github.event.pull_request.title }}*>\nPull request đã bị đóng bởi *${{ github.actor }}*."
-                  }
-                }
-              ]
-            }
+          payload: '{"text": "❌ ĐÃ ĐÓNG PULL REQUEST (Không merge): `${{ github.event.pull_request.title }}` | Người thực hiện: ${{ github.actor }} | <${{ github.event.pull_request.html_url }}|Xem chi tiết>"}'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
