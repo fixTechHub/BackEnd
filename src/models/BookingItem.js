@@ -33,6 +33,8 @@ const bookingItemSchema = new mongoose.Schema({
         type: Date,
         default: Date.now
     }
+}, {
+    timestamps: true
 });
 
 bookingItemSchema.index({ bookingPriceId: 1 });

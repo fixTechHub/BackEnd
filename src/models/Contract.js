@@ -8,8 +8,7 @@ const contractSchema = new mongoose.Schema({
     },
     contractCode: {
         type: String,
-        required: true,
-        unique: true
+        required: true
     },
     effectiveDate: {
         type: Date,
