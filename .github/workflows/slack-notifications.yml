@@ -58,12 +58,3 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
       # --- THÔNG BÁO ĐÓNG PULL REQUEST (KHÔNG MERGE) ---
-      - name: Gửi thông báo Pull Request đã bị Đóng
-        if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == false
-        uses: slackapi/slack-github-action@v1.26.0
-        with:
-          payload: ${{ toJson({
-            "text": "❌ *Đã đóng yêu cầu gộp code (Không Merge)*\n*Người thực hiện:* `${{ github.actor }}`\n*Tiêu đề:* <${{ github.event.pull_request.html_url }}|${{ github.event.pull_request.title }}>"
-          }) }}
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
