@@ -4,10 +4,12 @@ const app = express();
 const routes = require('./routes')
 const actionLogger = require('./middlewares/actionLogger');
 
+// Allow basic cross-origin requests
 app.use(cors());
 
 // Parse JSON
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Middleware logging hành động
 app.use(actionLogger);
