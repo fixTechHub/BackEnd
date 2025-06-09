@@ -28,6 +28,8 @@ const bookingItemLogSchema = new mongoose.Schema({
         type: Date,
         default: Date.now
     }
+}, {
+    timestamps: true
 });
 
 bookingItemLogSchema.index({ bookingItemId: 1 });
