@@ -20,7 +20,6 @@ on:
 jobs:
   notify-slack:
     name: Gửi thông báo đến Slack
-    
     runs-on: ubuntu-latest
     
     # Các bước thực thi
@@ -45,7 +44,7 @@ jobs:
                 {
                   "type": "section",
                   "fields": [
-                    { "type": "mrkdwn", "text": "*Commits:*\n${{ github.event.commits_length }}" },
+                    { "type": "mrkdwn", "text": "*Commits:*\n<${{ github.event.compare }}|Xem chi tiết>" },
                     { "type": "mrkdwn", "text": "*Repository:*\n${{ github.repository }}" }
                   ]
                 }
