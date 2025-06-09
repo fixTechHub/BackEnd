@@ -18,8 +18,7 @@ const receiptSchema = new mongoose.Schema({
     },
     receiptCode: {
         type: String,
-        required: true,
-        unique: true
+        required: true
     },
     paymentGatewayTransactionId: String,
     totalAmount: {
