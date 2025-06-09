@@ -1,4 +1,4 @@
-name: Slack Notifications
+name: Simple Text Slack Notifications
 
 on:
   push:
@@ -26,10 +26,7 @@ jobs:
           contains(github.event.head_commit.message, 'Merge pull request')
         uses: slackapi/slack-github-action@v1.26.0
         with:
-          payload: |
-            {
-              "text": "✅ *Đã gộp code vào MAIN*\n*Người thực hiện:* `${{ github.actor }}`\n*Nội dung:* `${{ github.event.head_commit.message }}`\n<${{ github.event.compare }}|Xem các thay đổi>"
-            }
+          payload: '{"text": "✅ Đã gộp code vào MAIN | Người thực hiện: ${{ github.actor }} | <${{ github.event.compare }}|Xem thay đổi>"}'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
@@ -37,13 +34,11 @@ jobs:
       - name: Gửi thông báo Push (Nhánh phụ)
         if: |
           github.event_name == 'push' &&
+          github.ref_type == 'branch' &&
           github.ref_name != 'main'
         uses: slackapi/slack-github-action@v1.26.0
         with:
-          payload: |
-            {
-              "text": "🚀 *Đã có code mới trên nhánh `${{ github.ref_name }}`*\n*Người thực hiện:* `${{ github.actor }}`\n*Nội dung commit:* `${{ github.event.head_commit.message }}`\n<${{ github.event.compare }}|Xem các thay đổi>"
-            }
+          payload: '{"text": "🚀 `${{ github.actor }}` đã PUSH code mới lên nhánh `${{ github.ref_name }}` với nội dung commit: `${{ github.event.head_commit.message }}` | <${{ github.event.compare }}|Xem thay đổi>"}'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
@@ -52,10 +47,7 @@ jobs:
         if: github.event_name == 'pull_request' && github.event.action == 'opened'
         uses: slackapi/slack-github-action@v1.26.0
         with:
-          payload: |
-            {
-              "text": "📥 *Yêu cầu gộp code mới*\n*Người tạo:* `${{ github.actor }}`\n*Tiêu đề:* <${{ github.event.pull_request.html_url }}|${{ github.event.pull_request.title }}>\n*Chi tiết:* Gộp nhánh `${{ github.event.pull_request.head.ref }}` vào `${{ github.event.pull_request.base.ref }}`"
-            }
+          payload: '{"text": "📥 PULL REQUEST MỚI: `${{ github.event.pull_request.title }}` | Người tạo: ${{ github.actor }} | <${{ github.event.pull_request.html_url }}|Xem chi tiết>"}'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
@@ -64,9 +56,6 @@ jobs:
         if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == false
         uses: slackapi/slack-github-action@v1.26.0
         with:
-          payload: |
-            {
-              "text": "❌ *Đã đóng yêu cầu gộp code (Không Merge)*\n*Người thực hiện:* `${{ github.actor }}`\n*Tiêu đề:* <${{ github.event.pull_request.html_url }}|${{ github.event.pull_request.title }}>"
-            }
+          payload: '{"text": "❌ ĐÃ ĐÓNG PULL REQUEST (Không merge): `${{ github.event.pull_request.title }}` | Người thực hiện: ${{ github.actor }} | <${{ github.event.pull_request.html_url }}|Xem chi tiết>"}'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
