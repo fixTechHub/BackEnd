@@ -40,9 +40,9 @@ exports.googleAuth = async (credential) => {
                 emailVerified: true
             });
         }
- 
+        
         let technician = null
-        if(user.role.name==='TECHNICIAN'){
+        if(user.role && user.role.name==='Technician'){
             technician = await technicianService.findTechnicianByUserId(user._id)
         }
         const token = generateToken(user);
@@ -69,7 +69,7 @@ exports.normalLogin = async (email, password) => {
         
         const token = generateToken(user);
         let technician = null
-        if(user.role.name==='TECHNICIAN'){
+        if(user.role.name==='Technician'){
             technician = await technicianService.findTechnicianByUserId(user._id)
         }
         console.log(technician);
@@ -89,7 +89,7 @@ exports.register = async (userData, technicianData = null) => {
         userData.password = hashedPassword
         const user = await userService.createNewUser(userData);
 
-        if (userData.role === "TECHNICIAN" && technicianData) {
+        if (userData.role === "Technician" && technicianData) {
             await technicianService.createNewTechnician(user._id, technicianData);
         }
 
