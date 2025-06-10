@@ -1,9 +1,27 @@
 const authService = require('../services/authService');
+const userService = require('../services/userService');
+
 const { loginSchema,passwordSchema } = require('../validations/authValidation');
 const { generateCookie } = require('../utils/generateCode');
 const { createUserSchema } = require('../validations/userValidation');
 const { createTechnicianSchema } = require('../validations/technicianValidation');
+exports.getAuthenticatedUser = async (req, res) => {
+    try {
+        const userId = req.user.userId; // You stored this in `req.user` via middleware
+        console.log('id',userId);
+        
+        const user = await userService.getUserById(userId);
 
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        return res.status(200).json(user);
+    } catch (error) {
+        console.error('Error fetching authenticated user:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
 exports.googleAuthController = async (req, res) => {
     const { credential } = req.body;
     if (!credential) return res.status(400).json({ error: "Missing credential token" });

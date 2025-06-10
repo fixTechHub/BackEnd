@@ -10,4 +10,5 @@ router.post('/register',authController.register)
 router.get('/verify_email',authController.verifyEmail)
 router.post('/forgot-password',authController.forgotPassword)
 router.post('/reset-password',authController.resetPassword)
+router.get('/me', authenticateToken, authController.getAuthenticatedUser);
 module.exports = router;

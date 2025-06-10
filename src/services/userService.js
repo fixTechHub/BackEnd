@@ -49,3 +49,12 @@ exports.createNewUser = async (userData) => {
 
     return await newUser.save();
 };
+exports.getUserById = async (id) => {
+    try {
+        const user = await User.findById(id).select('-password'); // omit password
+        return user;
+    } catch (error) {
+        console.error('Error in getUserById:', error);
+        throw error;
+    }
+};
