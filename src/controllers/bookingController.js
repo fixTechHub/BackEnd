@@ -13,9 +13,9 @@ const createBookingRequest = async (req, res) => {
 
         // Nếu không thể tìm thấy tọa độ, trả về lỗi
         if (!locationPoint) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Không thể tìm thấy vị trí từ địa chỉ bạn cung cấp. Vui lòng thử lại với địa chỉ chi tiết hơn.' 
+            return res.status(400).json({
+                success: false,
+                message: 'Không thể tìm thấy vị trí từ địa chỉ bạn cung cấp. Vui lòng thử lại với địa chỉ chi tiết hơn.'
             });
         }
 
@@ -41,7 +41,8 @@ const createBookingRequest = async (req, res) => {
         res.status(201).json({
             success: true,
             message: 'Tạo yêu cầu thành công. Hệ thống đang tìm kiếm kỹ thuật viên phù hợp.',
-            data: result.booking
+            data: result.booking,
+            technicians_found: result.notifiedCount.data
         });
     } catch (error) {
         console.error('Create Booking Request Error:', error);

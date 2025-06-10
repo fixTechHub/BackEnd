@@ -2,28 +2,37 @@ const mongoose = require('mongoose');
 const Booking = require('../models/Booking');
 const Notification = require('../models/Notification');
 const User = require('../models/User');
+const technicianService = require('./technicianService');
 
 const createRequestAndNotify = async (bookingData, customerId, io) => {
+    const bookingCode = `BK-${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    // console.log('bookingCode:', bookingCode);
+
     // 1. Tạo yêu cầu booking 
     const newBooking = new Booking({
+        bookingCode,
         ...bookingData,
         customerId,
         status: 'PENDING',
         technicianId: null
     });
-
-    console.log('Creating booking with data:', newBooking);
+    // console.log('Creating booking with data:', newBooking);
     
     // await newBooking.save();
 
-    // // 2. Tìm các thợ phù hợp ở gần
-    // const { location, serviceId } = bookingData;
-    // const searchParams = {
-    //     latitude: location.coordinates[1],
-    //     longitude: location.coordinates[0],
-    //     serviceId: serviceId 
-    // };
-    // const nearbyTechnicians = await technicianService.findNearby(searchParams, 10); // 10km
+    // 2. Tìm các thợ phù hợp ở gần
+    const { location, serviceId } = bookingData;
+    const searchParams = {
+        latitude: location.coordinates[1],
+        longitude: location.coordinates[0],
+        serviceId: serviceId,
+        availability: 'FREE',
+        status: 'APPROVED',
+        minBalance: 100000
+    };
+    
+    const nearbyTechnicians = await technicianService.findNearbyTechnicians(searchParams, 10);
+    console.log('--- KẾT QUẢ TÌM THỢ ---', nearbyTechnicians);
 
     // // 3. Tạo và gửi thông báo cho các thợ đã tìm thấy
     // const notificationPromises = nearbyTechnicians.map(tech => {
@@ -39,8 +48,8 @@ const createRequestAndNotify = async (bookingData, customerId, io) => {
 
     // await Promise.all(notificationPromises);
 
-    // return { booking: newBooking, notifiedCount: nearbyTechnicians.length };
-    return { booking: newBooking};
+    return { booking: newBooking, notifiedCount: nearbyTechnicians };
+    // return { booking: newBooking};
 };
 
 const createBooking = async (bookingData, customerId, io) => {
