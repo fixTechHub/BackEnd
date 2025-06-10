@@ -8,6 +8,6 @@ exports.createMessage = async (messageData) => {
   };
 
 exports.getMessagesByBookingId = async (bookingId) => {
-    return await Message.find({ bookingId }).sort({ createdAt: 1 });
+    return await Message.find({ bookingId })
   };
   

@@ -11,7 +11,7 @@ const userSchema = new Schema({
     userCode: { type: String, unique: true, required: true, index: true },
     fullName: String,
     email: String,
-    phone: Number,
+    phone: { type: Number, unique: true, sparse: true },
     googleId: String,
     address: addressSchema,
     avatar: String,

@@ -27,10 +27,10 @@ exports.createNewUser = async (userData) => {
         email,
         googleId = null, // default null
         status = 'PENDING',
-        role = null, //default
+        role = 'Technician', //default
         password = null, // for google Login
-        emailVerified = false
-    } = userData;
+        emailVerified = false,
+    } = userData;   
 
     const userRole = await this.findRoleByName(role)
     
@@ -40,11 +40,11 @@ exports.createNewUser = async (userData) => {
         userCode,
         fullName,
         email,
-        googleId: googleId || null,
-        passwordHash: password || null,
+        googleId: googleId || undefined,
+        passwordHash: password || undefined,
         status,
         emailVerified: emailVerified,
-        role: userRole ? userRole._id : null,
+        role: userRole ? userRole._id : undefined,
     });
 
     return await newUser.save();
