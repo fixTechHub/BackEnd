@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-
+const { Schema } = mongoose;
 const addressSchema = new Schema({
     street: String,
     city: String,
@@ -7,7 +7,7 @@ const addressSchema = new Schema({
 }, { _id: false });
 
 const userSchema = new Schema({
-    userCode: { type: String, unique: true, required: true },
+    userCode: { type: String, required: true },
     fullName: String,
     email: String,
     phone: Number,
