@@ -21,6 +21,11 @@ const technicianSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    status: {
+        type: String,
+        enum: ['PENDING', 'APPROVED', 'REJECTED'],
+        default: 'PENDING'
+    },
     ratingAverage: {
         type: Number,
         default: 0,
