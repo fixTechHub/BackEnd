@@ -10,12 +10,10 @@ const userSchema = new mongoose.Schema({
         required: true
     },
     email: {
-        type: String,
-        required: true
+        type: String
     },
     phone: {
-        type: String,
-        required: true
+        type: String
     },
     googleId: {
         type: String
@@ -53,8 +51,8 @@ const userSchema = new mongoose.Schema({
 });
 
 userSchema.index({ userCode: 1 }, { unique: true });
-userSchema.index({ email: 1 }, { unique: true });
-userSchema.index({ phone: 1 }, { unique: true });
+userSchema.index({ email: 1 }, { unique: true, sparse: true });
+userSchema.index({ phone: 1 }, { unique: true, sparse: true });
 userSchema.index({ googleId: 1 }, { sparse: true });
 userSchema.index({ status: 1 });
 userSchema.index({ role: 1 });
