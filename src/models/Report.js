@@ -1,13 +1,49 @@
 const mongoose = require('mongoose');
 
 const reportSchema = new mongoose.Schema({
-    bookingId: { type: mongoose.Schema.Types.ObjectId, ref: 'Booking' },
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    technicianId: { type: mongoose.Schema.Types.ObjectId, ref: 'Technician' },
-    tag: { type: String, enum: ['VIOLATION', 'SCAM', 'OTHER'], required: true },
-    reason: String,
-    resolved: { type: Boolean, default: false },
-    resolvedAt: Date
-}, { timestamps: true });
+  type: {
+    type: String,
+    enum: ['REPORT', 'VIOLATION'],
+    required: true,
+    default: 'report',
+  },
+  reportedUserId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    index: true,
+  },
+  reporterId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    index: true, 
+  },
+  description: {
+    type: String,
+    required: true,
+  },
+  status: {
+    type: String,
+    enum: ['PENDING', 'CONFIRMED', 'REJECTED', 'RESOLVED', 'CLOSED'],
+    default: 'pending',
+    index: true, 
+  },
+  penalty: {
+    type: String,
+    default: null,
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+    index: true,
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now,
+  },
+});
+
+reportSchema.index({ type: 1, status: 1 }); 
 
 module.exports = mongoose.model('Report', reportSchema);

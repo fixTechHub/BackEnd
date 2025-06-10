@@ -1,10 +1,21 @@
 const mongoose = require('mongoose');
-const { Schema } = mongoose;
 
-const categorySchema = new Schema({
-    categoryName: String,
+const categorySchema = new mongoose.Schema({
+    categoryName: {
+        type: String,
+        required: true
+    },
     icon: String,
-    isActive: Boolean
-}, { timestamps: true });
+    isActive: {
+        type: Boolean,
+        default: true
+    }
+}, {
+    timestamps: true
+});
+
+categorySchema.index({ categoryName: 1 }, { unique: true });
+categorySchema.index({ isActive: 1 });
+categorySchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('Category', categorySchema);

@@ -1,0 +1,62 @@
+name: Simple Text Slack Notifications
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+      - tri
+      - duy
+      - bop
+      - tuan
+  pull_request:
+    types: [opened, closed]
+
+jobs:
+  notify-slack:
+    name: Gửi thông báo đến Slack
+    runs-on: ubuntu-latest
+    steps:
+      # --- THÔNG BÁO MERGE VÀO MAIN ---
+      - name: Gửi thông báo Merge vào Main
+        if: |
+          github.event_name == 'push' &&
+          github.ref_name == 'main' &&
+          contains(github.event.head_commit.message, 'Merge pull request')
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: '{"text": "✅ Đã gộp code vào MAIN | Người thực hiện: ${{ github.actor }} | <${{ github.event.compare }}|Xem thay đổi>"}'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      # --- THÔNG BÁO PUSH LÊN CÁC NHÁNH PHỤ ---
+      - name: Gửi thông báo Push (Nhánh phụ)
+        if: |
+          github.event_name == 'push' &&
+          github.ref_type == 'branch' &&
+          github.ref_name != 'main' &&
+          !contains(github.event.head_commit.message, 'Merge pull request')
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: '{"text": "🚀 `${{ github.actor }}` đã PUSH code mới lên nhánh `${{ github.ref_name }}` với nội dung commit: `${{ github.event.head_commit.message }}` | <${{ github.event.compare }}|Xem thay đổi>"}'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      # --- THÔNG BÁO MỞ PULL REQUEST ---
+      - name: Gửi thông báo Pull Request đã mở
+        if: github.event_name == 'pull_request' && github.event.action == 'opened'
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: '{"text": "📥 PULL REQUEST MỚI: `${{ github.event.pull_request.title }}` | Người tạo: ${{ github.actor }} | <${{ github.event.pull_request.html_url }}|Xem chi tiết>"}'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      # --- THÔNG BÁO ĐÓNG PULL REQUEST (KHÔNG MERGE) ---
+      - name: Gửi thông báo Pull Request đã bị Đóng
+        if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == false
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: '{"text": "❌ ĐÃ ĐÓNG PULL REQUEST (Không merge): `${{ github.event.pull_request.title }}` | Người thực hiện: ${{ github.actor }} | <${{ github.event.pull_request.html_url }}|Xem chi tiết>"}'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

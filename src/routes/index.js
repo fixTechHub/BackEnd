@@ -1,8 +1,9 @@
 const express = require('express');
+const Role = require('../models/Role');
 const router = express.Router();
 
 // Mount router
-router.use('/auth', require('./authRoutes'));                       
+router.use('/auth', require('./authRoutes'));
 router.use('/admin', require('./adminRoutes'));
 router.use('/users', require('./userRoutes'));
 router.use('/bookings', require('./bookingRoutes'));
@@ -19,6 +20,14 @@ router.use('/services', require('./serviceRoutes'));
 router.use('/technicians', require('./technicianRoutes'));
 router.use('/video-call', require('./videoCallRoutes'));
 router.get('/test', (req, res) => res.json('This Is API test page'));
+router.get('/roles', async (req, res) => {
+    try {
+        const roles = await Role.find();
+        res.json(roles);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
 
 
 

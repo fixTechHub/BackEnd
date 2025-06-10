@@ -17,19 +17,27 @@ const technicianSchema = new Schema({
     identification: Number,
     certificate: [String],
     certificateVerificationStatus: Boolean,
-    isApproved: Boolean,
     jobCompleted: Number,
     specialties: String,
     availability: { type: String, enum: ['ONJOB', 'FREE'], default: 'FREE' },
     contractAccepted: Boolean,
-    contractSignature:String,
     balance: Number,
-    isAvailableForAssignment: Boolean,
-    bankAccount: bankAccountSchema,
-    isBanned: Boolean,
-    bannedReason:String
+    technicianActive: Boolean,
+    depositHistory: [{ type: Schema.Types.ObjectId, ref: 'DepositLog' }],
+    bankAccount: bankAccountSchema
 }, { timestamps: true });
 
 technicianSchema.index({ currentLocation: '2dsphere' });
+
+// Other indexes
+technicianSchema.index({ userId: 1 }, { unique: true });
+technicianSchema.index({ ratingAverage: -1 });
+technicianSchema.index({ specialtiesCategories: 1 });
+technicianSchema.index({ createdAt: -1 });
+
+// Compound indexes for common queries
+technicianSchema.index({ availability: 1, ratingAverage: -1 });
+technicianSchema.index({ specialtiesCategories: 1, availability: 1 });
+technicianSchema.index({ currentLocation: '2dsphere', availability: 1 });
 
 module.exports = mongoose.model('Technician', technicianSchema);

@@ -1,21 +1,46 @@
 const mongoose = require('mongoose');
-const { Schema } = mongoose;
 
-const replySchema = new Schema({
-    content: String,
-    createdAt: Date
-}, { _id: false });
-
-const feedbackSchema = new Schema({
-    bookingId: { type: Schema.Types.ObjectId, ref: 'Booking' },
-    fromUser: { type: Schema.Types.ObjectId, ref: 'User' },
-    toUser: { type: Schema.Types.ObjectId, ref: 'User' },
-    rating: Number,
+const feedbackSchema = new mongoose.Schema({
+    bookingId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Booking',
+        required: true
+    },
+    fromUser: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    toUser: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    rating: {
+        type: Number,
+        required: true,
+        min: 1,
+        max: 5
+    },
     content: String,
     images: [String],
-    isVisible: Boolean,
+    isVisible: {
+        type: Boolean,
+        default: true
+    },
     hiddenReason: String,
-    reply: replySchema
-}, { timestamps: true });
+    reply: {
+        content: String,
+        createdAt: Date,
+        updatedAt: Date
+    }
+}, {
+    timestamps: true
+});
+
+feedbackSchema.index({ bookingId: 1 });
+feedbackSchema.index({ toUser: 1 });
+feedbackSchema.index({ rating: -1 });
+feedbackSchema.index({ isVisible: 1 });
 
 module.exports = mongoose.model('Feedback', feedbackSchema);
