@@ -15,6 +15,7 @@ const initializeSocket = (server) => {
 
     socket.on('sendMessage', async (message) => {
       try {
+        
         const newMessage = await messageService.createMessage(message);
         io.emit('receiveMessage', newMessage);
       } catch (error) {
