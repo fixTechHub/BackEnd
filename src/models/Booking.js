@@ -52,7 +52,7 @@ const bookingSchema = new mongoose.Schema({
     statusReason: String,
     isChatAllowed: {
         type: Boolean,
-        default: true
+        default: false
     },
     isVideoCallAllowed: {
         type: Boolean,
