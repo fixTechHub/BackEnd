@@ -9,7 +9,8 @@ connectDB();
 
 const server = http.createServer(app);
 
-initializeSocket(server);
+const io = initializeSocket(server);
+app.set('io', io);
 
 server.listen(PORT, () => {
   console.log(`API Gateway running at http://localhost:${PORT}`);

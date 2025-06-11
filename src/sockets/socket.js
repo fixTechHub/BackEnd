@@ -7,8 +7,9 @@ const initializeSocket = (server) => {
   console.log('Initializing Socket.IO...');
   const io = new Server(server, {
     cors: {
-      origin: `${process.env.FRONT_END_URL}`,
+      origin: process.env.FRONT_END_URL,
       methods: ['GET', 'POST'],
+      credentials: true,
     },
   });
 
@@ -20,45 +21,29 @@ const initializeSocket = (server) => {
       console.log(`User ${userId} joined room: user:${userId}`);
     });
 
-    socket.on('sendMessage', async (message) => {
+    socket.on('sendMessage', async (messageData) => {
       try {
-        const newMessage = await messageService.createMessage(message);
-        
-        const notification = await notificationService.createNotification({
-          userId: newMessage.toUser,
-          title: 'New Message',
-          content: newMessage.content.length > 50 
-            ? newMessage.content.substring(0, 47) + '...' 
-            : newMessage.content,
-          type: 'MESSAGE',
-          referenceId: newMessage._id
-        });
-        io.to(`user:${newMessage.fromUser}`).emit('receiveMessage', newMessage);
-        io.to(`user:${newMessage.toUser}`).emit('receiveMessage', newMessage);
-        
-        io.to(`user:${newMessage.toUser}`).emit('receiveNotification', notification);
+        await messageService.sendMessage(messageData, io);
       } catch (error) {
-        console.error('Error saving message:', error);
+        console.error('Error handling sendMessage:', error.message);
         socket.emit('error', { message: 'Failed to send message' });
       }
     });
 
     socket.on('sendNotification', async (notificationData) => {
       try {
-        const notification = await notificationService.createNotification(notificationData);
-        io.to(`user:${notification.userId}`).emit('receiveNotification', notification);
+        await notificationService.sendNotification(notificationData, io);
       } catch (error) {
-        console.error('Error processing notification:', error);
+        console.error('Error handling sendNotification:', error.message);
         socket.emit('error', { message: 'Failed to send notification' });
       }
     });
 
     socket.on('markNotificationRead', async (notificationId) => {
       try {
-        const updatedNotification = await notificationService.markNotificationAsRead(notificationId);
-        io.to(`user:${updatedNotification.userId}`).emit('notificationUpdated', updatedNotification);
+        await notificationService.markNotificationRead(notificationId, io);
       } catch (error) {
-        console.error('Error marking notification as read:', error);
+        console.error('Error handling markNotificationRead:', error.message);
         socket.emit('error', { message: 'Failed to mark notification as read' });
       }
     });
