@@ -32,9 +32,8 @@ const bookingPriceSchema = new mongoose.Schema({
     finalPrice: Number,
     warrantiesDuration: {
         type: Number,
-        default: 0
+        default: 30
     },
-    extraDescription: String,
     discountCode: String,
     discountValue: {
         type: Number,

@@ -4,95 +4,124 @@ const Notification = require('../models/Notification');
 const User = require('../models/User');
 const technicianService = require('./technicianService');
 
-const createRequestAndNotify = async (bookingData, customerId, io) => {
-    const bookingCode = `BK-${Date.now()}${Math.floor(Math.random() * 1000)}`;
-    // console.log('bookingCode:', bookingCode);
+// const createNewBooking = async (bookingData, session) => {
+//     const bookingCode = `BK-${Date.now()}${Math.floor(Math.random() * 1000)}`;
+//     // console.log('bookingCode:', bookingCode);
+//     const newBooking = new Booking({
+//         bookingCode,
+//         ...bookingData,
+//         customerId,
+//         status: 'PENDING',
+//         technicianId: null
+//     });
 
-    // 1. Tạo yêu cầu booking 
-    const newBooking = new Booking({
-        bookingCode,
-        ...bookingData,
-        customerId,
-        status: 'PENDING',
-        technicianId: null
-    });
-    // console.log('Creating booking with data:', newBooking);
-    
-    // await newBooking.save();
+//     return await newBooking.save({ session });
+// };
 
-    // 2. Tìm các thợ phù hợp ở gần
-    const { location, serviceId } = bookingData;
-    const searchParams = {
-        latitude: location.coordinates[1],
-        longitude: location.coordinates[0],
-        serviceId: serviceId,
-        availability: 'FREE',
-        status: 'APPROVED',
-        minBalance: 100000
-    };
-    
-    const nearbyTechnicians = await technicianService.findNearbyTechnicians(searchParams, 10);
-    console.log('--- KẾT QUẢ TÌM THỢ ---', nearbyTechnicians);
+// const findNearbyTechnicians = async (bookingData) => {
+//     const { location, serviceId } = bookingData;
+//     const searchParams = {
+//         latitude: location.coordinates[1],
+//         longitude: location.coordinates[0],
+//         serviceId: serviceId,
+//         availability: 'FREE',
+//         status: 'APPROVED',
+//         minBalance: 100000
+//     };
 
-    // // 3. Tạo và gửi thông báo cho các thợ đã tìm thấy
-    // const notificationPromises = nearbyTechnicians.map(tech => {
-    //     const notifData = {
-    //         userId: tech.userId, // ID của user thợ
-    //         title: 'Yêu cầu công việc mới gần bạn',
-    //         content: `Có một yêu cầu mới cách bạn khoảng ${(tech.distance / 1000).toFixed(1)} km. Nhấn để xem và báo giá.`,
-    //         referenceId: newBooking._id,
-    //         type: 'NEW_REQUEST'
-    //     };
-    //     return notificationService.createAndSend(notifData, io);
-    // });
+//     return await technicianService.findNearbyTechnicians(searchParams, 10);
+// };
 
-    // await Promise.all(notificationPromises);
-
-    return { booking: newBooking, notifiedCount: nearbyTechnicians };
-    // return { booking: newBooking};
-};
-
-const createBooking = async (bookingData, customerId, io) => {
+const createRequestAndNotify = async (bookingData, io) => {
     const session = await mongoose.startSession();
     session.startTransaction();
+
     try {
-        const { technicianId, serviceId, description, schedule, location, images } = bookingData;
-
-        // Lấy thông tin khách hàng để gửi thông báo
-        const customer = await User.findById(customerId).session(session);
-        if (!customer) throw new Error('Khách hàng không tồn tại.');
-
-        const randomSuffix = Math.floor(Math.random() * 1000);
-
-        // Tạo booking
+        const bookingCode = `BK-${Date.now()}${Math.floor(Math.random() * 1000)}`;
+        // console.log('bookingCode:', bookingCode);
         const newBooking = new Booking({
-            bookingCode: `BK-${Date.now()}${randomSuffix}`,
-            customerId,
-            technicianId,
-            serviceId,
-            description,
-            schedule,
-            location,
-            images
+            bookingCode,
+            ...bookingData,
+            status: 'PENDING',
+            technicianId: null
         });
-        const savedBooking = await newBooking.save({ session });
 
-        // Tạo thông báo cho thợ
+        await newBooking.save({ session });
+        console.log('--- ĐẶT LỊCH MỚI ---', newBooking);
+
+        const { location, serviceId } = bookingData;
+        const searchParams = {
+            latitude: location.coordinates[1],
+            longitude: location.coordinates[0],
+            serviceId: serviceId,
+            availability: 'FREE',
+            status: 'APPROVED',
+            minBalance: 100000
+        };
+
+        const nearbyTechnicians = await technicianService.findNearbyTechnicians(searchParams, 10);
+        console.log('--- KẾT QUẢ TÌM THỢ ---', nearbyTechnicians);
+
+        if (!nearbyTechnicians || !nearbyTechnicians.data || nearbyTechnicians.total === 0) {
+            console.log('Không tìm thấy thợ nào phù hợp');
+            await session.commitTransaction();
+            return {
+                booking: newBooking,
+                technicians: { data: [], total: 0 },
+                message: 'Hiện tại chưa tìm thấy thợ nào phù hợp. Vui lòng thử lại sau.'
+            };
+        }
+
+        // 3. Tạo và gửi thông báo cho các thợ đã tìm thấy
+        const notificationPromises = nearbyTechnicians.data.map(tech => {
+            const notifData = {
+                userId: tech.userId,
+                title: 'Yêu cầu công việc mới gần bạn',
+                content: `Có một yêu cầu mới cách bạn khoảng ${(tech.distance / 1000).toFixed(1)} km. Nhấn để xem và báo giá.`,
+                referenceId: newBooking._id,
+                type: 'NEW_REQUEST'
+            };
+            // return notificationService.createAndSend(notifData, io);
+            console.log('--- THONG BAO CHO THO ---', notifData);
+        });
+
+        // await Promise.all(notificationPromises);
 
         await session.commitTransaction();
+        session.endSession();
 
-        // Gửi sự kiện real-time cho thợ
-        // io.to(technicianId.toString()).emit('new_booking', savedBooking);
-
-        return savedBooking;
+        return { booking: newBooking, technicians: nearbyTechnicians };
     } catch (error) {
         await session.abortTransaction();
-        throw error;
-    } finally {
         session.endSession();
+        throw error;
+    }
+};
+
+const getBookingById = async (bookingId) => {
+    try {
+        // Kiểm tra ID hợp lệ
+        if (!mongoose.Types.ObjectId.isValid(bookingId)) {
+            throw new Error('ID đặt lịch không hợp lệ');
+        }
+
+        const booking = await Booking.findById(bookingId)
+            .populate('customerId')
+            .populate('technicianId')
+            .populate('serviceId')
+            .populate('cancelledBy');
+
+        if (!booking) {
+            throw new Error('Không tìm thấy đặt lịch');
+        }
+
+        return booking;
+    } catch (error) {
+        throw error;
     }
 };
 
 module.exports = {
-    createRequestAndNotify
+    createRequestAndNotify,
+    getBookingById,
 };

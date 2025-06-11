@@ -3,10 +3,9 @@ const { addressToPoint } = require('../services/geocodingService');
 
 const createBookingRequest = async (req, res) => {
     try {
-        // 1. Lấy dữ liệu text
         // const customerId = req.user.id; 
         const { customerId, serviceId, description, schedule, location } = req.body;
-        console.log('Booking Text Data:', { customerId, serviceId, description, schedule });
+        // console.log('Booking Text Data:', { customerId, serviceId, description, schedule });
 
         // Chuyển đổi địa chỉ string sang GeoJSON Point bằng Mapbox
         const locationPoint = await addressToPoint(location);
@@ -19,9 +18,8 @@ const createBookingRequest = async (req, res) => {
             });
         }
 
-        // 2. Lấy MẢNG các URL ảnh đã upload từ middleware
         const imageUrls = req.s3FileUrls || [];
-        console.log('Uploaded Image URLs:', imageUrls);
+        // console.log('Uploaded Image URLs:', imageUrls);
 
         const bookingData = {
             customerId,
@@ -31,18 +29,18 @@ const createBookingRequest = async (req, res) => {
             schedule,
             images: imageUrls,
         };
-        console.log('Booking Data:', bookingData);
+        // console.log('--- Booking Data ---', bookingData);
 
         const io = req.app.get('io');
 
-        const result = await bookingService.createRequestAndNotify(bookingData, customerId, io);
+        const result = await bookingService.createRequestAndNotify(bookingData, io);
         // console.log('Booking Request Result:', result);
 
         res.status(201).json({
             success: true,
             message: 'Tạo yêu cầu thành công. Hệ thống đang tìm kiếm kỹ thuật viên phù hợp.',
             data: result.booking,
-            technicians_found: result.notifiedCount.data
+            technicians_found: result.technicians.data.length > 0 ? result.technicians.data : result.message
         });
     } catch (error) {
         console.error('Create Booking Request Error:', error);
@@ -51,23 +49,28 @@ const createBookingRequest = async (req, res) => {
 };
 
 
-const createBooking = async (req, res) => {
+const getBookingById = async (req, res) => {
     try {
-        const customerId = req.user.id;
-        const io = req.app.get('io'); // Lấy instance của io từ app
+        const bookingId = req.params.id;
 
-        const newBooking = await bookingService.createBooking(req.body, customerId, io);
+        const booking = await bookingService.getBookingById(bookingId);
 
-        res.status(201).json({
-            message: 'Tạo yêu cầu đặt lịch thành công!',
-            data: newBooking
+        res.status(200).json({
+            success: true,
+            message: 'Lấy thông tin đặt lịch thành công!',
+            data: booking
         });
     } catch (error) {
-        res.status(400).json({ message: 'Tạo yêu cầu thất bại.', error: error.message });
+        console.error('Create Booking Request Error:', error);
+        res.status(400).json({
+            success: false,
+            message: 'Lấy thông tin đặt lịch thất bại.',
+            error: error.message
+        });
     }
 };
 
 module.exports = {
-    createBooking,
-    createBookingRequest
+    createBookingRequest,
+    getBookingById
 };

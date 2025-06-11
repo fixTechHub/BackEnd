@@ -1,6 +1,9 @@
 const Technician = require('../models/Technician');
 const Service = require('../models/Service');
 const mongoose = require('mongoose');
+const BookingItem = require('../models/BookingItem');
+const BookingPrice = require('../models/BookingPrice');
+const CommissionConfig = require('../models/CommissionConfig');
 
 const findNearbyTechnicians = async (searchParams, radiusInKm) => {
     const { latitude, longitude, serviceId, availability, status, minBalance } = searchParams;
@@ -55,7 +58,7 @@ const findNearbyTechnicians = async (searchParams, radiusInKm) => {
                     from: 'categories',
                     localField: 'specialtiesCategories',
                     foreignField: '_id',
-                    as: 'categories'
+                    as: 'category'
                 }
             },
             {
@@ -74,7 +77,7 @@ const findNearbyTechnicians = async (searchParams, radiusInKm) => {
                     distanceInKm: { $round: [{ $divide: ["$distance", 1000] }, 2] },
                     // Thêm thông tin user
                     userInfo: { $arrayElemAt: ["$userInfo", 0] },
-                    categories: 1
+                    // category: 1
                 }
             },
             {
@@ -104,7 +107,68 @@ const findNearbyTechnicians = async (searchParams, radiusInKm) => {
     }
 };
 
+const sendQuotation = async (bookingPriceData) => {
+    const { bookingId, technicianId, laborPrice, warrantiesDuration, items } = bookingPriceData;
+
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        // Set exprire time
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+        // Get current commission applied
+        const activeConfig = await CommissionConfig.findOne({ isApplied: true }).session(session);
+        if (!activeConfig) {
+            throw new Error("Chưa có cấu hình hoa hồng nào được áp dụng!");
+        }
+
+        // Calulate the total of items
+        const totalItemPrice = (items && Array.isArray(items))
+            ? items.reduce((total, item) => total + (item.price * item.quantity), 0)
+            : 0;
+        const finalPrice = laborPrice + totalItemPrice;
+
+        const newBookingPrice = new BookingPrice({
+            bookingId,
+            technicianId,
+            laborPrice,
+            warrantiesDuration,
+            finalPrice,
+            commissionConfigId: activeConfig._id,
+            expiresAt: expiresAt
+        });
+        const savedBookingPrice = await newBookingPrice.save({ session });
+        console.log('--- NEW BOOKING PRICE ---', savedBookingPrice);
+
+        let savedBookingItems = [];
+        if (items && Array.isArray(items) && items.length > 0) {
+            const bookingItems = items.map(item => ({
+                bookingPriceId: savedBookingPrice._id,
+                name: item.name,
+                price: item.price,
+                quantity: item.quantity,
+                note: item.note
+            }));
+            savedBookingItems = await BookingItem.insertMany(bookingItems, { session });
+        }
+
+        await session.commitTransaction();
+        return {
+            message: 'Gửi báo giá thành công',
+            bookingPrice: savedBookingPrice,
+            bookingItems: savedBookingItems,
+            totalItems: totalItemPrice
+        };
+    } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+        console.error("Lỗi trong quá trình gửi báo giá:", error);
+        throw new Error(`Lỗi gửi báo giá: ${error.message}`);
+    }
+}
 
 module.exports = {
     findNearbyTechnicians,
+    sendQuotation,
 };
