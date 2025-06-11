@@ -1,18 +1,30 @@
 const mongoose = require('mongoose');
-const { Schema } = mongoose;
-const addressSchema = new Schema({
-    street: String,
-    city: String,
-    district: String
-}, { _id: false });
 
-const userSchema = new Schema({
-    userCode: { type: String, required: true },
-    fullName: String,
-    email: String,
-    phone: Number,
-    googleId: String,
-    address: addressSchema,
+const userSchema = new mongoose.Schema({
+    userCode: {
+        type: String,
+        required: true
+    },
+    fullName: {
+        type: String,
+        required: true
+    },
+    email: {
+        type: String,
+        required: true
+    },
+    phone: {
+        type: String,
+        required: true
+    },
+    googleId: {
+        type: String
+    },
+    address: {
+        street: String,
+        city: String,
+        district: String
+    },
     avatar: String,
     passwordHash: String,
     phoneVerified: {
@@ -41,8 +53,8 @@ const userSchema = new Schema({
 });
 
 userSchema.index({ userCode: 1 }, { unique: true });
-userSchema.index({ email: 1 }, { unique: true });
-userSchema.index({ phone: 1 }, { unique: true });
+userSchema.index({ email: 1 }, { unique: true, sparse: true });
+userSchema.index({ phone: 1 }, { unique: true, sparse: true });
 userSchema.index({ googleId: 1 }, { sparse: true });
 userSchema.index({ status: 1 });
 userSchema.index({ role: 1 });
