@@ -3,6 +3,7 @@ const messageService = require('../services/messageService');
 const getMessages = async (req, res) => {
   try {
     const { bookingId } = req.query;
+    console.log('→ Get messages for bookingId:', bookingId);
     const messages = await messageService.getMessagesByBookingId(bookingId);
     res.json(messages);
   } catch (error) {

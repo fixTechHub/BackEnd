@@ -4,7 +4,6 @@ const validate = require('../middlewares/validationMiddleware');
 const bookingValidation = require('../validations/bookingValidation');
 const { handleMulter, processAndUploadToS3 } = require('../middlewares/uploadMiddleware');
 const router = express.Router();
-const bookingController = require('../controllers/bookingController');
 
 router.get('/:bookingId', bookingController.getBookingById);
 
