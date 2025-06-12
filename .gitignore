@@ -3,4 +3,8 @@ node_modules/
 *.env
 src/controllers/authController.js
 src/services/authService.js
+src/services/userService.js
 src/routes/authRoutes.js
+src/middlewares/authMiddleware.js
+src/utils/jwt.js     
+src/utils/generateCode.js
