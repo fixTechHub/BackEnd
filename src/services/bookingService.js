@@ -1,7 +1,6 @@
 const mongoose = require('mongoose');
 const Booking = require('../models/Booking');
 const Notification = require('../models/Notification');
-const User = require('../models/User');
 const technicianService = require('./technicianService');
 const BookingPrice = require('../models/BookingPrice');
 
@@ -24,8 +23,8 @@ const createRequestAndNotify = async (bookingData, io) => {
 
         const { location, serviceId } = bookingData;
         const searchParams = {
-            latitude: location.coordinates[1],
-            longitude: location.coordinates[0],
+            latitude: location.geojson.coordinates[1],
+            longitude: location.geojson.coordinates[0],
             serviceId: serviceId,
             availability: 'FREE',
             status: 'APPROVED',
@@ -73,13 +72,11 @@ const createRequestAndNotify = async (bookingData, io) => {
 
 const getBookingById = async (bookingId) => {
     try {
-        // Kiểm tra ID hợp lệ
         if (!mongoose.Types.ObjectId.isValid(bookingId)) {
             throw new Error('ID đặt lịch không hợp lệ');
         }
         const bookingss = await Booking.findById(bookingId)
         console.log(bookingss.customerId);
-        
 
         const booking = await Booking.findById(bookingId)
             .populate('customerId')
@@ -97,7 +94,70 @@ const getBookingById = async (bookingId) => {
     }
 };
 
+const cancelBooking = async (bookingId, userId, role, reason) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        // Tìm booking
+        const booking = await Booking.findById(bookingId);
+        if (!booking) {
+            throw new Error('Không tìm thấy booking');
+        }
+
+        // Kiểm tra quyền hủy
+        if (role === 'CUSTOMER' && booking.customerId.toString() !== userId) {
+            throw new Error('Bạn không có quyền hủy booking này');
+        }
+        if (role === 'TECHNICIAN' && booking.technicianId?.toString() !== userId) {
+            throw new Error('Bạn không có quyền hủy booking này');
+        }
+
+        // Kiểm tra trạng thái hiện tại
+        if (booking.status === 'CANCELLED') {
+            throw new Error('Booking đã bị hủy trước đó');
+        }
+        if (booking.status === 'DONE') {
+            throw new Error('Không thể hủy booking đã hoàn thành');
+        }
+
+        // Cập nhật trạng thái booking
+        booking.status = 'CANCELLED';
+        booking.cancelledBy = userId;
+        booking.cancellationReason = reason;
+        await booking.save({ session });
+
+        // Lưu log trạng thái
+        await BookingStatusLog.create([{
+            bookingId,
+            fromStatus: booking.status,
+            toStatus: 'CANCELLED',
+            changedBy: userId,
+            role,
+            note: reason
+        }], { session });
+
+        // Nếu booking đang có báo giá, cập nhật trạng thái báo giá
+        if (booking.status === 'QUOTED') {
+            await BookingPrice.updateMany(
+                { bookingId, status: 'PENDING' },
+                { status: 'REJECTED' },
+                { session }
+            );
+        }
+
+        await session.commitTransaction();
+        return booking;
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
+};
+
 module.exports = {
     createRequestAndNotify,
     getBookingById,
+    cancelBooking
 };

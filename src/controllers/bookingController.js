@@ -4,11 +4,12 @@ const { addressToPoint } = require('../services/geocodingService');
 const createBookingRequest = async (req, res) => {
     try {
         // const customerId = req.user.id; 
-        const { customerId, serviceId, description, schedule, location } = req.body;
+        const { customerId, serviceId, description, schedule, address } = req.body;
         // console.log('Booking Text Data:', { customerId, serviceId, description, schedule });
+        console.log(address);
 
         // Chuyển đổi địa chỉ string sang GeoJSON Point bằng Mapbox
-        const locationPoint = await addressToPoint(location);
+        const locationPoint = await addressToPoint(address);
 
         // Nếu không thể tìm thấy tọa độ, trả về lỗi
         if (!locationPoint) {
@@ -18,13 +19,19 @@ const createBookingRequest = async (req, res) => {
             });
         }
 
+        const location = {
+            address: address,
+            geojson: locationPoint,
+        }
+        console.log('--- LOCATION ---', location);
+
         const imageUrls = req.s3FileUrls || [];
         // console.log('Uploaded Image URLs:', imageUrls);
 
         const bookingData = {
             customerId,
             serviceId,
-            location: locationPoint,
+            location,
             description,
             schedule,
             images: imageUrls,
@@ -70,7 +77,40 @@ const getBookingById = async (req, res) => {
     }
 };
 
+const cancelBooking = async (req, res) => {
+    try {
+        const { bookingId } = req.params;
+        const { reason } = req.body;
+        const userId = req.user._id;
+        const role = req.user.role.name;
+
+        if (!reason) {
+            return res.status(400).json({
+                message: 'Vui lòng cung cấp lý do hủy booking'
+            });
+        }
+
+        const booking = await bookingService.cancelBooking(
+            bookingId,
+            userId,
+            role,
+            reason
+        );
+
+        res.status(200).json({
+            message: 'Hủy booking thành công',
+            data: booking
+        });
+    } catch (error) {
+        console.error('Lỗi khi hủy booking:', error);
+        res.status(error.message.includes('quyền') ? 403 : 500).json({
+            message: error.message || 'Không thể hủy booking'
+        });
+    }
+};
+
 module.exports = {
     createBookingRequest,
-    getBookingById
+    getBookingById,
+    cancelBooking
 };
