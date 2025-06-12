@@ -5,5 +5,6 @@ const technicianController = require('../controllers/technicianController');
 const router = express.Router();
 
 router.post('/send-quotation', technicianController.sendQuotation);
+router.post('/:bookingId/done', technicianController.confirmJobDoneByTechnician);
 
 module.exports = router;

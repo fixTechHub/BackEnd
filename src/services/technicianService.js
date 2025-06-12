@@ -5,6 +5,7 @@ const BookingItem = require('../models/BookingItem');
 const BookingPrice = require('../models/BookingPrice');
 const CommissionConfig = require('../models/CommissionConfig');
 const Booking = require('../models/Booking');
+const BookingStatusLog = require('../models/BookingStatusLog');
 
 const findNearbyTechnicians = async (searchParams, radiusInKm) => {
     const { latitude, longitude, serviceId, availability, status, minBalance } = searchParams;
@@ -121,7 +122,7 @@ const sendQuotation = async (bookingPriceData) => {
         // if (booking.status !== 'PENDING') {
         //     throw new Error('Không thể tạo báo giá cho đặt lịch này');
         // }
-        
+
         // Set exprire time
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
@@ -161,6 +162,15 @@ const sendQuotation = async (bookingPriceData) => {
             savedBookingItems = await BookingItem.insertMany(bookingItems, { session });
         }
 
+        await BookingStatusLog.create([{
+            bookingId,
+            fromStatus: booking.status,
+            toStatus: 'QUOTED',
+            changedBy: technicianId,
+            role: 'TECHNICIAN',
+            note: reason
+        }], { session });
+        
         booking.status = 'QUOTED';
         await booking.save({ session });
 
@@ -177,9 +187,75 @@ const sendQuotation = async (bookingPriceData) => {
         console.error("Lỗi trong quá trình gửi báo giá:", error);
         throw new Error(`Lỗi gửi báo giá: ${error.message}`);
     }
-}
+};
+
+const confirmJobDoneByTechnician = async (bookingId, userId, role) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const booking = await Booking.findById(bookingId);
+        if (!booking) {
+            throw new Error('Không tìm thấy booking');
+        }
+
+        // Kiểm tra quyền
+        if (role === 'CUSTOMER' && booking.customerId.toString() !== userId) {
+            throw new Error('Bạn không có quyền xác nhận booking này');
+        }
+        if (role === 'TECHNICIAN' && booking.technicianId?.toString() !== userId.toString()) {
+            throw new Error('Bạn không có quyền xác nhận booking này');
+        }
+
+        // Kiểm tra trạng thái hiện tại
+        if (booking.status === 'CANCELLED') {
+            throw new Error('Booking đã bị hủy trước đó');
+        }
+        if (booking.status === 'PENDING') {
+            throw new Error('Không thể hoàn thành booking khi chưa chọn thợ');
+        }
+        if (booking.status === 'WAITING_CONFIRM') {
+            throw new Error('Bạn đã xác nhận hoàn thành rồi!!');
+        }
+
+        // Cập nhật trạng thái booking
+        await Booking.findByIdAndUpdate(
+            bookingId,
+            {
+                $set: {
+                    status: 'WAITING_CONFIRM',
+                    technicianConfirmedDone: true,
+                    isChatAllowed: false,
+                    isVideoCallAllowed: false
+                }
+            },
+            { session }
+        );
+
+        // Lưu log trạng thái
+        await BookingStatusLog.create([{
+            bookingId,
+            fromStatus: booking.status,
+            toStatus: 'WAITING_CONFIRM',
+            changedBy: userId,
+            role
+        }], { session });
+
+        await session.commitTransaction();
+
+        // Lấy lại booking sau khi cập nhật
+        const updatedBooking = await Booking.findById(bookingId);
+        return updatedBooking;
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
+};
 
 module.exports = {
     findNearbyTechnicians,
     sendQuotation,
+    confirmJobDoneByTechnician
 };

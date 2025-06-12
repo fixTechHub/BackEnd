@@ -3,6 +3,7 @@ const Booking = require('../models/Booking');
 const Notification = require('../models/Notification');
 const technicianService = require('./technicianService');
 const BookingPrice = require('../models/BookingPrice');
+const BookingStatusLog = require('../models/BookingStatusLog');
 
 const createRequestAndNotify = async (bookingData, io) => {
     const session = await mongoose.startSession();
@@ -75,8 +76,6 @@ const getBookingById = async (bookingId) => {
         if (!mongoose.Types.ObjectId.isValid(bookingId)) {
             throw new Error('ID đặt lịch không hợp lệ');
         }
-        const bookingss = await Booking.findById(bookingId)
-        console.log(bookingss.customerId);
 
         const booking = await Booking.findById(bookingId)
             .populate('customerId')
@@ -120,12 +119,24 @@ const cancelBooking = async (bookingId, userId, role, reason) => {
         if (booking.status === 'DONE') {
             throw new Error('Không thể hủy booking đã hoàn thành');
         }
+        if (booking.status === 'WAITING_CONFIRM') {
+            throw new Error('Không thể hủy booking đã hoàn thành');
+        }
 
         // Cập nhật trạng thái booking
-        booking.status = 'CANCELLED';
-        booking.cancelledBy = userId;
-        booking.cancellationReason = reason;
-        await booking.save({ session });
+        await Booking.findByIdAndUpdate(
+            bookingId,
+            {
+                $set: {
+                    status: 'CANCELLED',
+                    cancelledBy: userId,
+                    cancellationReason: reason,
+                    isChatAllowed: false,
+                    isVideoCallAllowed: false
+                }
+            },
+            { session }
+        );
 
         // Lưu log trạng thái
         await BookingStatusLog.create([{
@@ -147,7 +158,75 @@ const cancelBooking = async (bookingId, userId, role, reason) => {
         }
 
         await session.commitTransaction();
-        return booking;
+
+        // Lấy lại booking sau khi cập nhật
+        const updatedBooking = await Booking.findById(bookingId);
+        return updatedBooking;
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
+};
+
+const confirmJobDone = async (bookingId, userId, role) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const booking = await Booking.findById(bookingId);
+        if (!booking) {
+            throw new Error('Không tìm thấy booking');
+        }
+
+        // Kiểm tra quyền
+        if (role === 'CUSTOMER' && booking.customerId.toString() !== userId) {
+            throw new Error('Bạn không có quyền xác nhận booking này');
+        }
+        if (role === 'TECHNICIAN' && booking.technicianId?.toString() !== userId) {
+            throw new Error('Bạn không có quyền xác nhận booking này');
+        }
+
+        // Kiểm tra trạng thái hiện tại
+        if (booking.status === 'CANCELLED') {
+            throw new Error('Booking đã bị hủy trước đó');
+        }
+        if (booking.status === 'PENDING') {
+            throw new Error('Không thể hoàn thành booking khi chưa chọn thợ');
+        }
+        if (booking.paymentStatus !== 'PAID') {
+            throw new Error('Không thể hoàn thành booking khi chưa thanh toán');
+        }
+
+        // Cập nhật trạng thái booking
+        await Booking.findByIdAndUpdate(
+            bookingId,
+            {
+                $set: {
+                    status: 'DONE',
+                    customerConfirmedDone: true,
+                    isChatAllowed: false,
+                    isVideoCallAllowed: false
+                }
+            },
+            { session }
+        );
+
+        // Lưu log trạng thái
+        await BookingStatusLog.create([{
+            bookingId,
+            fromStatus: booking.status,
+            toStatus: 'DONE',
+            changedBy: userId,
+            role
+        }], { session });
+
+        await session.commitTransaction();
+
+        // Lấy lại booking sau khi cập nhật
+        const updatedBooking = await Booking.findById(bookingId);
+        return updatedBooking;
     } catch (error) {
         await session.abortTransaction();
         throw error;
@@ -159,5 +238,6 @@ const cancelBooking = async (bookingId, userId, role, reason) => {
 module.exports = {
     createRequestAndNotify,
     getBookingById,
-    cancelBooking
+    cancelBooking,
+    confirmJobDone
 };
