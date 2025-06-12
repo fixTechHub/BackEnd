@@ -1,20 +1,6 @@
-
 const bookingService = require('../services/bookingService');
 const { addressToPoint } = require('../services/geocodingService');
-const getBookingById = async (req, res) => {
-    try {
-      const { bookingId } = req.params;
-      const booking = await bookingService.getBookingById(bookingId);
-      if (!booking) {
-        return res.status(404).json({ error: 'Booking not found' });
-      }
-      res.json(booking);
-    } catch (error) {
-        console.log(error);
-        
-      res.status(500).json({ error: 'Failed to fetch booking' });
-    }
-  };
+
 const createBookingRequest = async (req, res) => {
     try {
         // 1. Lấy dữ liệu text
@@ -82,7 +68,5 @@ const createBooking = async (req, res) => {
 
 module.exports = {
     createBooking,
-    createBookingRequest,
-    getBookingById
+    createBookingRequest
 };
-
