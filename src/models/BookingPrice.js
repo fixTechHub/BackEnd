@@ -34,6 +34,7 @@ const bookingPriceSchema = new mongoose.Schema({
         type: Number,
         default: 30
     },
+    distance: Number,
     discountCode: String,
     discountValue: {
         type: Number,

@@ -1,9 +1,10 @@
+const mongoose = require('mongoose');
 const Technician = require('../models/Technician');
 const Service = require('../models/Service');
-const mongoose = require('mongoose');
 const BookingItem = require('../models/BookingItem');
 const BookingPrice = require('../models/BookingPrice');
 const CommissionConfig = require('../models/CommissionConfig');
+const Booking = require('../models/Booking');
 
 const findNearbyTechnicians = async (searchParams, radiusInKm) => {
     const { latitude, longitude, serviceId, availability, status, minBalance } = searchParams;
@@ -82,8 +83,7 @@ const findNearbyTechnicians = async (searchParams, radiusInKm) => {
             },
             {
                 $sort: {
-                    distance: 1,
-                    ratingAverage: -1,
+                    distance: 1
                 }
             },
             {
@@ -114,6 +114,14 @@ const sendQuotation = async (bookingPriceData) => {
     session.startTransaction();
 
     try {
+        const booking = await Booking.findById(bookingId).session(session);
+        if (!booking) {
+            throw new Error('Không tìm thấy đặt lịch');
+        }
+        // if (booking.status !== 'PENDING') {
+        //     throw new Error('Không thể tạo báo giá cho đặt lịch này');
+        // }
+        
         // Set exprire time
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
@@ -152,6 +160,9 @@ const sendQuotation = async (bookingPriceData) => {
             }));
             savedBookingItems = await BookingItem.insertMany(bookingItems, { session });
         }
+
+        booking.status = 'QUOTED';
+        await booking.save({ session });
 
         await session.commitTransaction();
         return {

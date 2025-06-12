@@ -3,34 +3,7 @@ const Booking = require('../models/Booking');
 const Notification = require('../models/Notification');
 const User = require('../models/User');
 const technicianService = require('./technicianService');
-
-// const createNewBooking = async (bookingData, session) => {
-//     const bookingCode = `BK-${Date.now()}${Math.floor(Math.random() * 1000)}`;
-//     // console.log('bookingCode:', bookingCode);
-//     const newBooking = new Booking({
-//         bookingCode,
-//         ...bookingData,
-//         customerId,
-//         status: 'PENDING',
-//         technicianId: null
-//     });
-
-//     return await newBooking.save({ session });
-// };
-
-// const findNearbyTechnicians = async (bookingData) => {
-//     const { location, serviceId } = bookingData;
-//     const searchParams = {
-//         latitude: location.coordinates[1],
-//         longitude: location.coordinates[0],
-//         serviceId: serviceId,
-//         availability: 'FREE',
-//         status: 'APPROVED',
-//         minBalance: 100000
-//     };
-
-//     return await technicianService.findNearbyTechnicians(searchParams, 10);
-// };
+const BookingPrice = require('../models/BookingPrice');
 
 const createRequestAndNotify = async (bookingData, io) => {
     const session = await mongoose.startSession();
@@ -104,6 +77,9 @@ const getBookingById = async (bookingId) => {
         if (!mongoose.Types.ObjectId.isValid(bookingId)) {
             throw new Error('ID đặt lịch không hợp lệ');
         }
+        const bookingss = await Booking.findById(bookingId)
+        console.log(bookingss.customerId);
+        
 
         const booking = await Booking.findById(bookingId)
             .populate('customerId')
