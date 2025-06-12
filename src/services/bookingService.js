@@ -1,8 +1,12 @@
+
 const mongoose = require('mongoose');
 const Booking = require('../models/Booking');
-const Notification = require('../models/Notification');
 const User = require('../models/User');
-
+const technicianService = require('./technicianService');
+const notificationService = require('./notificationService');
+const getBookingById = async (bookingId) => {
+    return await Booking.findById(bookingId).select('customerId technicianId');
+  };
 const createRequestAndNotify = async (bookingData, customerId, io) => {
     // 1. Tạo yêu cầu booking 
     const newBooking = new Booking({
@@ -17,30 +21,35 @@ const createRequestAndNotify = async (bookingData, customerId, io) => {
     // await newBooking.save();
 
     // // 2. Tìm các thợ phù hợp ở gần
-    // const { location, serviceId } = bookingData;
-    // const searchParams = {
-    //     latitude: location.coordinates[1],
-    //     longitude: location.coordinates[0],
-    //     serviceId: serviceId 
-    // };
-    // const nearbyTechnicians = await technicianService.findNearby(searchParams, 10); // 10km
+    const { location, serviceId } = bookingData;
+    const searchParams = {
+        latitude: location.coordinates[1],
+        longitude: location.coordinates[0],
+        serviceId: serviceId 
+    };
+    const nearbyTechnicians = await technicianService.findNearby(searchParams, 10); // 10km
 
     // // 3. Tạo và gửi thông báo cho các thợ đã tìm thấy
-    // const notificationPromises = nearbyTechnicians.map(tech => {
-    //     const notifData = {
-    //         userId: tech.userId, // ID của user thợ
-    //         title: 'Yêu cầu công việc mới gần bạn',
-    //         content: `Có một yêu cầu mới cách bạn khoảng ${(tech.distance / 1000).toFixed(1)} km. Nhấn để xem và báo giá.`,
-    //         referenceId: newBooking._id,
-    //         type: 'NEW_REQUEST'
-    //     };
-    //     return notificationService.createAndSend(notifData, io);
-    // });
+    const notificationPromises = nearbyTechnicians.map(tech => {
+        const notifData = {
+            userId: tech.userId, // ID của user thợ
+            title: 'Yêu cầu công việc mới gần bạn',
+            content: `Có một yêu cầu mới cách bạn khoảng ${(tech.distance / 1000).toFixed(1)} km. Nhấn để xem và báo giá.`,
+            referenceId: newBooking._id,
+            type: 'NEW_REQUEST'
+        };
+        return notificationService.createAndSend(notifData, io);
+    });
 
-    // await Promise.all(notificationPromises);
-
-    // return { booking: newBooking, notifiedCount: nearbyTechnicians.length };
-    return { booking: newBooking};
+    await Promise.all(notificationPromises);
+    nearbyTechnicians.forEach(tech => {
+        io.to(`user:${tech.userId}`).emit('new_request', {
+          bookingId: newBooking._id,
+          distance: (tech.distance / 1000).toFixed(1),
+        });
+      });
+    
+      return { booking: newBooking, notifiedCount: nearbyTechnicians.length };
 };
 
 const createBooking = async (bookingData, customerId, io) => {
@@ -85,5 +94,7 @@ const createBooking = async (bookingData, customerId, io) => {
 };
 
 module.exports = {
-    createRequestAndNotify
+    createRequestAndNotify,
+    getBookingById
 };
+

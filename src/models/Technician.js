@@ -17,11 +17,6 @@ const technicianSchema = new mongoose.Schema({
             required: true
         }
     },
-    status: {
-        type: String,
-        enum: ['PENDING', 'APPROVED', 'REJECTED'],
-        default: 'PENDING'
-    },
     identification: {
         type: String,
         required: true

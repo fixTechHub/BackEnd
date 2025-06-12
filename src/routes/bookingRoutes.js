@@ -5,6 +5,8 @@ const bookingValidation = require('../validations/bookingValidation');
 const { handleMulter, processAndUploadToS3 } = require('../middlewares/uploadMiddleware');
 const router = express.Router();
 
+router.get('/:bookingId', bookingController.getBookingById);
+
 router.post('/create-new-booking-request', handleMulter.array('images', 5), processAndUploadToS3('bookings'), bookingController.createBookingRequest);
 
 module.exports = router;
