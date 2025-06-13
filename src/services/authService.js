@@ -7,90 +7,68 @@ const HttpError = require('../utils/error');
 const userService = require('./userService');
 const technicianService = require('./technicianService');
 const { sendVerificationEmail, sendResetPassword } = require('../utils/mail');
-const { token } = require("morgan");
-const { hashingPassword,comparePassword } = require('../utils/password');
+const { sendVerificationSMS } = require('../utils/sms');
+const { hashingPassword, comparePassword } = require('../utils/password');
 const { passwordSchema } = require("../validations/authValidation");
 const oAuth2Client = new OAuth2Client(process.env.CLIENT_ID);
+const Role = require('../models/Role');
+const User = require('../models/User');
 
 // Google Auth
-exports.googleAuth = async (credential) => {
-    if (!credential) throw new HttpError(400, "Missing credential token");
+exports.googleAuth = async (access_token) => {
+    if (!access_token) throw new HttpError(400, "Missing access token");
 
     try {
-        // Kiểm tra xem credential có phải là access token hay không
-        if (credential.startsWith('ya29.')) {
-            // Nếu là access token, lấy thông tin user từ Google API
-            const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                headers: {
-                    'Authorization': `Bearer ${credential}`
-                }
-            });
-            
-            if (!response.ok) {
-                throw new Error('Failed to get user info from Google');
+        // Lấy thông tin user từ Google API
+        const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: {
+                'Authorization': `Bearer ${access_token}`
             }
-
-            const payload = await response.json();
-            const googleId = payload.sub;
-
-            let user = await userService.findUserByEmail(payload.email);
-
-            if (user) {
-                if (!user.googleId) {
-                    user = await userService.updateUserGoogleId(user, googleId);
-                }
-            } else {
-                user = await userService.createNewUser({
-                    fullName: payload.name,
-                    email: payload.email,
-                    googleId,
-                    status: 'ACTIVE',
-                    emailVerified: true
-                });
-            }
-            
-            let technician = null;
-            if(user.role && user.role.name==='Technician'){
-                technician = await technicianService.findTechnicianByUserId(user._id);
-            }
-            const token = generateToken(user);
-
-            return { user, token, technician };
-        } else {
-            // Nếu là ID token, xử lý như cũ
-            const ticket = await oAuth2Client.verifyIdToken({
-                idToken: credential,
-                audience: process.env.CLIENT_ID,
-            });
-
-            const payload = ticket.getPayload();
-            const googleId = payload.sub;
-
-            let user = await userService.findUserByEmail(payload.email);
-
-            if (user) {
-                if (!user.googleId) {
-                    user = await userService.updateUserGoogleId(user, googleId);
-                }
-            } else {
-                user = await userService.createNewUser({
-                    fullName: payload.name,
-                    email: payload.email,
-                    googleId,
-                    status: 'ACTIVE',
-                    emailVerified: true
-                });
-            }
-            
-            let technician = null;
-            if(user.role && user.role.name==='Technician'){
-                technician = await technicianService.findTechnicianByUserId(user._id);
-            }
-            const token = generateToken(user);
-
-            return { user, token, technician };
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to get user info from Google');
         }
+
+        const payload = await response.json();
+        const googleId = payload.sub;
+
+        let user = await userService.findUserByEmail(payload.email);
+
+        if (user) {
+            if (!user.googleId) {
+                user = await userService.updateUserGoogleId(user, googleId);
+            }
+        } else {
+            // Tìm role PENDING
+            const pendingRole = await Role.findOne({ name: 'PENDING' });
+            if (!pendingRole) {
+                throw new Error('Pending role not found');
+            }
+
+            // Tạo user mới với role PENDING
+            user = await userService.createNewUser({
+                fullName: payload.name,
+                email: payload.email,
+                googleId,
+                status: 'ACTIVE',
+                emailVerified: true,
+                role: pendingRole._id
+            });
+        }
+        
+        // Populate role trước khi trả về
+        user = await User.findById(user._id).populate('role');
+        
+        let technician = null;
+        if(user.role && user.role.name==='Technician'){
+            technician = await technicianService.findTechnicianByUserId(user._id);
+        }
+        const token = generateToken(user);
+
+        return { user, token, technician };
     } catch (error) {
+        console.error('Google auth error:', error);
         throw new HttpError(500, `Google authentication failed: ${error.message}`);
     }
 };
@@ -125,22 +103,49 @@ exports.normalLogin = async (email, password) => {
 };
 
 // Register
-exports.register = async (userData, technicianData = null) => {
+exports.register = async (userData) => {
     try {
-        const hashedPassword = await hashingPassword(userData.password)
-        userData.password = hashedPassword
-        const user = await userService.createNewUser(userData);
+        const hashedPassword = await hashingPassword(userData.password);
+        userData.password = hashedPassword;
 
-        if (userData.role === "Technician" && technicianData) {
-            await technicianService.createNewTechnician(user._id, technicianData);
-        }
+        // Tạo user với role đã chọn
+        const user = await userService.createNewUser({
+            ...userData,
+            role: userData.role // Role đã được tìm và xác thực ở controller
+        });
 
-        const verificationToken = generateToken(user);
-        await sendVerificationEmail(user.email, verificationToken);
+        // Không gửi email/OTP ở đây nữa
+        return user;
     } catch (error) {
         throw new HttpError(500, `Registration failed: ${error.message}`);
     }
 };
+
+// Verify OTP
+exports.verifyOTP = async (phone, otp) => {
+    try {
+        const user = await userService.findUserByPhone(phone);
+        if (!user) throw new HttpError(400, "Invalid phone number");
+
+        if (user.verificationOTP !== otp) {
+            throw new HttpError(400, "Invalid OTP");
+        }
+
+        if (user.otpExpires < new Date()) {
+            throw new HttpError(400, "OTP has expired");
+        }
+
+        user.phoneVerified = true;
+        user.verificationOTP = undefined;
+        user.otpExpires = undefined;
+        await user.save();
+
+        return user;
+    } catch (error) {
+        throw new HttpError(500, `OTP verification failed: ${error.message}`);
+    }
+};
+
 // Email verification
 exports.verifyEmail = async (token) => {
     try {
@@ -158,6 +163,7 @@ exports.verifyEmail = async (token) => {
         throw new HttpError(500, `Email verification failed: ${error.message}`);
     }
 };
+
 exports.forgotPassword = async (email) => {
     try {
         const user = await userService.findUserByEmail(email)
@@ -179,6 +185,7 @@ exports.forgotPassword = async (email) => {
 
     }
 }
+
 exports.resetPassword = async (token, password) => {
     const decoded = await decodeToken(token)
     const user = await userService.findUserByEmail(decoded.email)

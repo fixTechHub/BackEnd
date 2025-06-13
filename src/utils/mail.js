@@ -9,35 +9,33 @@ const transporter = nodemailer.createTransport({
 });
 
 /**
- * Sends a verification email to the provided address with the tokenized link.
+ * Sends a verification email to the provided address with a verification code.
  * @param {string} email - The recipient's email address.
- * @param {string} token - The verification token.
+ * @param {string} code - The verification code.
  */
-exports.sendVerificationEmail = async (email, token) => {
-    const verificationLink = `${process.env.BACK_END_URL}/auth/verify_email?token=${token}`;
-
+exports.sendVerificationEmail = async (email, code) => {
     const emailHTML = `
         <div style="font-family: Arial, sans-serif; line-height: 1.6;">
-            <h2>Welcome!</h2>
-            <p>Please verify your email by clicking the link below:</p>
-            <a href="${verificationLink}" style="display: inline-block; padding: 10px 15px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px;">Verify Email</a>
-            <p>If you did not sign up for this account, you can safely ignore this email.</p>
+            <h2>Chào mừng bạn đến với FixHub!</h2>
+            <p>Mã xác thực của bạn là: <b style='font-size: 20px;'>${code}</b></p>
+            <p>Mã này có hiệu lực trong 5 phút.</p>
+            <p>Nếu bạn không yêu cầu đăng ký, vui lòng bỏ qua email này.</p>
         </div>
     `;
 
     const mailOptions = {
         from: `"FixHub" <${process.env.EMAIL_USER}>`,
         to: email,
-        subject: "Verify Your Email -FixHub",
+        subject: "Mã xác thực đăng ký tài khoản - FixHub",
         html: emailHTML,
-        text: `Please verify your email by visiting this link: ${verificationLink}`,
+        text: `Mã xác thực của bạn là: ${code}. Mã này có hiệu lực trong 5 phút.`,
     };
 
     try {
         await transporter.sendMail(mailOptions);
-        console.log(`Verification email sent to ${email}`);
+        console.log(`Verification code sent to ${email}`);
     } catch (error) {
-        console.error(`Failed to send verification email to ${email}:`, error.message);
+        console.error(`Failed to send verification code to ${email}:`, error.message);
     }
 };
 
