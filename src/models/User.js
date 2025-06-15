@@ -33,6 +33,8 @@ const userSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    verificationOTP: String,
+    otpExpires: Date,
     lockedReason: String,
     faceScanImage: String,
     role: {
@@ -45,7 +47,9 @@ const userSchema = new mongoose.Schema({
         enum: ['PENDING', 'ACTIVE', 'INACTIVE', 'BLOCKED'],
         default: 'PENDING'
     },
-    deletedAt: Date
+    deletedAt: Date,
+    verificationCode: String,
+    verificationCodeExpires: Date
 }, {
     timestamps: true
 });
@@ -59,4 +63,5 @@ userSchema.index({ role: 1 });
 userSchema.index({ createdAt: -1 });
 userSchema.index({ deletedAt: 1 }, { sparse: true });
 
-module.exports = mongoose.model('User', userSchema);
+// Kiểm tra xem model đã tồn tại chưa trước khi tạo mới
+module.exports = mongoose.models.User || mongoose.model('User', userSchema);
