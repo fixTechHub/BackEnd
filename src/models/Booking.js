@@ -20,14 +20,19 @@ const bookingSchema = new mongoose.Schema({
         required: true
     },
     location: {
-        type: {
-            type: String,
-            enum: ['Point'],
-            default: 'Point'
+        address: {
+            type: String
         },
-        coordinates: {
-            type: [Number],
-            required: true
+        geojson: {
+            type: {
+                type: String,
+                enum: ['Point'],
+                default: 'Point'
+            },
+            coordinates: {
+                type: [Number],
+                required: true
+            }
         }
     },
     description: String,
@@ -74,7 +79,7 @@ const bookingSchema = new mongoose.Schema({
     timestamps: true
 });
 
-bookingSchema.index({ location: '2dsphere' });
+bookingSchema.index({ 'location.geojson': '2dsphere' });
 
 bookingSchema.index({ bookingCode: 1 }, { unique: true });
 bookingSchema.index({ status: 1 });

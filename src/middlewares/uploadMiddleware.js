@@ -24,7 +24,7 @@ const processAndUploadToS3 = (destinationFolder) => {
 
                 // Chờ tất cả các file được upload xong
                 const s3Urls = await Promise.all(uploadPromises);
-                console.log('--- DEBUG: URLs generated in middleware ---', s3Urls);
+                // console.log('--- DEBUG: URLs generated in middleware ---', s3Urls);
 
                 // Gắn kết quả vào request CHO BƯỚC TIẾP THEO.
                 req.s3FileUrls = s3Urls;

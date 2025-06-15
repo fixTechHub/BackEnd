@@ -1,34 +1,34 @@
 const mongoose = require('mongoose');
 
 const bookingStatusLogSchema = new mongoose.Schema({
-  bookingId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Booking',
-    required: true
-  },
-  fromStatus: {
-    type: String,
-    required: true
-  },
-  toStatus: {
-    type: String,
-    required: true
-  },
-  changedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  role: {
-    type: String,
-    enum: ['CUSTOMER', 'TECHNICIAN', 'SYSTEM', 'ADMIN'],
-    required: true
-  },
-  note: String,
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
+    bookingId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Booking',
+        required: true
+    },
+    fromStatus: {
+        type: String,
+        required: true
+    },
+    toStatus: {
+        type: String,
+        required: true
+    },
+    changedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    role: {
+        type: String,
+        enum: ['CUSTOMER', 'TECHNICIAN', 'SYSTEM', 'ADMIN'],
+        required: true
+    },
+    note: String,
+    createdAt: {
+        type: Date,
+        default: Date.now
+    }
 });
 
 // Indexes
