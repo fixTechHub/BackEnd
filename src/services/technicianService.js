@@ -6,7 +6,6 @@ const BookingPrice = require('../models/BookingPrice');
 const CommissionConfig = require('../models/CommissionConfig');
 const Booking = require('../models/Booking');
 const BookingStatusLog = require('../models/BookingStatusLog');
-const Technician = require('../models/Technician')
 
 exports.createNewTechnician = async (userId, technicianData) => {
     const technician = new Technician({
@@ -24,6 +23,7 @@ exports.createNewTechnician = async (userId, technicianData) => {
     
     return await technician.save();
 };
+
 exports.findTechnicianByUserId = async (userId) => {
     return await Technician.findOne({userId})
 }
