@@ -2,7 +2,9 @@ const mongoose = require('mongoose');
 const Booking = require('../models/Booking');
 const Notification = require('../models/Notification');
 const User = require('../models/User');
-
+const getBookingById = async (bookingId) => {
+    return await Booking.findById(bookingId).select('customerId technicianId');
+    };
 const createRequestAndNotify = async (bookingData, customerId, io) => {
     // 1. Tạo yêu cầu booking 
     const newBooking = new Booking({
@@ -85,5 +87,6 @@ const createBooking = async (bookingData, customerId, io) => {
 };
 
 module.exports = {
-    createRequestAndNotify
+    createRequestAndNotify,
+    getBookingById
 };
