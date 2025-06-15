@@ -2,9 +2,7 @@ const mongoose = require('mongoose');
 const Booking = require('../models/Booking');
 const Notification = require('../models/Notification');
 const User = require('../models/User');
-const getBookingById = async (bookingId) => {
-    return await Booking.findById(bookingId).select('customerId technicianId');
-    };
+
 const createRequestAndNotify = async (bookingData, customerId, io) => {
     // 1. Tạo yêu cầu booking 
     const newBooking = new Booking({
@@ -15,7 +13,7 @@ const createRequestAndNotify = async (bookingData, customerId, io) => {
     });
 
     console.log('Creating booking with data:', newBooking);
-    
+
     // await newBooking.save();
 
     // // 2. Tìm các thợ phù hợp ở gần
@@ -42,7 +40,7 @@ const createRequestAndNotify = async (bookingData, customerId, io) => {
     // await Promise.all(notificationPromises);
 
     // return { booking: newBooking, notifiedCount: nearbyTechnicians.length };
-    return { booking: newBooking};
+    return { booking: newBooking };
 };
 
 const createBooking = async (bookingData, customerId, io) => {
@@ -84,6 +82,10 @@ const createBooking = async (bookingData, customerId, io) => {
     } finally {
         session.endSession();
     }
+};
+
+const getBookingById = async (bookingId) => {
+    return await Booking.findById(bookingId).select('customerId technicianId');
 };
 
 module.exports = {
