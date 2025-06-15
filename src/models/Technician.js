@@ -79,7 +79,6 @@ const technicianSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// 2dsphere index for geospatial queries
 technicianSchema.index({ currentLocation: '2dsphere' });
 
 // Other indexes
@@ -88,9 +87,6 @@ technicianSchema.index({ ratingAverage: -1 });
 technicianSchema.index({ specialtiesCategories: 1 });
 technicianSchema.index({ createdAt: -1 });
 
-// Compound indexes for common queries
-technicianSchema.index({ availability: 1, ratingAverage: -1 });
-technicianSchema.index({ specialtiesCategories: 1, availability: 1 });
-technicianSchema.index({ currentLocation: '2dsphere', availability: 1 });
+technicianSchema.index({ currentLocation: '2dsphere', availability: 1, status: 1, specialtiesCategories: 1, ratingAverage: -1 });
 
 module.exports = mongoose.model('Technician', technicianSchema);
