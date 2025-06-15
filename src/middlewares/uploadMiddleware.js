@@ -1,4 +1,4 @@
-    const multer = require('multer');
+const multer = require('multer');
 const { uploadFileToS3 } = require('../services/s3Service');
 
 const storage = multer.memoryStorage();
