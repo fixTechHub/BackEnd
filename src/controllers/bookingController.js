@@ -1,19 +1,6 @@
 const bookingService = require('../services/bookingService');
 const { addressToPoint } = require('../services/geocodingService');
-const getBookingById = async (req, res) => {
-    try {
-      const { bookingId } = req.params;
-      const booking = await bookingService.getBookingById(bookingId);
-      if (!booking) {
-        return res.status(404).json({ error: 'Booking not found' });
-      }
-      res.json(booking);
-    } catch (error) {
-        console.log(error);
-        
-      res.status(500).json({ error: 'Failed to fetch booking' });
-    }
-  };
+
 const createBookingRequest = async (req, res) => {
     try {
         // 1. Lấy dữ liệu text
@@ -26,9 +13,9 @@ const createBookingRequest = async (req, res) => {
 
         // Nếu không thể tìm thấy tọa độ, trả về lỗi
         if (!locationPoint) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Không thể tìm thấy vị trí từ địa chỉ bạn cung cấp. Vui lòng thử lại với địa chỉ chi tiết hơn.' 
+            return res.status(400).json({
+                success: false,
+                message: 'Không thể tìm thấy vị trí từ địa chỉ bạn cung cấp. Vui lòng thử lại với địa chỉ chi tiết hơn.'
             });
         }
 
@@ -76,6 +63,21 @@ const createBooking = async (req, res) => {
         });
     } catch (error) {
         res.status(400).json({ message: 'Tạo yêu cầu thất bại.', error: error.message });
+    }
+};
+
+const getBookingById = async (req, res) => {
+    try {
+        const { bookingId } = req.params;
+        const booking = await bookingService.getBookingById(bookingId);
+        if (!booking) {
+            return res.status(404).json({ error: 'Booking not found' });
+        }
+        res.json(booking);
+    } catch (error) {
+        console.log(error);
+
+        res.status(500).json({ error: 'Failed to fetch booking' });
     }
 };
 

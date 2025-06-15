@@ -7,4 +7,6 @@ const router = express.Router();
 
 router.post('/create-new-booking-request', handleMulter.array('images', 5), processAndUploadToS3('bookings'), bookingController.createBookingRequest);
 
+router.get('/:bookingId', bookingController.getBookingById);
+
 module.exports = router;

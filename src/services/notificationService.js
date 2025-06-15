@@ -15,7 +15,6 @@ exports.createNotification = async (notificationData) => {
 
 exports.createAndSend = async (notificationData, io) => {
   const notification = await exports.createNotification(notificationData);
-  console.log(`Emitting receiveNotification to user:${notification.userId}`);
   io.to(`user:${notification.userId}`).emit('receiveNotification', notification);
   return notification;
 };
@@ -34,7 +33,6 @@ exports.markNotificationRead = async (notificationId, io) => {
   if (!updatedNotification) {
     throw new Error('Notification not found');
   }
-  console.log(`Emitting notificationUpdated to user:${updatedNotification.userId}`);
   io.to(`user:${updatedNotification.userId}`).emit('notificationUpdated', updatedNotification);
   return updatedNotification;
 };
