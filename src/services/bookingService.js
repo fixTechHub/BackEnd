@@ -4,8 +4,10 @@ const Notification = require('../models/Notification');
 const technicianService = require('./technicianService');
 const BookingPrice = require('../models/BookingPrice');
 const BookingStatusLog = require('../models/BookingStatusLog');
+const notificationService = require('./notificationService');
 
 const createRequestAndNotify = async (bookingData, io) => {
+
     const session = await mongoose.startSession();
     session.startTransaction();
 
@@ -19,9 +21,8 @@ const createRequestAndNotify = async (bookingData, io) => {
             technicianId: null
         });
 
-    console.log('Creating booking with data:', newBooking);
-    
-    // await newBooking.save();
+        await newBooking.save({ session });
+        console.log('--- ĐẶT LỊCH MỚI ---', newBooking);
 
         const { location, serviceId } = bookingData;
         const searchParams = {
@@ -55,14 +56,42 @@ const createRequestAndNotify = async (bookingData, io) => {
                 referenceId: newBooking._id,
                 type: 'NEW_REQUEST'
             };
-            // return notificationService.createAndSend(notifData, io);
-            console.log('--- THONG BAO CHO THO ---', notifData);
+            return notificationService.createAndSend(notifData, io);
         });
 
-        // await Promise.all(notificationPromises);
+        await Promise.all(notificationPromises);
 
-    // return { booking: newBooking, notifiedCount: nearbyTechnicians.length };
-    return { booking: newBooking};
+        await session.commitTransaction();
+        session.endSession();
+
+        return { booking: newBooking, technicians: nearbyTechnicians };
+    } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+        throw error;
+    }
+};
+
+const getBookingById = async (bookingId) => {
+    try {
+        if (!mongoose.Types.ObjectId.isValid(bookingId)) {
+            throw new Error('ID đặt lịch không hợp lệ');
+        }
+
+        const booking = await Booking.findById(bookingId)
+            .populate('customerId')
+            .populate('technicianId')
+            .populate('serviceId')
+            .populate('cancelledBy');
+
+        if (!booking) {
+            throw new Error('Không tìm thấy đặt lịch');
+        }
+
+        return booking;
+    } catch (error) {
+        throw error;
+    }
 };
 
 const cancelBooking = async (bookingId, userId, role, reason) => {
@@ -207,10 +236,12 @@ const confirmJobDone = async (bookingId, userId, role) => {
     }
 };
 
-const getBookingById = async (bookingId) => {
-    return await Booking.findById(bookingId).select('customerId technicianId');
-};
+
 
 module.exports = {
-    createRequestAndNotify
+    createRequestAndNotify,
+    getBookingById,
+    cancelBooking,
+    confirmJobDone
+
 };
