@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const Category = require('../models/Category');
 
 const technicianSchema = new mongoose.Schema({
     userId: {
@@ -16,11 +17,6 @@ const technicianSchema = new mongoose.Schema({
             type: [Number],
             required: true
         }
-    },
-    status: {
-        type: String,
-        enum: ['PENDING', 'APPROVED', 'REJECTED'],
-        default: 'PENDING'
     },
     identification: {
         type: String,

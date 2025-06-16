@@ -5,7 +5,10 @@ const routes = require('./routes')
 const actionLogger = require('./middlewares/actionLogger');
 
 // Allow basic cross-origin requests
-app.use(cors());
+app.use(cors({
+  origin: 'http://localhost:5173',
+  credentials: true
+}));
 
 // Parse JSON
 app.use(express.json());
