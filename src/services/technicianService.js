@@ -275,8 +275,25 @@ const confirmJobDoneByTechnician = async (bookingId, userId, role) => {
     }
 };
 
+const getAllTechnicians = async() => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+        const technicians = await Technician.find().session(session); // Fetch all technicians
+        await session.commitTransaction();
+        return technicians;
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    }
+    finally {
+        session.endSession();
+    }
+}
+
 module.exports = {
     findNearbyTechnicians,
     sendQuotation,
-    confirmJobDoneByTechnician
+    confirmJobDoneByTechnician,
+    getAllTechnicians
 };

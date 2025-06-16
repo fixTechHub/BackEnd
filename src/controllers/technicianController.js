@@ -51,7 +51,24 @@ const confirmJobDoneByTechnician = async (req, res) => {
     }
 };
 
+const getAllTechnicians = async (req,res) => {
+    try {
+        const technicians = await technicianService.getAllTechnicians();
+        res.status(200).json({
+            success: true,
+            data: technicians
+        });
+    } catch (error) {
+        console.error('Lỗi khi lấy tất cả thợ hoàn thành:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error'
+        });
+    }
+}
+
 module.exports = {
     sendQuotation,
-    confirmJobDoneByTechnician
+    confirmJobDoneByTechnician,
+    getAllTechnicians
 };

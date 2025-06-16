@@ -19,6 +19,7 @@
     "bcryptjs": "^3.0.2",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
+    "docusign-esign": "^8.2.0",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "firebase-admin": "^13.4.0",
@@ -32,7 +33,8 @@
     "node-cron": "^4.0.7",
     "nodemailer": "^7.0.3",
     "socket.io": "^4.8.1",
-    "twilio": "^5.7.1"
+    "twilio": "^5.7.1",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.15.30",
