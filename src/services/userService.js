@@ -58,14 +58,16 @@ exports.createNewUser = async (userData) => {
         status = 'PENDING',
         password = null,
         emailVerified = false,
-        role = null
+        role = null,
+        verificationCode = null,
+        verificationCodeExpires = null
     } = userData;   
-
+    
     const userCode = await generateUserCode();
 
     // Kiểm tra xem emailOrPhone là email hay số điện thoại
     const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailOrPhone);
-    
+
     const newUser = new User({
         userCode,
         fullName,
@@ -75,7 +77,9 @@ exports.createNewUser = async (userData) => {
         passwordHash: password || undefined,
         status,
         emailVerified: emailVerified,
-        role: role // Sử dụng role được truyền vào
+        role: role, // Sử dụng role được truyền vào
+        verificationCode,
+        verificationCodeExpires
     });
 
     return await newUser.save();
