@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const userService = require('../services/userService');
 const s3Service = require('../services/s3Service');
+const bcrypt = require('bcrypt');
 
 exports.getProfile = async (req, res) => {
     try {
@@ -103,6 +104,58 @@ exports.updateAvatar = async (req, res) => {
         res.status(500).json({ 
             success: false,
             message: 'Lỗi khi cập nhật ảnh đại diện',
+            error: error.message 
+        });
+    }
+};
+
+exports.changePassword = async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const { currentPassword, newPassword } = req.body;
+
+        // Validate input
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ 
+                success: false,
+                message: 'Vui lòng nhập đầy đủ thông tin' 
+            });
+        }
+
+        // Find user
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ 
+                success: false,
+                message: 'Không tìm thấy thông tin người dùng' 
+            });
+        }
+
+        // Verify current password
+        const isPasswordValid = await bcrypt.compare(currentPassword, user.passwordHash);
+        if (!isPasswordValid) {
+            return res.status(400).json({ 
+                success: false,
+                message: 'Mật khẩu hiện tại không đúng' 
+            });
+        }
+
+        // Hash new password
+        const newPasswordHash = await bcrypt.hash(newPassword, 10);
+
+        // Update password
+        user.passwordHash = newPasswordHash;
+        await user.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Đổi mật khẩu thành công'
+        });
+    } catch (error) {
+        console.error('Error in changePassword:', error);
+        res.status(500).json({ 
+            success: false,
+            message: 'Lỗi khi đổi mật khẩu',
             error: error.message 
         });
     }

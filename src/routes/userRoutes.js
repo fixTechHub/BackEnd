@@ -7,7 +7,8 @@ const upload = multer();
 
 // Profile routes
 router.get('/profile', authenticateToken, userController.getProfile);
-router.put('/profile', authenticateToken, userController.updateProfile);
-router.put('/profile/avatar', authenticateToken, upload.single('avatar'), userController.updateAvatar);
+router.patch('/profile', authenticateToken, userController.updateProfile);
+router.patch('/profile/avatar', authenticateToken, upload.single('avatar'), userController.updateAvatar);
+router.put('/change-password', authenticateToken, userController.changePassword);
 
 module.exports = router;
