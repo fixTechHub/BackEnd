@@ -71,4 +71,20 @@ const viewJobDetails = async (req, res) => {
     }
 }
 
-module.exports = {registerAsTechnician, viewTechnicianProfile, getCertificatesByTechnicianId, viewJobDetails};
+  const viewEarningsByBooking = async (req, res) => {
+  try {
+    const technicianId = req.params;
+
+    const earningList = await TechnicianService.getEarningsAndCommissionList(technicianId);
+
+    res.json({
+      success: true,
+      data: earningList
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+module.exports = {registerAsTechnician, viewTechnicianProfile, getCertificatesByTechnicianId, viewJobDetails, viewEarningsByBooking};

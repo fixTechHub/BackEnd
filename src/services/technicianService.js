@@ -2,6 +2,8 @@ const Technician = require('../models/Technician');
 const User = require('../models/User');
 const Certificate = require('../models/Certificate');
 const Booking = require('../models/Booking');
+const BookingPrice = require('../models/BookingPrice');
+const CommissionConfig = require('../models/CommissionConfig');
 const Service = require('../models/Service');
 const mongoose = require('mongoose');
 
@@ -12,7 +14,7 @@ const getTechnicianProfile = async (technicianId) => {
     .populate('userId')  // Populate để lấy thông tin User
     .populate('specialtiesCategories');  // Nếu muốn lấy luôn categories (nếu có)
 
-    console.log(technician);
+  console.log(technician);
   if (!technician) {
     throw new Error('Technician not found');
   }
@@ -67,19 +69,81 @@ const registerAsTechnician = async (data) => {
 };
 
 const getJobDetails = async (bookingId, technicianId) => {
-    const booking = await Booking.findById(bookingId)
-        .populate('customerId')
-        .populate('serviceId')
+  const booking = await Booking.findById(bookingId)
+    .populate('customerId')
+    .populate('serviceId')
 
-    if (!booking) {
-        throw { status: 404, message: 'Booking not found' };
-    }
+  if (!booking) {
+    throw { status: 404, message: 'Booking not found' };
+  }
 
-    // if (!booking.technicianId || booking.technicianId.toString() !== technicianId.toString()) {
-    //     throw { status: 403, message: 'You are not allowed to view this booking' };
-    // }
+  // if (!booking.technicianId || booking.technicianId.toString() !== technicianId.toString()) {
+  //     throw { status: 403, message: 'You are not allowed to view this booking' };
+  // }
 
-    return booking;
+  return booking;
+};
+
+const getEarningsAndCommissionList = async (technicianId) => {
+
+  const quotes = await BookingPrice.find(technicianId)
+    .sort({ createdAt: -1 })
+    .populate('commissionConfigId')
+    .populate({
+      path: 'bookingId',
+      populate: [
+        { path: 'customerId', select: 'fullName' },
+        { path: 'serviceId', select: 'serviceName' }
+      ]
+    })
+
+  //   const earningList = quotes.map(quote => {
+  //   const finalPrice = quote.finalPrice || 0;
+
+  //   const config = quote.commissionConfigId;
+  //   const commissionPercent = config?.commissionPercent || 0;
+  //   const holdingPercent = config?.holdingPercent || 0;
+
+  //   let commissionAmount = 0;
+  //   if (config?.commissionType === 'PERCENT') {
+  //     commissionAmount = (finalPrice * commissionPercent) / 100;
+  //   } else if (config?.commissionType === 'MIN_AMOUNT') {
+  //     commissionAmount = config?.commissionMinAmount || 0;
+  //   }
+
+  //   const holdingAmount = (finalPrice * holdingPercent) / 100;
+  //   const technicianEarning = finalPrice - commissionAmount - holdingAmount;
+
+  //   return {
+  //     bookingId: quote.bookingId?._id,
+  //     bookingInfo: {
+  //       customerName: quote.bookingId?.customerId?.name || 'N/A',
+  //       service: quote.bookingId?.service || 'N/A',
+  //     },
+  //     finalPrice,
+  //     commissionAmount,
+  //     holdingAmount,
+  //     technicianEarning,
+  //   };
+  // });
+
+  // return earningList;
+
+  const earningList = quotes.map(quote => ({
+    bookingId: quote.bookingId._id,
+    bookingCode: quote.bookingId?.bookingCode,
+    bookingInfo: {
+      customerName: quote.bookingId?.customerId,
+      service: quote.bookingId?.serviceId,
+    },
+    finalPrice: quote.finalPrice || 0,
+    commissionAmount: quote.commissionAmount || 0,
+    holdingAmount: quote.holdingAmount || 0,
+    technicianEarning: quote.technicianEarning || 0,
+
+  }));
+
+  return earningList;
 };
 
 
@@ -87,5 +151,6 @@ module.exports = {
   registerAsTechnician,
   getTechnicianProfile,
   getCertificatesByTechnicianId,
-  getJobDetails
+  getJobDetails,
+  getEarningsAndCommissionList
 };
