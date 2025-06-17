@@ -188,7 +188,7 @@ exports.googleLogin = async (req, res) => {
 
         // Generate JWT token
         const token = jwt.sign(
-            { userId: user._id },
+            { userId: user._id },   
             process.env.JWT_SECRET,
             { expiresIn: '24h' }
         );

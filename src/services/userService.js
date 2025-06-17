@@ -47,7 +47,7 @@ exports.findRoleById = async (roleId) => {
 };
 
 exports.findUserById = async (userId) => {
-    return await User.findById(userId)
+    return await User.findById(userId).populate('role') 
 };
 
 exports.createNewUser = async (userData) => {
