@@ -87,4 +87,21 @@ const viewJobDetails = async (req, res) => {
   }
 };
 
-module.exports = {registerAsTechnician, viewTechnicianProfile, getCertificatesByTechnicianId, viewJobDetails, viewEarningsByBooking};
+const updateAvailability = async (req, res) => {
+  try {
+    const technicianId = req.params.technicianId;
+
+    const updatedTech = await TechnicianService.updateTechnicianAvailability(technicianId);
+
+    if (!updatedTech) {
+      return res.status(404).json({ success: false, message: 'Technician not found' });
+    }
+
+    res.status(200).json({ success: true, data: updatedTech });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+module.exports = {registerAsTechnician, viewTechnicianProfile, getCertificatesByTechnicianId, viewJobDetails, viewEarningsByBooking, updateAvailability};

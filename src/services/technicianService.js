@@ -146,11 +146,43 @@ const getEarningsAndCommissionList = async (technicianId) => {
   return earningList;
 };
 
+const updateTechnicianAvailability = async (technicianId) => {
+
+  const onJobStatuses = ['PENDING', 'QUOTED', 'IN_PROGRESS', 'WAITING_CONFIRM'];
+  const hasOngoing = await Booking.exists({
+    technicianId,
+    status: { $in: onJobStatuses }
+  });
+
+  if (hasOngoing) {
+    return await Technician.findByIdAndUpdate(
+      technicianId,
+      { availability: 'ONJOB' },
+      { new: true }
+    );
+  }
+
+  const technician = await Technician.findById(technicianId);
+  if (!technician) {
+    throw new Error('Technician not found');
+  }
+
+  const newAvailability = technician.availability === 'FREE' ? 'BUSY' : 'FREE';
+
+  return await Technician.findByIdAndUpdate(
+    technicianId,
+    { availability: newAvailability },
+    { new: true }
+  );
+};
+
+
 
 module.exports = {
   registerAsTechnician,
   getTechnicianProfile,
   getCertificatesByTechnicianId,
   getJobDetails,
-  getEarningsAndCommissionList
+  getEarningsAndCommissionList,
+  updateTechnicianAvailability
 };
