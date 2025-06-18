@@ -5,6 +5,7 @@ const app = express();
 const cookieParser = require("cookie-parser");
 const routes = require('./routes')
 const actionLogger = require('./middlewares/actionLogger');
+const { scheduleExpiredContractCheck } = require('./utils/scheduler');
 
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -20,5 +21,8 @@ app.use(
 app.use(actionLogger);
 // Routes (Định tuyến)
 app.use('/api', routes);
+
+// Initialize the scheduler
+scheduleExpiredContractCheck();
 
 module.exports = app;

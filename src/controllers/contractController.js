@@ -1,65 +1,82 @@
-const { sendEnvelopeAndSaveContract, generateSigningUrl, updateContractStatus } = require('../services/contractService');
-const { generateToken } = require('../utils/jwt');
-const { findUserById } = require('../services/userService')
-const { generateContractCode,generateCookie } = require('../utils/generateCode');
+const contractService = require('../services/contractService');
+const { validateContract } = require('../validations/contractValidator');
 
-// Create and send envelope for signing
-const createEnvelope = async (req, res) => {
+const createContract = async (req, res) => {
     try {
-        const { technicianId, effectiveDate, expirationDate, documentBase64 } = req.body;
-        const user = req.user;
-
-        // Validate input
-        if (!technicianId || !effectiveDate || !expirationDate || !documentBase64) {
-            return res.status(400).json({ message: 'Missing required fields' });
+        const validationError = validateContract(req.body);
+        if (validationError) {
+            return res.status(400).json({ message: validationError });
         }
 
-        // Generate unique contract code
-        const contractCode = await generateContractCode();
-
-        // Send envelope and save contract
-        const { envelopeId, contractId } = await sendEnvelopeAndSaveContract(user, {
-            technicianId,
-            contractCode,
-            effectiveDate,
-            expirationDate,
-            documentBase64,
-            s3FileUrl: req.s3FileUrl
-        });
-
-        // Generate embedded signing URL
-        const signingUrl = await generateSigningUrl(user, envelopeId);
-
-        // Generate JWT token and set cookie
-        const userToken = await findUserById(user.userId)
-        const token = generateToken(userToken);
-        generateCookie(token,res)
-
-        res.status(200).json({
-            success: true,
-            signingUrl,
-            contractId,
-            contractCode // Return contractCode to frontend if needed
-        });
+        const { signingUrl } = await contractService.createContract(req.body);
+        res.status(200).json({ signingUrl });
     } catch (error) {
-        console.error('Create Envelope Controller Error:', error);
-        res.status(500).json({ message: 'Failed to create envelope', error: error.message });
+        console.log(error);
+        
+        res.status(500).json({ message: error.message });
     }
 };
 
-// Webhook handler for DocuSign Connect
-const handleDocuSignWebhook = async (req, res) => {
+const getContractById = async (req, res) => {
     try {
-        const { envelopeId, status } = req.body;
-        await updateContractStatus({ envelopeId, status });
-        res.status(200).json({ success: true });
+        const contract = await contractService.getContractById(req.params.id);
+        res.json(contract);
     } catch (error) {
-        console.error('Webhook Controller Error:', error);
-        res.status(500).json({ message: 'Webhook processing failed', error: error.message });
+        if (error.message === 'Contract not found') {
+            return res.status(404).json({ message: error.message });
+        }
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const getContractsByTechnicianId = async (req, res) => {
+    try {
+        const contracts = await contractService.getContractsByTechnicianId(req.params.technicianId);
+        res.json(contracts);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+
+const handleDocuSignCallback = async (req, res) => {
+    try {
+        const { event, envelopeId } = req.params;
+        
+        // Find contract by envelope ID using service
+        const contract = await contractService.findContractByEnvelopeId(envelopeId);
+
+        // Update contract status based on DocuSign event
+        let status;
+        switch (event) {
+            case 'signing_complete':
+                status = 'SIGNED';
+                break;
+            case 'declined':
+                status = 'REJECTED';
+                break;
+            default:
+                return res.status(200).json({ message: 'Không thực hiện được quá trình' });
+        }
+
+        // Update the contract status using the service
+        await contractService.updateContractStatus(contract._id, status);
+
+        // Redirect to frontend with status information
+        const redirectUrl = `${process.env.FRONT_END_URL}/contract/complete`;
+        res.redirect(redirectUrl);
+    } catch (error) {
+        if (error.message === 'Contract not found') {
+            return res.status(404).json({ message: error.message });
+        }
+        res.status(500).json({ message: error.message });
     }
 };
 
 module.exports = {
-    createEnvelope,
-    handleDocuSignWebhook
+    createContract,
+    getContractById,
+    getContractsByTechnicianId,
+ 
+    handleDocuSignCallback
 };
