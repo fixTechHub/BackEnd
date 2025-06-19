@@ -6,8 +6,7 @@ const createBookingRequest = async (req, res) => {
     try {
         // const customerId = req.user.id; 
         const { customerId, serviceId, description, schedule, address } = req.body;
-        // console.log('Booking Text Data:', { customerId, serviceId, description, schedule });
-        console.log(address);
+        // console.log('Booking Text Data:', { customerId, serviceId, description, schedule, address });
 
         // Chuyển đổi địa chỉ string sang GeoJSON Point bằng Mapbox
         const locationPoint = await addressToPoint(address);
