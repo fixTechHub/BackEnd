@@ -188,8 +188,7 @@ const sendQuotation = async (bookingPriceData) => {
             fromStatus: booking.status,
             toStatus: 'QUOTED',
             changedBy: technicianId,
-            role: 'TECHNICIAN',
-            note: reason
+            role: 'TECHNICIAN'
         }], { session });
         
         booking.status = 'QUOTED';
