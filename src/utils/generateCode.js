@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const Contract = require('../models/Contract')
 exports.generateCookie = async (token, res) => {
     res.cookie("token", token, {
         httpOnly: true,
@@ -29,3 +30,17 @@ exports.generateUserCode = async () => {
     return userCode;
 };
 
+exports.generateContractCode = async () => {
+    const prefix = 'CT';
+    let contractCode;
+    let existingContract;
+    do {
+        let randomDigits = '';
+        for (let i = 0; i < 10; i++) {
+            randomDigits += Math.floor(Math.random() * 10);
+        }
+        contractCode = `${prefix}${randomDigits}`;
+        existingContract = await Contract.findOne({ contractCode });
+    } while (existingContract);
+    return contractCode;
+};

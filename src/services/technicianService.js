@@ -7,7 +7,7 @@ const CommissionConfig = require('../models/CommissionConfig');
 const Booking = require('../models/Booking');
 const BookingStatusLog = require('../models/BookingStatusLog');
 
-exports.createNewTechnician = async (userId, technicianData) => {
+const createNewTechnician = async (userId, technicianData) => {
     const technician = new Technician({
         userId,
         identification: technicianData.identification,
@@ -24,7 +24,7 @@ exports.createNewTechnician = async (userId, technicianData) => {
     return await technician.save();
 };
 
-exports.findTechnicianByUserId = async (userId) => {
+const findTechnicianByUserId = async (userId) => {
     return await Technician.findOne({userId})
 }
 
@@ -275,8 +275,26 @@ const confirmJobDoneByTechnician = async (bookingId, userId, role) => {
     }
 };
 
+const getAllTechnicians = async() => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+        const technicians = await Technician.find().session(session); // Fetch all technicians
+        await session.commitTransaction();
+        return technicians;
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    }
+    finally {
+        session.endSession();
+    }
+}
+
 module.exports = {
     findNearbyTechnicians,
     sendQuotation,
-    confirmJobDoneByTechnician
+    confirmJobDoneByTechnician,
+    getAllTechnicians,
+    findTechnicianByUserId
 };

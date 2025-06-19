@@ -24,6 +24,12 @@ const contractSchema = new mongoose.Schema({
     },
     signatureImage: String,
     signedAt: Date,
+    docusignEnvelopeId: {
+        type: String,
+        required: true,
+        unique: true
+    },
+   
     status: {
         type: String,
         enum: ['PENDING', 'SIGNED', 'EXPIRED', 'REJECTED'],
@@ -37,5 +43,6 @@ contractSchema.index({ contractCode: 1 }, { unique: true });
 contractSchema.index({ technicianId: 1 });
 contractSchema.index({ status: 1 });
 contractSchema.index({ technicianId: 1, status: 1 });
+contractSchema.index({ docusignEnvelopeId: 1 }, { unique: true });
 
 module.exports = mongoose.model('Contract', contractSchema);

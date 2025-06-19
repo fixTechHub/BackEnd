@@ -60,14 +60,15 @@ exports.googleAuth = async (access_token) => {
         
         // Populate role trước khi trả về
         user = await User.findById(user._id).populate('role');
-            
-            let technician = null;
-            if(user.role && user.role.name==='Technician'){
-                technician = await technicianService.findTechnicianByUserId(user._id);
-            }
-            const token = generateToken(user);
 
-            return { user, token, technician };
+        let technician = null;
+        if(user.role && user.role.name==='TECHNICIAN'){
+            technician = await technicianService.findTechnicianByUserId(user._id);
+        }
+        const token = generateToken(user);
+        
+        return { user, token, technician };
+
     } catch (error) {
         console.error('Google auth error:', error);
         throw new HttpError(500, `Google authentication failed: ${error.message}`);

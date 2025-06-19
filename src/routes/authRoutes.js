@@ -3,7 +3,7 @@ const authController = require('../controllers/authController')
 const {authenticateToken} = require('../middlewares/authMiddleware')
 const router = express.Router();
 
-router.post('/google-login', authController.googleLogin)
+router.post('/google-login', authController.googleAuthController)
 router.post('/register', authController.register)
 router.post('/complete-registration', authenticateToken, authController.completeRegistration)
 router.post('/check-exist', authController.checkExist)
