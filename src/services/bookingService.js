@@ -4,10 +4,8 @@ const Notification = require('../models/Notification');
 const technicianService = require('./technicianService');
 const BookingPrice = require('../models/BookingPrice');
 const BookingStatusLog = require('../models/BookingStatusLog');
-const notificationService = require('./notificationService');
 
 const createRequestAndNotify = async (bookingData, io) => {
-
     const session = await mongoose.startSession();
     session.startTransaction();
 
@@ -56,10 +54,11 @@ const createRequestAndNotify = async (bookingData, io) => {
                 referenceId: newBooking._id,
                 type: 'NEW_REQUEST'
             };
-            return notificationService.createAndSend(notifData, io);
+            // return notificationService.createAndSend(notifData, io);
+            console.log('--- THONG BAO CHO THO ---', notifData);
         });
 
-        await Promise.all(notificationPromises);
+        // await Promise.all(notificationPromises);
 
         await session.commitTransaction();
         session.endSession();
@@ -236,12 +235,9 @@ const confirmJobDone = async (bookingId, userId, role) => {
     }
 };
 
-
-
 module.exports = {
     createRequestAndNotify,
     getBookingById,
     cancelBooking,
     confirmJobDone
-
 };

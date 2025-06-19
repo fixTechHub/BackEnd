@@ -10,5 +10,4 @@ router.get('/:id', bookingController.getBookingById);
 router.post('/:bookingId/cancel', bookingController.cancelBooking);
 router.post('/:bookingId/done', bookingController.confirmJobDone);
 
-
 module.exports = router;

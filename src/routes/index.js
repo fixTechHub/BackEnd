@@ -10,7 +10,6 @@ router.use('/bookings', require('./bookingRoutes'));
 router.use('/warranties', require('./bookingWarrantyRoutes'));
 router.use('/categories', require('./categoryRoutes'));
 router.use('/commissions-config', require('./commissionRoutes'));
-router.use('/contracts', require('./contractRoutes'));
 router.use('/coupons', require('./couponRoutes'));
 router.use('/feedbacks', require('./feedbackRoutes'));
 router.use('/messages', require('./messageRoutes'));
