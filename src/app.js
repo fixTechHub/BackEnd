@@ -5,6 +5,7 @@ const app = express();
 const cookieParser = require("cookie-parser");
 const routes = require('./routes')
 const actionLogger = require('./middlewares/actionLogger');
+const { handleTemporarySession } = require('./middlewares/sessionMiddleware');
 
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -12,10 +13,16 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(
     cors({
-        origin: `${process.env.FRONT_END_URL}`, // Change this to your frontend URL
-        credentials: true, // Allows cookies to be sent from frontend
+        origin: process.env.FRONT_END_URL,
+        credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'x-session-type'],
+        exposedHeaders: ['set-cookie']
     })
 );
+
+// Add session middleware
+app.use(handleTemporarySession);
 
 app.use(actionLogger);
 // Routes (Định tuyến)
