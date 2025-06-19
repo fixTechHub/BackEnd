@@ -72,6 +72,16 @@ const acceptQuotation = async (req, res) => {
     }
 };
 
+const getAcceptedQuotation = async (req,res) => {
+    try {
+        const {bookingId, technicianId} = req.body
+        const bookingPrice = await bookingPriceService.getAcceptedQuotation(bookingId,technicianId)
+        
+    } catch (error) {
+        
+    }
+}
+
 module.exports = {
     getAllQuotations,
     getQuotationDetail,

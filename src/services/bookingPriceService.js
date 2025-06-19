@@ -103,8 +103,61 @@ const acceptQuotation = async (quotationId, customerId) => {
     }
 };
 
+const getAcceptedQuotation = async (bookingId,technicianId) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+        if (!mongoose.Types.ObjectId.isValid(bookingId)) {
+            throw new Error('ID đặt lịch không hợp lệ');
+        }
+        if (!mongoose.Types.ObjectId.isValid(technicianId)) {
+            throw new Error('ID thợ không hợp lệ');
+        }
+        const bookingPrice = await BookingPrice.findOne({
+            bookingId:bookingId,
+            technicianId: technicianId
+        })
+        if (!bookingPrice) {
+            throw new Error('Không tìm thấy báo giá');
+        }
+        await session.commitTransaction();
+        session.endSession();
+        return bookingPrice
+    } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+        throw error;
+    }
+
+}
+
+const getBookingItemsByBookingPriceId = async(bookingPriceId) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+        if (!mongoose.Types.ObjectId.isValid(bookingPriceId)) {
+            throw new Error('ID báo giá không hợp lệ');
+        }
+        const bookingItems = await BookingItem.find({
+            bookingPriceId: bookingPriceId
+        })
+        if (!bookingItems) {
+            throw new Error('Không tìm thấy vật liệu');
+        }
+        await session.commitTransaction();
+        session.endSession();
+        return bookingItems
+    } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+        throw error;
+    } 
+}
+
 module.exports = {
     getAllQuotations,
     getQuotationDetail,
-    acceptQuotation
+    acceptQuotation,
+    getAcceptedQuotation,
+    getBookingItemsByBookingPriceId
 }; 

@@ -89,7 +89,7 @@ exports.normalLogin = async (email, password) => {
         
         const token = generateToken(user);
         let technician = null
-        if(user.role.name==='Technician'){
+        if(user.role.name==='TECHNICIAN'){
             technician = await technicianService.findTechnicianByUserId(user._id)
         }
         console.log(technician);
