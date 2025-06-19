@@ -18,6 +18,8 @@ const createRequestAndNotify = async (bookingData, io) => {
             status: 'PENDING',
             technicianId: null
         });
+        // console.log('--- LOCATION POINT ---', newBooking.location.geojson.coordinates);
+        console.log('--- ĐẶT LỊCH MỚI ---', newBooking);
 
         await newBooking.save({ session });
         console.log('--- ĐẶT LỊCH MỚI ---', newBooking);
