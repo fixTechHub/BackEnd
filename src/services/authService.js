@@ -6,7 +6,7 @@ const { generateToken, decodeToken } = require('../utils/jwt');
 const HttpError = require('../utils/error');
 const userService = require('./userService');
 const technicianService = require('./technicianService');
-const { sendVerificationEmail, sendResetPassword } = require('../utils/mail');
+const { sendVerificationEmail, sendPasswordResetEmail } = require('../utils/mail');
 const { sendVerificationSMS } = require('../utils/sms');
 const { hashingPassword, comparePassword } = require('../utils/password');
 const { passwordSchema } = require("../validations/authValidation");
@@ -20,26 +20,26 @@ exports.googleAuth = async (access_token) => {
 
     try {
         // Lấy thông tin user từ Google API
-        const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-            headers: {
+            const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                headers: {
                 'Authorization': `Bearer ${access_token}`
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to get user info from Google');
             }
-        });
-        
-        if (!response.ok) {
-            throw new Error('Failed to get user info from Google');
-        }
 
-        const payload = await response.json();
-        const googleId = payload.sub;
+            const payload = await response.json();
+        const { sub: googleId, email, name: fullName, picture: avatar } = payload;
 
-        let user = await userService.findUserByEmail(payload.email);
+        let user = await userService.findUserByEmail(email);
 
-        if (user) {
-            if (!user.googleId) {
-                user = await userService.updateUserGoogleId(user, googleId);
-            }
-        } else {
+            if (user) {
+                if (!user.googleId) {
+                    user = await userService.updateUserGoogleId(user, googleId);
+                }
+            } else {
             // Tìm role PENDING
             const pendingRole = await Role.findOne({ name: 'PENDING' });
             if (!pendingRole) {
@@ -47,19 +47,20 @@ exports.googleAuth = async (access_token) => {
             }
 
             // Tạo user mới với role PENDING
-            user = await userService.createNewUser({
-                fullName: payload.name,
-                email: payload.email,
-                googleId,
-                status: 'ACTIVE',
+                user = await userService.createNewUser({
+                fullName,
+                email,
+                    googleId,
+                avatar,
+                    status: 'ACTIVE',
                 emailVerified: true,
                 role: pendingRole._id
-            });
-        }
+                });
+            }
         
         // Populate role trước khi trả về
         user = await User.findById(user._id).populate('role');
-        
+
         let technician = null;
         if(user.role && user.role.name==='TECHNICIAN'){
             technician = await technicianService.findTechnicianByUserId(user._id);
@@ -67,6 +68,7 @@ exports.googleAuth = async (access_token) => {
         const token = generateToken(user);
         
         return { user, token, technician };
+
     } catch (error) {
         console.error('Google auth error:', error);
         throw new HttpError(500, `Google authentication failed: ${error.message}`);
@@ -77,27 +79,25 @@ exports.googleAuth = async (access_token) => {
 exports.normalLogin = async (email, password) => {
     try {
         const user = await userService.findUserByEmail(email);
-        if (!user) throw new HttpError(400, "Invalid email");
-
-        if (user.emailVerified === false) {
-            throw new HttpError(400, "Please verify your email before logging in.");
+        if (!user) {
+            throw new HttpError(400, "Email không tồn tại");
         }
 
-        const isMatch = await comparePassword(password, user.passwordHash)
-
-        if (!isMatch) throw new HttpError(400, "Invalid password");
+        const isMatch = await comparePassword(password, user.passwordHash);
+        if (!isMatch) {
+            throw new HttpError(400, "Mật khẩu không đúng");
+        }
         
         const token = generateToken(user);
         let technician = null
         if(user.role.name==='TECHNICIAN'){
             technician = await technicianService.findTechnicianByUserId(user._id)
+
+    
         }
-        console.log(technician);
         
         return { user, token, technician };
     } catch (error) {
-        console.log(error.message);
-
         throw new HttpError(error.statusCode || 500, error.message);
     }
 };
@@ -105,19 +105,15 @@ exports.normalLogin = async (email, password) => {
 // Register
 exports.register = async (userData) => {
     try {
-        const hashedPassword = await hashingPassword(userData.password);
-        userData.password = hashedPassword;
+        // Hash mật khẩu trước khi lưu
+        userData.passwordHash = await hashingPassword(userData.password);
+        delete userData.password;
 
         // Tạo user với role đã chọn
-        const user = await userService.createNewUser({
-            ...userData,
-            role: userData.role // Role đã được tìm và xác thực ở controller
-        });
-
-        // Không gửi email/OTP ở đây nữa
+        const user = await userService.createNewUser(userData);
         return user;
     } catch (error) {
-        throw new HttpError(500, `Registration failed: ${error.message}`);
+        throw new HttpError(500, `Đăng ký thất bại: ${error.message}`);
     }
 };
 
@@ -164,47 +160,91 @@ exports.verifyEmail = async (token) => {
     }
 };
 
-exports.forgotPassword = async (email) => {
+exports.handleForgotPassword = async (emailOrPhone) => {
     try {
-        const user = await userService.findUserByEmail(email)
+        // Kiểm tra xem input là email hay số điện thoại
+        const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailOrPhone);
+        const user = isEmail 
+            ? await userService.findUserByEmail(emailOrPhone)
+            : await userService.findUserByPhone(emailOrPhone);
 
         if (!user) {
-            throw new HttpError(404, "User not found");
+            throw new HttpError(404, "Không tìm thấy tài khoản");
         }
 
-        // Generate a reset token (expires in 15 minutes)
-        const resetToken = generateToken(user)
-        const resetLink = `${process.env.FRONT_END_URL}/reset-password?token=${resetToken}`
+        if (isEmail) {
+            // Tạo JWT token cho link đặt lại mật khẩu
+            const resetToken = jwt.sign(
+                { 
+                    userId: user._id,
+                    purpose: 'password-reset'
+                },
+                process.env.JWT_SECRET,
+                { expiresIn: '5m' }
+            );
 
-        await sendResetPassword(user.email, resetLink);
+            // Gửi email với link đặt lại mật khẩu
+            await sendPasswordResetEmail(user.email, resetToken);
+            return { type: 'email' };
+        } else {
+            // Tạo mã OTP cho reset qua SMS
+            const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+            const expiryTime = new Date(Date.now() + 5 * 60 * 1000); // 5 phút
 
+            user.phoneVerificationCode = verificationCode;
+            user.phoneVerificationExpiry = expiryTime;
+            await user.save();
 
+            // Gửi SMS
+            await sendVerificationSMS(user.phone, verificationCode);
+            return { type: 'phone' };
+        }
     } catch (error) {
-        console.error("Forgot Password Error:", error.message);
-        throw new HttpError(500, `Failed to process request  ${error.message}`);
-
+        throw new HttpError(error.statusCode || 500, error.message);
     }
-}
+};
 
-exports.resetPassword = async (token, password) => {
-    const decoded = await decodeToken(token)
-    const user = await userService.findUserByEmail(decoded.email)
-    
-    if (!user) {
-        throw new HttpError(400, "Invalid or expired token");
+exports.handleResetPassword = async (token, newPassword) => {
+    try {
+        let user;
+
+        // Kiểm tra xem token có phải là JWT token không
+        try {
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            if (decoded.purpose !== 'password-reset') {
+                throw new Error('Token không hợp lệ');
+            }
+            user = await User.findById(decoded.userId);
+        } catch (jwtError) {
+            // Nếu không phải JWT token, kiểm tra xem có phải là mã OTP không
+            user = await User.findOne({
+                phoneVerificationCode: token,
+                phoneVerificationExpiry: { $gt: new Date() }
+            });
+        }
+
+        if (!user) {
+            throw new HttpError(404, "Token không hợp lệ hoặc đã hết hạn");
+        }
+
+        // Hash và lưu mật khẩu mới
+        user.passwordHash = await hashingPassword(newPassword);
+        user.phoneVerificationCode = undefined;
+        user.phoneVerificationExpiry = undefined;
+        
+        await user.save();
+        return user;
+    } catch (error) {
+        throw new HttpError(error.statusCode || 500, error.message);
     }
-    const hashedPassword = await hashingPassword(password)
-    user.passwordHash = hashedPassword
-    await user.save()
-
-}
+};
 
 // Check Authentication
 exports.checkAuth = async (userId) => {
     try {
-        const user = await userService.getUserById(userId);
+        const user = await userService.findUserById(userId);
         if (!user) {
-            throw new HttpError(404, "User not found");
+            throw new HttpError(404, "Không tìm thấy người dùng");
         }
 
         let technician = null;
