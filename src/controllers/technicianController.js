@@ -87,6 +87,22 @@ const viewJobDetails = async (req, res) => {
   }
 };
 
+const getTechnicianAvailability = async (req, res) => {
+  try {
+    const technicianId = req.params.technicianId;
+
+    const availability = await TechnicianService.getAvailability(technicianId);
+
+    return res.status(200).json({
+      success: true,
+      availability
+    });
+  } catch (error) {
+    console.error('Error:', error.message);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 const updateAvailability = async (req, res) => {
   try {
     const technicianId = req.params.technicianId;
@@ -104,4 +120,10 @@ const updateAvailability = async (req, res) => {
   }
 };
 
-module.exports = {registerAsTechnician, viewTechnicianProfile, getCertificatesByTechnicianId, viewJobDetails, viewEarningsByBooking, updateAvailability};
+module.exports = {registerAsTechnician,
+                  viewTechnicianProfile, 
+                  getCertificatesByTechnicianId, 
+                  viewJobDetails, 
+                  viewEarningsByBooking, 
+                  getTechnicianAvailability,
+                  updateAvailability};

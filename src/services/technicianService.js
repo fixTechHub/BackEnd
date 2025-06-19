@@ -146,6 +146,16 @@ const getEarningsAndCommissionList = async (technicianId) => {
   return earningList;
 };
 
+const getAvailability = async (technicianId) => {
+  const technician = await Technician.findById(technicianId).select('availability');
+
+  if (!technician) {
+    throw new Error('Technician not found');
+  }
+
+  return technician.availability;
+};
+
 const updateTechnicianAvailability = async (technicianId) => {
 
   const onJobStatuses = ['PENDING', 'QUOTED', 'IN_PROGRESS', 'WAITING_CONFIRM'];
@@ -184,5 +194,6 @@ module.exports = {
   getCertificatesByTechnicianId,
   getJobDetails,
   getEarningsAndCommissionList,
+  getAvailability,
   updateTechnicianAvailability
 };
