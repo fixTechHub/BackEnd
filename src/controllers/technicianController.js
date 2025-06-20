@@ -1,14 +1,63 @@
-const TechnicianService = require('../services/technicianService');
+const technicianService = require('../services/technicianService');
+const User = require('../models/User');
+const Technician = require('../models/Technician');
+const { populate } = require('../models/Booking');
 
+const sendQuotation = async (req, res) => {
+  try {
+    // const technicianId = req.user._id;
+    const { bookingId, technicianId, laborPrice, items, warrantiesDuration } = req.body;
+    const bookingPriceData = {
+      bookingId,
+      technicianId,
+      laborPrice,
+      warrantiesDuration,
+      items
+    };
 
+    const result = await technicianService.sendQuotation(bookingPriceData);
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Error sending quotation:', error);
+    res.status(500).json({ message: 'Failed to send quotation', error: error.message });
+  }
+};
+
+const confirmJobDoneByTechnician = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const { userId } = req.body;
+    // const userId = req.user._id;
+    // const role = req.user.role.name;
+    const technician = await Technician.findOne({ userId: userId }).populate({ path: 'userId', populate: { path: 'role', model: require('../models/Role') } });
+    console.log(technician)
+    const role = technician.userId.role.name;
+
+    const booking = await technicianService.confirmJobDoneByTechnician(
+      bookingId,
+      technician._id,
+      role
+    );
+
+    res.status(200).json({
+      message: 'Xác nhận thành công',
+      data: booking
+    });
+  } catch (error) {
+    console.error('Lỗi khi xác nhận hoàn thành:', error);
+    res.json({
+      message: error.message || 'Không thể xác nhận hoàn thành'
+    });
+  }
+};
 
 const viewTechnicianProfile = async (req, res) => {
   try {
     const { technicianId } = req.params;
 
     const technician = await Promise.all([
-      TechnicianService.getTechnicianProfile(technicianId),
-      TechnicianService.getCertificatesByTechnicianId(technicianId) // Sửa đúng
+      technicianService.getTechnicianProfile(technicianId),
+      technicianService.getCertificatesByTechnicianId(technicianId) // Sửa đúng
     ]);
 
     res.json({
@@ -27,7 +76,7 @@ const viewTechnicianProfile = async (req, res) => {
 const getCertificatesByTechnicianId = async (req, res) => {
   try {
     const { technicianId } = req.params;
-    const certificates = await TechnicianService.getCertificatesByTechnicianId(technicianId);
+    const certificates = await technicianService.getCertificatesByTechnicianId(technicianId);
     res.status(200).json({
       message: 'Certificates fetched successfully',
       certificates,
@@ -41,7 +90,7 @@ const getCertificatesByTechnicianId = async (req, res) => {
 
 const registerAsTechnician = async (req, res, next) => {
   try {
-    const technician = await TechnicianService.registerAsTechnician(req.body);
+    const technician = await technicianService.registerAsTechnician(req.body);
     res.status(201).json({
       message: 'Technician registration submitted. Waiting for admin approval.',
       technician,
@@ -53,29 +102,29 @@ const registerAsTechnician = async (req, res, next) => {
 
 
 const viewJobDetails = async (req, res) => {
-   try {
-        const { technicianId, bookingId } = req.params;
-        console.log("bookingId:", bookingId);
-        console.log("technicianId:", technicianId);
-        
-        const booking = await TechnicianService.getJobDetails(bookingId, technicianId);
+  try {
+    const { technicianId, bookingId } = req.params;
+    console.log("bookingId:", bookingId);
+    console.log("technicianId:", technicianId);
 
-        res.status(200).json(booking);
-    } catch (error) {
-        console.error(error);
-        if (error.status) {
-            return res.status(error.status).json({ message: error.message });
-        }
+    const booking = await technicianService.getJobDetails(bookingId, technicianId);
 
-        res.status(500).json({ message: 'Server error' });
+    res.status(200).json(booking);
+  } catch (error) {
+    console.error(error);
+    if (error.status) {
+      return res.status(error.status).json({ message: error.message });
     }
+
+    res.status(500).json({ message: 'Server error' });
+  }
 }
 
-  const viewEarningsByBooking = async (req, res) => {
+const viewEarningsByBooking = async (req, res) => {
   try {
     const technicianId = req.params;
 
-    const earningList = await TechnicianService.getEarningsAndCommissionList(technicianId);
+    const earningList = await technicianService.getEarningsAndCommissionList(technicianId);
 
     res.json({
       success: true,
@@ -91,7 +140,7 @@ const getTechnicianAvailability = async (req, res) => {
   try {
     const technicianId = req.params.technicianId;
 
-    const availability = await TechnicianService.getAvailability(technicianId);
+    const availability = await technicianService.getAvailability(technicianId);
 
     return res.status(200).json({
       success: true,
@@ -107,7 +156,7 @@ const updateAvailability = async (req, res) => {
   try {
     const technicianId = req.params.technicianId;
 
-    const updatedTech = await TechnicianService.updateTechnicianAvailability(technicianId);
+    const updatedTech = await technicianService.updateTechnicianAvailability(technicianId);
 
     if (!updatedTech) {
       return res.status(404).json({ success: false, message: 'Technician not found' });
@@ -120,10 +169,14 @@ const updateAvailability = async (req, res) => {
   }
 };
 
-module.exports = {registerAsTechnician,
-                  viewTechnicianProfile, 
-                  getCertificatesByTechnicianId, 
-                  viewJobDetails, 
-                  viewEarningsByBooking, 
-                  getTechnicianAvailability,
-                  updateAvailability};
+module.exports = {
+  registerAsTechnician,
+  viewTechnicianProfile,
+  getCertificatesByTechnicianId,
+  viewJobDetails,
+  viewEarningsByBooking,
+  getTechnicianAvailability,
+  sendQuotation,
+  confirmJobDoneByTechnician,
+  updateAvailability
+};
