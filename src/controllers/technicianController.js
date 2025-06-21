@@ -29,10 +29,9 @@ const confirmJobDoneByTechnician = async (req, res) => {
         const { userId } = req.body;
         // const userId = req.user._id;
         // const role = req.user.role.name;
-        
-        // Sử dụng role từ token thay vì populate từ database
-        const technician = await Technician.findOne({ userId: userId });
-        const role = req.user.role; // Lấy role từ token đã được decode trong middleware
+        const technician = await Technician.findOne({ userId: userId }).populate({path: 'userId', populate: {path: 'role', model: require('../models/Role')}});
+        console.log(technician)
+        const role = technician.userId.role.name; 
 
         const booking = await technicianService.confirmJobDoneByTechnician(
             bookingId,
