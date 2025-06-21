@@ -52,8 +52,7 @@ const getQuotationDetail = async (req, res) => {
 const acceptQuotation = async (req, res) => {
     try {
         const quotationId = req.params.quotationId;
-        // const customerId = req.user._id;
-        const customerId = '68477c06b6efa9a3615217dd' 
+        const customerId = req.user.userId;
 
         const acceptedQuotation = await bookingPriceService.acceptQuotation(quotationId, customerId);
         // console.log('--- ACCEPTED QUOTATION ---');

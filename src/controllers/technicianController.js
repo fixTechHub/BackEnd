@@ -1,7 +1,6 @@
 const technicianService = require('../services/technicianService');
 const User = require('../models/User');
 const Technician = require('../models/Technician');
-const { populate } = require('../models/Booking');
 
 const sendQuotation = async (req, res) => {
     try {
@@ -26,16 +25,12 @@ const sendQuotation = async (req, res) => {
 const confirmJobDoneByTechnician = async (req, res) => {
     try {
         const { bookingId } = req.params;
-        const { userId } = req.body;
-        // const userId = req.user._id;
-        // const role = req.user.role.name;
-        const technician = await Technician.findOne({ userId: userId }).populate({path: 'userId', populate: {path: 'role', model: require('../models/Role')}});
-        console.log(technician)
-        const role = technician.userId.role.name; 
+        const userId = req.user.userId;
+        const role = req.user.role; 
 
         const booking = await technicianService.confirmJobDoneByTechnician(
             bookingId,
-            technician._id,
+            userId,
             role
         );
 
@@ -51,7 +46,24 @@ const confirmJobDoneByTechnician = async (req, res) => {
     }
 };
 
+const getTechnicianInformation = async (req, res) => {
+    try {
+        const technicianId = req.params.technicianId;
+
+        const technician = await technicianService.getTechnicianInformation(technicianId);
+        console.log('--- TECHNICIAN ---', technician);
+        
+        res.status(200).json({
+            message: 'Lấy thông tin thợ thành công',
+            data: technician
+        });
+    } catch (error) {
+        
+    }
+};
+
 module.exports = {
     sendQuotation,
-    confirmJobDoneByTechnician
+    confirmJobDoneByTechnician,
+    getTechnicianInformation
 };

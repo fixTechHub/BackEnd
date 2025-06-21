@@ -5,7 +5,8 @@ const bcrypt = require('bcrypt');
 
 exports.getProfile = async (req, res) => {
     try {
-        const userId = req.user.userId;
+        const userId = req.user.userId;                
+
         const user = await User.findById(userId)
             .populate('role')
             .select('-passwordHash -verificationCode -verificationCodeExpires -verificationOTP -otpExpires');

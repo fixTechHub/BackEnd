@@ -1,5 +1,4 @@
 require('dotenv').config();
-const http = require('http'); // Import the http module
 const app = require('./src/app');
 const http = require('http');
 const connectDB = require('./src/config/connectDB');

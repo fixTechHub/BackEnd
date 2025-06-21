@@ -274,19 +274,16 @@ const confirmJobDoneByTechnician = async (bookingId, userId, role) => {
     }
 };
 
-const getAllTechnicians = async() => {
-    const session = await mongoose.startSession();
-    session.startTransaction();
+const getTechnicianInformation = async (techId) => {
     try {
-        const technicians = await Technician.find().session(session); // Fetch all technicians
-        await session.commitTransaction();
-        return technicians;
+        const technician = await Technician.findById(techId)
+            .populate('userId')
+            .populate("specialtiesCategories")
+
+        return technician;
     } catch (error) {
-        await session.abortTransaction();
+        console.log('Lỗi khi lấy thông tin kỹ thuật viên');
         throw error;
-    }
-    finally {
-        session.endSession();
     }
 }
 
@@ -312,7 +309,5 @@ module.exports = {
     findNearbyTechnicians,
     sendQuotation,
     confirmJobDoneByTechnician,
-    getAllTechnicians,
-    findTechnicianByUserId,
-    getTechnicianById
+    getTechnicianInformation
 };

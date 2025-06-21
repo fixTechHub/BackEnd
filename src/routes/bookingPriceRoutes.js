@@ -5,8 +5,9 @@ const router = express.Router();
 
 router.get('/booking/:bookingId', bookingPriceController.getAllQuotations);
 router.get('/:quotationId', bookingPriceController.getQuotationDetail);
-router.post('/:quotationId/accept', bookingPriceController.acceptQuotation);
 router.get('/acceptedBookingPrice/:bookingId/:technicianId',
     authenticateToken,
     bookingPriceController.getAcceptedQuotation)
+router.post('/:quotationId/accept', authenticateToken, bookingPriceController.acceptQuotation);
+
 module.exports = router;

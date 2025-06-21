@@ -49,6 +49,7 @@ exports.getAuthenticatedUser = async (req, res) => {
         res.status(error.statusCode || 500).json({ message: error.message });
     }
 };
+
 exports.googleAuthController = async (req, res) => {
     try {
         const { access_token } = req.body;
@@ -192,7 +193,7 @@ exports.googleLogin = async (req, res) => {
 
         // Generate JWT token
         const token = jwt.sign(
-            { userId: user._id },   
+            { userId: user._id, email: user.email, fullName: user.fullName, role: user.role.name },   
             process.env.JWT_SECRET,
             { expiresIn: '24h' }
         );
