@@ -8,6 +8,7 @@ router.use('/auth', require('./authRoutes'));
 router.use('/admin', require('./adminRoutes'));
 router.use('/users', require('./userRoutes'));
 router.use('/bookings', require('./bookingRoutes'));
+router.use('/certificates', require('./certificateRoutes'));
 router.use('/booking-prices', require('./bookingPriceRoutes'));
 router.use('/warranties', require('./bookingWarrantyRoutes'));
 router.use('/categories', require('./categoryRoutes'));

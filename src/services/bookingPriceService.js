@@ -10,10 +10,16 @@ const getAllQuotations = async (bookingId) => {
         }
 
         const quotations = await BookingPrice.find({ bookingId })
-            .populate('technicianId')
+            .populate({
+                path: 'technicianId',
+                populate: [
+                    { path: 'userId' },
+                    { path: 'specialtiesCategories' }
+                ]
+            })
             .populate('commissionConfigId')
             .sort({ quotedAt: -1 });
-        
+
         return quotations;
     } catch (error) {
         throw error;

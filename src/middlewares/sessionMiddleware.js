@@ -30,7 +30,12 @@ exports.handleTemporarySession = async (req, res, next) => {
         // Thêm role từ token vào user object để tương thích với code cũ
         user.role = { name: decoded.role };
 
-        // Kiểm tra trạng thái xác thực
+        // Nếu là session tạm thời, cho phép tiếp tục mà không kiểm tra trạng thái xác thực
+        if (isTemporarySession) {
+            return next();
+        }
+
+        // Kiểm tra trạng thái xác thực chỉ khi không phải session tạm thời
         let isIncomplete = false;
         let lastStep = null;
 
@@ -40,7 +45,7 @@ exports.handleTemporarySession = async (req, res, next) => {
         } else if (user.email && !user.emailVerified) {
             isIncomplete = true;
             lastStep = 'VERIFY_EMAIL';
-        } else if (user.phone && !user.phoneVerified) {
+        } else if (user.phone && !user.phoneVerified && !user.email) {
             isIncomplete = true;
             lastStep = 'VERIFY_PHONE';
         } else if (decoded.role === 'TECHNICIAN' && (!user.status || user.status === 'PENDING')) {
@@ -48,13 +53,8 @@ exports.handleTemporarySession = async (req, res, next) => {
             lastStep = 'COMPLETE_PROFILE';
         }
 
-        // Nếu là session tạm thời, cho phép tiếp tục
-        if (isTemporarySession) {
-            return next();
-        }
-
         // Nếu có bước chưa hoàn thành và không phải đang ở các route xác thực
-        const authRoutes = ['/auth/verify-email', '/auth/verify-otp', '/auth/complete-registration'];
+        const authRoutes = ['/auth/verify-email', '/auth/verify-otp', '/auth/complete-registration', '/auth/resend-email-code', '/auth/resend-otp'];
         if (isIncomplete && !authRoutes.some(route => req.path.includes(route))) {
             // Xóa cookie và lưu bước cuối cùng vào session
             res.clearCookie('token');

@@ -10,8 +10,8 @@ exports.authenticateToken = async (req, res, next) => {
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        
-        // Đảm bảo req.user có đầy đủ thông tin từ token
+        // req.user = decoded;
+
         req.user = {
             userId: decoded.userId,
             email: decoded.email,

@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 
 const BUCKET_NAME = process.env.AWS_BUCKET_NAME;
 const REGION = process.env.AWS_REGION;
@@ -46,4 +46,22 @@ const uploadFileToS3 = async (fileBuffer, originalName, mimetype, folder = 'othe
     }
 };
 
-module.exports = { uploadFileToS3 };
+const deleteFileFromS3 = async (fileUrl) => {
+  try {
+    const url = new URL(fileUrl);
+    const key = decodeURIComponent(url.pathname.substring(1)); // bỏ dấu /
+
+    const command = new DeleteObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: key,
+    });
+
+    await s3Client.send(command);
+    console.log(`Deleted file from S3: ${key}`);
+  } catch (error) {
+    console.error("Error deleting from S3:", error);
+    throw error;
+  }
+};
+
+module.exports = { uploadFileToS3,deleteFileFromS3 };
