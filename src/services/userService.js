@@ -7,11 +7,11 @@ const mongoose = require('mongoose');
 exports.generateUserCode = generateUserCode;
 
 exports.findUserByEmail = async (email) => {
-    return await User.findOne({ email }).populate('role')
+    return await User.findOne({ email }) // Không cần populate role nữa
 };
 
 exports.findUserByPhone = async (phone) => {
-    return await User.findOne({ phone }).populate('role')
+    return await User.findOne({ phone }) // Không cần populate role nữa
 };
 
 exports.updateUserGoogleId = async (user, googleId) => {
@@ -47,7 +47,7 @@ exports.findRoleById = async (roleId) => {
 };
 
 exports.findUserById = async (userId) => {
-    return await User.findById(userId).populate('role') 
+    return await User.findById(userId) // Không cần populate role nữa
 };
 
 exports.createNewUser = async (userData) => {
