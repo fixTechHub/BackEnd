@@ -2,33 +2,24 @@ const docusign = require('docusign-esign');
 const { initializeApiClient } = require('../config/docusignSetUp');
 const Contract = require('../models/Contract');
 const { generateContractCode } = require('../utils/generateCode');
+const Technician = require('../models/Technician');
+const User = require('../models/User');
+const notificationService = require('./notificationService');
 
-const createContract = async (contractData) => {
-  try {
-    // Validate FRONT_END_URL
-    if (!process.env.FRONT_END_URL || !process.env.FRONT_END_URL.startsWith('http')) {
-      throw new Error('FRONTEND_URL must be an absolute URL (e.g., https://yourapp.com)');
-    }
-
-    // Generate contract code
-    const contractCode = await generateContractCode();
-
-    // Initialize DocuSign API client and get account ID
+// Internal helper function to create the DocuSign envelope
+const _createDocusignEnvelope = async (contractData, contractCode) => {
     const { dsApiClient, accountId } = await initializeApiClient();
     const envelopesApi = new docusign.EnvelopesApi(dsApiClient);
 
-    // Get current date
     const effectiveDate = new Date();
     const day = effectiveDate.getDate().toString();
-    const month = (effectiveDate.getMonth() + 1).toString(); // Months are 0-based
+    const month = (effectiveDate.getMonth() + 1).toString();
     const year = effectiveDate.getFullYear().toString();
 
-    // Create envelope definition using a template
     const envelope = new docusign.EnvelopeDefinition();
     envelope.templateId = process.env.DOCUSIGN_TEMPLATE_ID;
     envelope.status = 'sent';
 
-    // Prepare text tabs for pre-filling with two instances of Day, Month, and Year
     const textTabs = [
       docusign.Text.constructFromObject({ tabLabel: 'Contract Code', value: contractCode }),
       docusign.Text.constructFromObject({ tabLabel: 'Day1', value: day }),
@@ -37,26 +28,17 @@ const createContract = async (contractData) => {
       docusign.Text.constructFromObject({ tabLabel: 'Month2', value: month }),
       docusign.Text.constructFromObject({ tabLabel: 'Year1', value: year }),
       docusign.Text.constructFromObject({ tabLabel: 'Year2', value: year }),
-      docusign.Text.constructFromObject({ tabLabel: 'Full Name', value: contractData.fullName || '' }),
-      docusign.Text.constructFromObject({ tabLabel: 'Address', value: contractData.location || 'Da Nang' }),
-
-      docusign.Text.constructFromObject({ tabLabel: 'Email', value: contractData.email || '' }),
-      docusign.Text.constructFromObject({ tabLabel: 'Phone', value: contractData.phoneNumber || '0814035790' }),
-      docusign.Text.constructFromObject({ tabLabel: 'Identification', value: contractData.idNumber || '201879499' }),
+      docusign.Text.constructFromObject({ tabLabel: 'Full Name', value: contractData.fullName  }),
+      docusign.Text.constructFromObject({ tabLabel: 'Address', value: contractData.address  }),
+      docusign.Text.constructFromObject({ tabLabel: 'Email', value: contractData.email  }),
+      docusign.Text.constructFromObject({ tabLabel: 'Phone', value: contractData.phone  }),
+      docusign.Text.constructFromObject({ tabLabel: 'Identification', value: contractData.idNumber  }),
       docusign.Text.constructFromObject({ tabLabel: 'Duration', value: "6" }),
     ];
 
-    // Log the tabs being sent for debugging
-    console.log('Text Tabs being sent:', JSON.stringify(textTabs, null, 2));
-
-    // Create Technician tabs (only text tabs)
-    const technicianTabs = docusign.Tabs.constructFromObject({
-      textTabs: textTabs,
-    });
-
-    // Create Technician role (manual signer)
+    const technicianTabs = docusign.Tabs.constructFromObject({ textTabs: textTabs });
     const technicianClientUserId = `${contractData.technicianId}-${contractCode}`;
-    const technician = docusign.TemplateRole.constructFromObject({
+    const technicianRole = docusign.TemplateRole.constructFromObject({
       email: contractData.email,
       name: contractData.fullName,
       roleName: 'Technician',
@@ -65,130 +47,223 @@ const createContract = async (contractData) => {
       routingOrder: '1',
     });
 
-    envelope.templateRoles = [technician];
+    envelope.templateRoles = [technicianRole];
 
-    // Create envelope
     const results = await envelopesApi.createEnvelope(accountId, { envelopeDefinition: envelope });
-    const envelopeId = results.envelopeId;
-
-    // Create recipient view for Technician (embedded signing)
-    const viewRequest = new docusign.RecipientViewRequest();
-    viewRequest.returnUrl = `${process.env.BACK_END_URL}/contract/status/${envelopeId}`;
-    viewRequest.authenticationMethod = 'none';
-    viewRequest.email = contractData.email;
-    viewRequest.userName = contractData.fullName;
-    viewRequest.clientUserId = technicianClientUserId;
-
-    console.log('Recipient View returnUrl:', viewRequest.returnUrl);
-
-    const viewResults = await envelopesApi.createRecipientView(accountId, envelopeId, {
-      recipientViewRequest: viewRequest,
-    });
-
-    // Calculate expiration date
-    const expirationDate = new Date(effectiveDate);
-    expirationDate.setMonth(effectiveDate.getMonth() + 6);
-
-    // Save contract to database
-    const contract = new Contract({
-      technicianId: contractData.technicianId,
-      contractCode,
-      effectiveDate,
-      expirationDate,
-      content: contractData.content,
-      docusignEnvelopeId: envelopeId,
-      status: 'PENDING',
-    });
-
-    await contract.save();
-
-    return { signingUrl: viewResults.url };
-  } catch (error) {
-    console.error('DocuSign error:', {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-    });
-    throw new Error(`Failed to create contract: ${error.message}`);
-  }
+    return results.envelopeId;
 };
 
-// Other functions (unchanged)
-const getContractById = async (contractId) => {
-  try {
-    const contract = await Contract.findById(contractId);
-    if (!contract) {
-      throw new Error('Contract not found');
+const generateContractOnRegistration = async (technicianId, io, session = null) => {
+    try {
+        const technician = await Technician.findById(technicianId)
+            .populate('userId')
+            .session(session);
+        
+        if (!technician) {
+            throw new Error('Technician not found');
+        }
+        const user = technician.userId;
+
+        const contractCode = await generateContractCode();
+        
+        const contractData = {
+            fullName: user.fullName,
+            email: user.email,
+            address: `${user.address?.street}, ${user.address?.district}, ${user.address?.city}`,
+            phone: user.phone,
+            idNumber: technician.identification,
+            technicianId: technician._id
+        };
+
+        const envelopeId = await _createDocusignEnvelope(contractData, contractCode);
+
+        // Generate the signing URL
+        const { dsApiClient, accountId } = await initializeApiClient();
+        const envelopesApi = new docusign.EnvelopesApi(dsApiClient);
+        const viewRequest = new docusign.RecipientViewRequest();
+        viewRequest.returnUrl = `${process.env.FRONT_END_URL}/contract/complete`; // Redirect after signing
+        viewRequest.authenticationMethod = 'none';
+        viewRequest.email = contractData.email;
+        viewRequest.userName = contractData.fullName;
+        viewRequest.clientUserId = `${contractData.technicianId}-${contractCode}`;
+        const viewResults = await envelopesApi.createRecipientView(accountId, envelopeId, { recipientViewRequest: viewRequest });
+
+        const effectiveDate = new Date();
+        const expirationDate = new Date(effectiveDate);
+        expirationDate.setMonth(effectiveDate.getMonth() + 6);
+
+        const contract = new Contract({
+            technicianId: technician._id,
+            contractCode,
+            effectiveDate,
+            expirationDate,
+            docusignEnvelopeId: envelopeId,
+            signingUrl: viewResults.url, // Save the signing URL
+            status: 'PENDING',
+            content: `Service agreement contract for ${user.fullName} created on ${effectiveDate.toLocaleDateString()}.`
+        });
+
+        await contract.save({ session });
+        console.log(`Contract created automatically for technician: ${technicianId}`);
+
+        const notificationData = {
+            userId: technician.userId,
+            title: 'Your Account has been Approved!',
+            content: 'Your technician account has been approved. Please log in and sign your contract to start receiving jobs.',
+            type: 'NEW_REQUEST',
+            referenceId: contract._id 
+        };
+        
+        // Pass session to notification service if it supports transactions
+        await notificationService.createAndSend(notificationData, io, session);
+        
+    } catch (error) {
+        console.error('Failed to create contract on registration:', error);
+        throw error; // Re-throw to allow transaction rollback
     }
-    return contract;
-  } catch (error) {
-    throw new Error(`Failed to get contract: ${error.message}`);
-  }
 };
 
-const getContractsByTechnicianId = async (technicianId) => {
-  try {
-    const contracts = await Contract.find({ technicianId });
-    return contracts;
-  } catch (error) {
-    throw new Error(`Failed to get contracts: ${error.message}`);
-  }
-};
+const createContract = async (contractData, session = null) => {
+    try {
+        if (!process.env.FRONT_END_URL || !process.env.FRONT_END_URL.startsWith('http')) {
+            throw new Error('FRONTEND_URL must be an absolute URL (e.g., https://yourapp.com)');
+        }
 
-const updateContractStatus = async (contractId, status) => {
-  try {
-    const contract = await Contract.findByIdAndUpdate(
-      contractId,
-      {
-        status,
-        ...(status === 'SIGNED' && { signedAt: new Date() }),
-      },
-      { new: true }
-    );
-    if (!contract) {
-      throw new Error('Contract not found');
+        const contractCode = await generateContractCode();
+        const envelopeId = await _createDocusignEnvelope(contractData, contractCode);
+        
+        const { dsApiClient, accountId } = await initializeApiClient();
+        const envelopesApi = new docusign.EnvelopesApi(dsApiClient);
+
+        const viewRequest = new docusign.RecipientViewRequest();
+        viewRequest.returnUrl = `${process.env.BACK_END_URL}/contracts/status/${envelopeId}`;
+        viewRequest.authenticationMethod = 'none';
+        viewRequest.email = contractData.email;
+        viewRequest.userName = contractData.fullName;
+        viewRequest.clientUserId = `${contractData.technicianId}-${contractCode}`;
+
+        const viewResults = await envelopesApi.createRecipientView(accountId, envelopeId, {
+            recipientViewRequest: viewRequest,
+        });
+
+        const effectiveDate = new Date();
+        const expirationDate = new Date(effectiveDate);
+        expirationDate.setMonth(effectiveDate.getMonth() + 6);
+
+        const contract = new Contract({
+            technicianId: contractData.technicianId,
+            contractCode,
+            effectiveDate,
+            expirationDate,
+            content: contractData.content,
+            docusignEnvelopeId: envelopeId,
+            status: 'PENDING',
+        });
+
+        await contract.save({ session });
+
+        return { signingUrl: viewResults.url };
+    } catch (error) {
+        console.error('DocuSign error:', {
+            message: error.message,
+            response: error.response?.data,
+            status: error.response?.status,
+        });
+        throw new Error(`Failed to create contract: ${error.message}`);
     }
-    return contract;
-  } catch (error) {
-    throw new Error(`Failed to update contract status: ${error.message}`);
-  }
 };
 
-const findContractByEnvelopeId = async (envelopeId) => {
-  try {
-    const contract = await Contract.findOne({ docusignEnvelopeId: envelopeId });
-    if (!contract) {
-      throw new Error('Contract not found');
+const getContractById = async (contractId, session = null) => {
+    try {
+        const query = Contract.findById(contractId);
+        if (session) query.session(session);
+        
+        const contract = await query.exec();
+        if (!contract) {
+            throw new Error('Contract not found');
+        }
+        return contract;
+    } catch (error) {
+        throw new Error(`Failed to get contract: ${error.message}`);
     }
-    return contract;
-  } catch (error) {
-    throw new Error(`Failed to find contract by envelope ID: ${error.message}`);
-  }
 };
 
-const updateExpiredContracts = async () => {
-  try {
-    const today = new Date();
-    const result = await Contract.updateMany(
-      {
-        status: { $in: ['PENDING', 'SIGNED'] },
-        expirationDate: { $lt: today }
-      },
-      {
-        $set: { status: 'EXPIRED' }
-      }
-    );
-    return result;
-  } catch (error) {
-    throw new Error(`Failed to update expired contracts: ${error.message}`);
-  }
+const getContractsByTechnicianId = async (technicianId, session = null) => {
+    try {
+        const query = Contract.find({ technicianId });
+        if (session) query.session(session);
+        
+        const contracts = await query.exec();
+        return contracts;
+    } catch (error) {
+        throw new Error(`Failed to get contracts: ${error.message}`);
+    }
+};
+
+const updateContractStatus = async (contractId, status, session = null) => {
+    try {
+        const query = Contract.findByIdAndUpdate(
+            contractId,
+            {
+                status,
+                ...(status === 'SIGNED' && { signedAt: new Date() }),
+            },
+            { new: true }
+        );
+        if (session) query.session(session);
+        
+        const contract = await query.exec();
+        if (!contract) {
+            throw new Error('Contract not found');
+        }
+        return contract;
+    } catch (error) {
+        throw new Error(`Failed to update contract status: ${error.message}`);
+    }
+};
+
+const findContractByEnvelopeId = async (envelopeId, session = null) => {
+    try {
+        const query = Contract.findOne({ docusignEnvelopeId: envelopeId });
+        if (session) query.session(session);
+        
+        const contract = await query.exec();
+        if (!contract) {
+            throw new Error('Contract not found');
+        }
+        return contract;
+    } catch (error) {
+        throw new Error(`Failed to find contract by envelope ID: ${error.message}`);
+    }
+};
+
+const updateExpiredContracts = async (session = null) => {
+    try {
+        const today = new Date();
+        const query = Contract.updateMany(
+            {
+                status: { $in: ['PENDING', 'SIGNED'] },
+                expirationDate: { $lt: today }
+            },
+            {
+                $set: { status: 'EXPIRED' }
+            }
+        );
+        if (session) query.session(session);
+        
+        const result = await query.exec();
+        return result;
+    } catch (error) {
+        throw new Error(`Failed to update expired contracts: ${error.message}`);
+    }
 };
 
 module.exports = {
-  createContract,
-  getContractById,
-  getContractsByTechnicianId,
-  updateContractStatus,
-  findContractByEnvelopeId,
-  updateExpiredContracts
+    createContract,
+    generateContractOnRegistration,
+    getContractById,
+    getContractsByTechnicianId,
+    updateContractStatus,
+    findContractByEnvelopeId,
+    updateExpiredContracts
 };

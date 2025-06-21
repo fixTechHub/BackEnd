@@ -291,10 +291,29 @@ const getAllTechnicians = async() => {
     }
 }
 
+const getTechnicianById = async(technicianId) => {
+
+    try {
+        if (!mongoose.Types.ObjectId.isValid(technicianId)) {
+            throw new Error('ID Kỹ thuật viên không hợp lệ');
+        }
+        const technician = await Technician.findById(technicianId)
+        if (!technician) {
+            throw new Error('Không tìm thấy Kỹ thuật viênviên');
+        }
+
+        return technician;
+    } catch (error) {
+     
+        throw error;
+    }
+}
+
 module.exports = {
     findNearbyTechnicians,
     sendQuotation,
     confirmJobDoneByTechnician,
     getAllTechnicians,
-    findTechnicianByUserId
+    findTechnicianByUserId,
+    getTechnicianById
 };

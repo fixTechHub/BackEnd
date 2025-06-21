@@ -1,5 +1,7 @@
 const User = require('../models/User');
 const Contract = require('../models/Contract')
+const Receipt = require('../models/Receipt')
+
 exports.generateCookie = async (token, res) => {
     res.cookie("token", token, {
         httpOnly: true,
@@ -44,3 +46,25 @@ exports.generateContractCode = async () => {
     } while (existingContract);
     return contractCode;
 };
+
+exports.generateReceiptCode = async () => {
+    const prefix = 'REC';
+    let receiptCode;
+    let existingReceipt;
+    do {
+        let randomDigits = '';
+        for (let i = 0; i < 10; i++) {
+            randomDigits += Math.floor(Math.random() * 10);
+        }
+        receiptCode = `${prefix}${randomDigits}`;
+        existingReceipt = await Receipt.findOne({ receiptCode });
+    } while (existingReceipt);
+    return receiptCode;
+};
+
+exports.generateOrderCode = async () => {
+    const timestamp = Date.now(); // milliseconds since epoch
+    const randomPart = Math.floor(Math.random() * 1000000); // 6-digit random number
+    const orderCode = (timestamp * 1000000 + randomPart) % Number.MAX_SAFE_INTEGER;
+    return orderCode;
+}

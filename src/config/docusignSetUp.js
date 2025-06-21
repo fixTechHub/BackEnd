@@ -1,12 +1,23 @@
 const docusign = require('docusign-esign');
 
+// Cached instance of the API client and account ID
+let dsApiClient = null;
+let accountId = null;
 
 const initializeApiClient = async () => {
-  const dsApiClient = new docusign.ApiClient();
+  // If the client is already initialized, return the cached instance
+  if (dsApiClient && accountId) {
+    // Optional: Add a check to see if the token is about to expire and refresh if needed
+    // This part is more advanced and depends on how you store token expiration time.
+    // For now, we'll assume the token is valid for its full duration (e.g., 1 hour).
+    return { dsApiClient, accountId };
+  }
+
+  const client = new docusign.ApiClient();
   
-  // Set the base path (ensure it’s the correct environment)
+  // Set the base path (ensure it's the correct environment)
   const basePath = process.env.DOCUSIGN_API_URL || 'https://demo.docusign.net/restapi';
-  dsApiClient.setBasePath(basePath);
+  client.setBasePath(basePath);
   const privateKey = Buffer.from(process.env.DOCUSIGN_PRIVATE_KEY, 'base64').toString('utf8');
   
   try {
@@ -14,7 +25,6 @@ const initializeApiClient = async () => {
     const requiredEnvVars = [
       'DOCUSIGN_INTEGRATION_KEY',
       'DOCUSIGN_USER_ID',
-      // 'DOCUSIGN_ACCOUNT_ID' // Remove this; we’ll fetch it dynamically
     ];
     
     for (const envVar of requiredEnvVars) {
@@ -23,9 +33,8 @@ const initializeApiClient = async () => {
       }
     }
 
-   
     // Request JWT token with proper parameters
-    const results = await dsApiClient.requestJWTUserToken(
+    const results = await client.requestJWTUserToken(
       process.env.DOCUSIGN_INTEGRATION_KEY,
       process.env.DOCUSIGN_USER_ID,
       'signature impersonation', // Include both scopes
@@ -33,19 +42,23 @@ const initializeApiClient = async () => {
       3600
     );
 
-    console.log('JWT Token obtained successfully');
+    console.log('JWT Token obtained successfully. Initializing singleton client.');
     
     // Set the authorization header
-    dsApiClient.addDefaultHeader('Authorization', 'Bearer ' + results.body.access_token);
+    client.addDefaultHeader('Authorization', 'Bearer ' + results.body.access_token);
     
     // Fetch account ID dynamically
-    const userInfo = await dsApiClient.getUserInfo(results.body.access_token);
+    const userInfo = await client.getUserInfo(results.body.access_token);
     const account = userInfo.accounts.find(acc => acc.isDefault) || userInfo.accounts[0];
     if (!account) {
       throw new Error('No accounts found for the authenticated user.');
     }
+
+    // Cache the initialized client and account ID
+    dsApiClient = client;
+    accountId = account.accountId;
     
-    return { dsApiClient, accountId: account.accountId };
+    return { dsApiClient, accountId };
     
   } catch (error) {
     console.error('JWT Token Error Details:', {

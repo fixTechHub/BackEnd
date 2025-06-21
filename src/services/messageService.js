@@ -34,30 +34,30 @@ const sendMessage = async (messageData, io) => {
   // Create and save message
   const newMessage = await createMessage(messageData);
 
-// Create notification for recipient
+  // Create notification for recipient
   const notificationData = {
     userId: newMessage.toUser,
     title: 'New Message',
-    content: newMessage.content.length > 20
-      ? `${newMessage.content.substring(0, 47)}...`
+    content: newMessage.content.length > 50 
+      ? `${newMessage.content.substring(0, 47)}...` 
       : newMessage.content,
     type: 'MESSAGE',
     referenceId: newMessage._id,
   };
-  const notification = await notificationService.createNotification(notificationData);
+  
+  // Use createAndSend to ensure real-time notification
+  await notificationService.createAndSend(notificationData, io);
 
-  // Emit events
+  // Emit events to update chat UI
   io.to(`user:${newMessage.fromUser}`).emit('receiveMessage', newMessage);
   io.to(`user:${newMessage.toUser}`).emit('receiveMessage', newMessage);
-  console.log(`Emitting receiveNotification to user:${newMessage.toUser}`);
-  io.to(`user:${newMessage.toUser}`).emit('receiveNotification', notification);
 
   return newMessage;
 };
 
 const getMessagesByBookingId = async (bookingId) => {
   return await Message.find({ bookingId: bookingId });
-};
+};  
 
 module.exports = exports = {
   createMessage,

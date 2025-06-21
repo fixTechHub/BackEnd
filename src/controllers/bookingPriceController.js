@@ -1,4 +1,6 @@
 const bookingPriceService = require("../services/bookingPriceService");
+const couponService = require('../services/couponService')
+
 
 const getAllQuotations = async (req, res) => {
     try {
@@ -74,16 +76,30 @@ const acceptQuotation = async (req, res) => {
 
 const getAcceptedQuotation = async (req,res) => {
     try {
-        const {bookingId, technicianId} = req.body
+        // const user = req.user
+        const userId='6853f9162542fc5f541d5f38'
+        const {bookingId, technicianId} = req.params
         const bookingPrice = await bookingPriceService.getAcceptedQuotation(bookingId,technicianId)
+        const bookingItem = await bookingPriceService.getBookingItemsByBookingPriceId(bookingPrice._id)
+        // const userCoupons = await couponService.getUserCoupon(user.userId)
+        const userCoupons = await couponService.getUserCoupon(userId)
         
+        res.status(200).json({
+            bookingPrice,
+            bookingItem,
+            userCoupons
+        })
+
     } catch (error) {
         
     }
 }
 
+
+
 module.exports = {
     getAllQuotations,
     getQuotationDetail,
-    acceptQuotation
+    acceptQuotation,
+    getAcceptedQuotation,
 }; 

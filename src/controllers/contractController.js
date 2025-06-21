@@ -41,8 +41,9 @@ const getContractsByTechnicianId = async (req, res) => {
 
 const handleDocuSignCallback = async (req, res) => {
     try {
-        const { event, envelopeId } = req.params;
-        
+        const {envelopeId} = req.params
+
+        const { event  } = req.query;
         // Find contract by envelope ID using service
         const contract = await contractService.findContractByEnvelopeId(envelopeId);
 

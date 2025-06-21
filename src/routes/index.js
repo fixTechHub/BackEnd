@@ -7,6 +7,7 @@ router.use('/auth', require('./authRoutes'));
 router.use('/admin', require('./adminRoutes'));
 router.use('/users', require('./userRoutes'));
 router.use('/bookings', require('./bookingRoutes'));
+router.use('/booking-price', require('./bookingPriceRoutes'))
 router.use('/warranties', require('./bookingWarrantyRoutes'));
 router.use('/categories', require('./categoryRoutes'));
 router.use('/commissions-config', require('./commissionRoutes'));

@@ -29,7 +29,9 @@ const contractSchema = new mongoose.Schema({
         required: true,
         unique: true
     },
-   
+    signingUrl: {
+        type: String,
+    },
     status: {
         type: String,
         enum: ['PENDING', 'SIGNED', 'EXPIRED', 'REJECTED'],

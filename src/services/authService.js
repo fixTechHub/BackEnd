@@ -60,15 +60,14 @@ exports.googleAuth = async (access_token) => {
         
         // Populate role trước khi trả về
         user = await User.findById(user._id).populate('role');
+            
+            let technician = null;
+            if(user.role && user.role.name==='TECHNICIAN'){
+                technician = await technicianService.findTechnicianByUserId(user._id);
+            }
+            const token = generateToken(user);
 
-        let technician = null;
-        if(user.role && user.role.name==='TECHNICIAN'){
-            technician = await technicianService.findTechnicianByUserId(user._id);
-        }
-        const token = generateToken(user);
-        
-        return { user, token, technician };
-
+            return { user, token, technician };
     } catch (error) {
         console.error('Google auth error:', error);
         throw new HttpError(500, `Google authentication failed: ${error.message}`);
@@ -79,21 +78,22 @@ exports.googleAuth = async (access_token) => {
 exports.normalLogin = async (email, password) => {
     try {
         const user = await userService.findUserByEmail(email);
-        if (!user) {
-            throw new HttpError(400, "Email không tồn tại");
+
+        // Check if user exists and has a password.
+        // If not, they might have registered via a social login like Google.
+        if (!user || !user.passwordHash) {
+            throw new HttpError(400, "Email hoặc mật khẩu không đúng.");
         }
 
         const isMatch = await comparePassword(password, user.passwordHash);
         if (!isMatch) {
-            throw new HttpError(400, "Mật khẩu không đúng");
+            throw new HttpError(400, "Email hoặc mật khẩu không đúng.");
         }
         
         const token = generateToken(user);
-        let technician = null
-        if(user.role.name==='TECHNICIAN'){
-            technician = await technicianService.findTechnicianByUserId(user._id)
-
-    
+        let technician = null;
+        if (user.role.name === 'TECHNICIAN') {
+            technician = await technicianService.findTechnicianByUserId(user._id);
         }
         
         return { user, token, technician };
@@ -222,10 +222,10 @@ exports.handleResetPassword = async (token, newPassword) => {
                 phoneVerificationExpiry: { $gt: new Date() }
             });
         }
-
-        if (!user) {
+    
+    if (!user) {
             throw new HttpError(404, "Token không hợp lệ hoặc đã hết hạn");
-        }
+    }
 
         // Hash và lưu mật khẩu mới
         user.passwordHash = await hashingPassword(newPassword);
@@ -246,9 +246,8 @@ exports.checkAuth = async (userId) => {
         if (!user) {
             throw new HttpError(404, "Không tìm thấy người dùng");
         }
-
         let technician = null;
-        if (user.role && user.role.name === 'Technician') {
+        if (user.role && user.role.name === 'TECHNICIAN') {
             technician = await technicianService.findTechnicianByUserId(user._id);
         }
 
