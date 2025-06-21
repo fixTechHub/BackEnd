@@ -7,8 +7,15 @@ const jwt = require('jsonwebtoken');
  * @returns {string} - Signed JWT token.
  */
 const generateToken = (user, expiresIn = '2h') => {
+    const roleName = user.role && user.role.name ? user.role.name : user.role;
+    
     return jwt.sign(
-        { userId: user._id, email: user.email, role: user.role,fullName: user.fullName},
+        { 
+            userId: user._id, 
+            email: user.email, 
+            role: roleName,
+            fullName: user.fullName
+        },
         process.env.JWT_SECRET,
         { expiresIn }
     );
