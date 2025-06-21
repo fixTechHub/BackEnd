@@ -36,7 +36,6 @@ const userSchema = new mongoose.Schema({
     verificationOTP: String,
     otpExpires: Date,
     lockedReason: String,
-    faceScanImage: String,
     role: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Role',

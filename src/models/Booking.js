@@ -54,7 +54,6 @@ const bookingSchema = new mongoose.Schema({
         enum: ['PENDING', 'QUOTED', 'IN_PROGRESS', 'WAITING_CONFIRM', 'DONE', 'CANCELLED'],
         default: 'PENDING'
     },
-    statusReason: String,
     isChatAllowed: {
         type: Boolean,
         default: false

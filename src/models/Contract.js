@@ -45,6 +45,5 @@ contractSchema.index({ contractCode: 1 }, { unique: true });
 contractSchema.index({ technicianId: 1 });
 contractSchema.index({ status: 1 });
 contractSchema.index({ technicianId: 1, status: 1 });
-contractSchema.index({ docusignEnvelopeId: 1 }, { unique: true });
 
 module.exports = mongoose.model('Contract', contractSchema);

@@ -1,4 +1,5 @@
 const User = require('../models/User');
+
 const Contract = require('../models/Contract')
 const Receipt = require('../models/Receipt')
 

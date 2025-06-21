@@ -1,6 +1,7 @@
 require('dotenv').config();
 const http = require('http'); // Import the http module
 const app = require('./src/app');
+const http = require('http');
 const connectDB = require('./src/config/connectDB');
 const initializeSocket = require('./src/sockets/socket'); // Import the socket initializer
 const ioMiddleware = require('./src/middlewares/ioMiddleware');
@@ -18,7 +19,6 @@ app.use(ioMiddleware(io));
 // Connect to MongoDB
 connectDB();
 
-// Listen on the http server, not the Express app
 server.listen(PORT, () => {
-  console.log(`API Gateway with Socket.IO running at http://localhost:${PORT}`);
+  console.log(`API Gateway running at http://localhost:${PORT}`);
 });

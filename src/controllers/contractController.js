@@ -78,6 +78,5 @@ module.exports = {
     createContract,
     getContractById,
     getContractsByTechnicianId,
- 
     handleDocuSignCallback
 };

@@ -7,7 +7,7 @@ const CommissionConfig = require('../models/CommissionConfig');
 const Booking = require('../models/Booking');
 const BookingStatusLog = require('../models/BookingStatusLog');
 
-const createNewTechnician = async (userId, technicianData) => {
+exports.createNewTechnician = async (userId, technicianData) => {
     const technician = new Technician({
         userId,
         identification: technicianData.identification,
@@ -24,7 +24,7 @@ const createNewTechnician = async (userId, technicianData) => {
     return await technician.save();
 };
 
-const findTechnicianByUserId = async (userId) => {
+exports.findTechnicianByUserId = async (userId) => {
     return await Technician.findOne({userId})
 }
 
@@ -188,8 +188,7 @@ const sendQuotation = async (bookingPriceData) => {
             fromStatus: booking.status,
             toStatus: 'QUOTED',
             changedBy: technicianId,
-            role: 'TECHNICIAN',
-            note: reason
+            role: 'TECHNICIAN'
         }], { session });
         
         booking.status = 'QUOTED';

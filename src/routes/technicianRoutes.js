@@ -6,5 +6,5 @@ const router = express.Router();
 
 router.post('/send-quotation', technicianController.sendQuotation);
 router.post('/:bookingId/done', technicianController.confirmJobDoneByTechnician);
-router.get('/',technicianController.getAllTechnicians)
+
 module.exports = router;
