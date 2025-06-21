@@ -219,10 +219,10 @@ exports.handleResetPassword = async (token, newPassword) => {
                 phoneVerificationExpiry: { $gt: new Date() }
             });
         }
-
-        if (!user) {
+    
+    if (!user) {
             throw new HttpError(404, "Token không hợp lệ hoặc đã hết hạn");
-        }
+    }
 
         // Hash và lưu mật khẩu mới
         user.passwordHash = await hashingPassword(newPassword);

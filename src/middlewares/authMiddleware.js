@@ -10,7 +10,14 @@ exports.authenticateToken = async (req, res, next) => {
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        req.user = decoded;
+        // req.user = decoded;
+
+        req.user = {
+            userId: decoded.userId,
+            email: decoded.email,
+            role: decoded.role,
+            fullName: decoded.fullName
+        };
         
         // Nếu là session tạm thời, cho phép tiếp tục
         if (isTemporarySession) {

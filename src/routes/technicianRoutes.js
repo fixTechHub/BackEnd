@@ -14,6 +14,7 @@ const router = express.Router();
 //     confirmJobDoneByTechnician } = require('../controllers/technicianController');
 
 
+
 router.get('/:technicianId', technicianController.viewTechnicianProfile);
 router.get('/:technicianId/certificates', technicianController.getCertificatesByTechnicianId);
 router.get('/:technicianId/earnings', technicianController.viewEarningsByBooking);
