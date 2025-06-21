@@ -81,7 +81,7 @@ const generateContractOnRegistration = async (technicianId, io, session = null) 
         const { dsApiClient, accountId } = await initializeApiClient();
         const envelopesApi = new docusign.EnvelopesApi(dsApiClient);
         const viewRequest = new docusign.RecipientViewRequest();
-        viewRequest.returnUrl = `${process.env.FRONT_END_URL}/contract/complete`; // Redirect after signing
+        viewRequest.returnUrl = `${process.env.BACK_END_URL}/contracts/status/${envelopeId}`; // Redirect after signing
         viewRequest.authenticationMethod = 'none';
         viewRequest.email = contractData.email;
         viewRequest.userName = contractData.fullName;
@@ -109,7 +109,7 @@ const generateContractOnRegistration = async (technicianId, io, session = null) 
         const notificationData = {
             userId: technician.userId,
             title: 'Your Account has been Approved!',
-            content: 'Your technician account has been approved. Please log in and sign your contract to start receiving jobs.',
+            content: 'Tài khoản kỹ thuật viên của bạn đã được phê duyệt. Vui lòng đăng nhập và ký hợp đồng để bắt đầu nhận việc.',
             type: 'NEW_REQUEST',
             referenceId: contract._id 
         };

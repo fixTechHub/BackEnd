@@ -1,6 +1,6 @@
 const Notification = require('../models/Notification');
 
-exports.createNotification = async (notificationData) => {
+exports.createNotification = async (notificationData, session) => {
   const notification = new Notification({
     userId: notificationData.userId,
     title: notificationData.title,
@@ -10,11 +10,11 @@ exports.createNotification = async (notificationData) => {
     isRead: false,
   });
 
-  return await notification.save();
+  return await notification.save({ session });
 };
 
-exports.createAndSend = async (notificationData, io) => {
-  const notification = await exports.createNotification(notificationData);
+exports.createAndSend = async (notificationData, io, session) => {
+  const notification = await exports.createNotification(notificationData, session);
   io.to(`user:${notification.userId}`).emit('receiveNotification', notification);
   return notification;
 };

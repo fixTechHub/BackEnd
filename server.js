@@ -3,6 +3,7 @@ const http = require('http'); // Import the http module
 const app = require('./src/app');
 const connectDB = require('./src/config/connectDB');
 const initializeSocket = require('./src/sockets/socket'); // Import the socket initializer
+const ioMiddleware = require('./src/middlewares/ioMiddleware');
 
 const PORT = process.env.PORT || 3000;
 
@@ -12,8 +13,7 @@ const server = http.createServer(app);
 // Initialize Socket.IO and get the io instance
 const io = initializeSocket(server);
 
-// Middleware to attach the io instance to every request
-
+app.use(ioMiddleware(io));
 
 // Connect to MongoDB
 connectDB();
