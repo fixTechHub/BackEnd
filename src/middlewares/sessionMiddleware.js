@@ -15,8 +15,10 @@ exports.handleTemporarySession = async (req, res, next) => {
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const user = await User.findById(decoded.userId).populate('role');
-
+        
+        // Sử dụng role từ token thay vì populate từ database
+        const user = await User.findById(decoded.userId);
+        
         if (!user) {
             res.clearCookie('token');
             if (req.cookies.lastVerificationStep) {
@@ -25,11 +27,14 @@ exports.handleTemporarySession = async (req, res, next) => {
             return next();
         }
 
+        // Thêm role từ token vào user object để tương thích với code cũ
+        user.role = { name: decoded.role };
+
         // Kiểm tra trạng thái xác thực
         let isIncomplete = false;
         let lastStep = null;
 
-        if (user.role?.name === 'PENDING') {
+        if (decoded.role === 'PENDING') {
             isIncomplete = true;
             lastStep = 'CHOOSE_ROLE';
         } else if (user.email && !user.emailVerified) {
@@ -38,7 +43,7 @@ exports.handleTemporarySession = async (req, res, next) => {
         } else if (user.phone && !user.phoneVerified) {
             isIncomplete = true;
             lastStep = 'VERIFY_PHONE';
-        } else if (user.role?.name === 'TECHNICIAN' && (!user.status || user.status === 'PENDING')) {
+        } else if (decoded.role === 'TECHNICIAN' && (!user.status || user.status === 'PENDING')) {
             isIncomplete = true;
             lastStep = 'COMPLETE_PROFILE';
         }

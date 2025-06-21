@@ -83,8 +83,10 @@ const cancelBooking = async (req, res) => {
         const { reason, userId } = req.body;
         // const userId = req.user._id;
         // const role = req.user.role.name;
-        const user = await User.findById(userId).populate('role'); console.log(user)
-        const role = user.role.name;
+        
+        // Sử dụng role từ token thay vì populate từ database
+        const user = await User.findById(userId);
+        const role = req.user.role; // Lấy role từ token đã được decode trong middleware
 
         if (!reason) {
             return res.status(400).json({
@@ -117,8 +119,10 @@ const confirmJobDone = async (req, res) => {
         const { userId } = req.body;
         // const userId = req.user._id;
         // const role = req.user.role.name;
-        const user = await User.findById(userId).populate('role'); console.log(user)
-        const role = user.role.name;
+        
+        // Sử dụng role từ token thay vì populate từ database
+        const user = await User.findById(userId);
+        const role = req.user.role; // Lấy role từ token đã được decode trong middleware
 
         const booking = await bookingService.confirmJobDone(
             bookingId,
