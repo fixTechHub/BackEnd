@@ -274,8 +274,22 @@ const confirmJobDoneByTechnician = async (bookingId, userId, role) => {
     }
 };
 
+const getTechnicianInformation = async (techId) => {
+    try {
+        const technician = await Technician.findById(techId)
+            .populate('userId')
+            .populate("specialtiesCategories")
+
+        return technician;
+    } catch (error) {
+        console.log('Lỗi khi lấy thông tin kỹ thuật viên');
+        throw error;
+    }
+}
+
 module.exports = {
     findNearbyTechnicians,
     sendQuotation,
-    confirmJobDoneByTechnician
+    confirmJobDoneByTechnician,
+    getTechnicianInformation
 };

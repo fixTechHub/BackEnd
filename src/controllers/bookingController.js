@@ -4,8 +4,10 @@ const User = require('../models/User');
 
 const createBookingRequest = async (req, res) => {
     try {
-        // const customerId = req.user.id; 
-        const { customerId, serviceId, description, schedule, address } = req.body;
+        const customerId = req.user.userId; 
+        // console.log('--- CUSTOMER ID ---', customerId);
+        
+        const { serviceId, description, schedule, address } = req.body;
         // console.log('Booking Text Data:', { customerId, serviceId, description, schedule, address });
 
         // Chuyển đổi địa chỉ string sang GeoJSON Point bằng Mapbox
@@ -80,11 +82,12 @@ const getBookingById = async (req, res) => {
 const cancelBooking = async (req, res) => {
     try {
         const { bookingId } = req.params;
-        const { reason, userId } = req.body;
-        // const userId = req.user._id;
-        // const role = req.user.role.name;
-        const user = await User.findById(userId).populate('role'); console.log(user)
-        const role = user.role.name;
+        const { reason } = req.body;
+        const userId = req.user.userId;        
+        const role = req.user.role;
+        
+        // const user = await User.findById(userId).populate('role'); console.log(user)
+        // const role = user.role.name;
 
         if (!reason) {
             return res.status(400).json({
@@ -105,9 +108,7 @@ const cancelBooking = async (req, res) => {
         });
     } catch (error) {
         console.error('Lỗi khi hủy booking:', error);
-        res.status(error.message ? 403 : 500).json({
-            message: error.message || 'Không thể hủy booking'
-        });
+        return res.status(400).json({ success: false, message: error.message });
     }
 };
 
