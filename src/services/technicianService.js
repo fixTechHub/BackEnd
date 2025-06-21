@@ -309,5 +309,6 @@ module.exports = {
     findNearbyTechnicians,
     sendQuotation,
     confirmJobDoneByTechnician,
-    getTechnicianInformation
+    getTechnicianInformation,
+    getTechnicianById
 };

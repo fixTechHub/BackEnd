@@ -3,7 +3,7 @@ const notificationService = require('../services/notificationService');
 exports.getUserNotifications = async (req, res) => {
   try {
     const notifications = await notificationService.getUserNotifications(
-      req.user.id
+      req.user.userId
     );
     res.status(200).json(notifications);
   } catch (error) {
