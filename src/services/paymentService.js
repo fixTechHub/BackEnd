@@ -16,7 +16,7 @@ const createPayOsPayment = async ( bookingPriceId) => {
     try {
         // PayOS requires a unique integer for orderCode.
         const orderCode = await generateOrderCode();
-
+        const bookingPrice = await BookingPrice.findById(bookingPriceId)
         const paymentData = {
             orderCode: orderCode,
             // amount: bookingPrice.finalPrice,

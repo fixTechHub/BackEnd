@@ -1,3 +1,4 @@
+const Certificate = require('../models/Certificate');
 const mongoose = require('mongoose');
 const Technician = require('../models/Technician');
 const Service = require('../models/Service');
@@ -6,286 +7,416 @@ const BookingPrice = require('../models/BookingPrice');
 const CommissionConfig = require('../models/CommissionConfig');
 const Booking = require('../models/Booking');
 const BookingStatusLog = require('../models/BookingStatusLog');
+const User = require('../models/User');
 
 exports.createNewTechnician = async (userId, technicianData) => {
-    const technician = new Technician({
-        userId,
-        identification: technicianData.identification,
-        specialties: technicianData.specialties || '',
-        certificate: technicianData.certificate || [],
-        certificateVerificationStatus: false,
-        jobCompleted: 0,
-        availability: 'FREE',
-        contractAccepted: false,
-        balance: 0,
-        isAvailableForAssignment: false,
-    });
-    
-    return await technician.save();
+  const technician = new Technician({
+    userId,
+    identification: technicianData.identification,
+    specialties: technicianData.specialties || '',
+    certificate: technicianData.certificate || [],
+    certificateVerificationStatus: false,
+    jobCompleted: 0,
+    availability: 'FREE',
+    contractAccepted: false,
+    balance: 0,
+    isAvailableForAssignment: false,
+  });
+
+  return await technician.save();
 };
 
-exports.findTechnicianByUserId = async (userId) => {
-    return await Technician.findOne({userId})
+const findTechnicianByUserId = async (userId) => {
+  return await Technician.findOne({ userId })
 }
 
 const findNearbyTechnicians = async (searchParams, radiusInKm) => {
-    const { latitude, longitude, serviceId, availability, status, minBalance } = searchParams;
-    const service = await Service.findById(serviceId).select('categoryId').lean();
-    // console.log(service);
+  const { latitude, longitude, serviceId, availability, status, minBalance } = searchParams;
+  const service = await Service.findById(serviceId).select('categoryId').lean();
+  // console.log(service);
 
-    if (!service) {
-        console.log(`Không tìm thấy service nào với ID: ${serviceId}`);
-        return null;
+  if (!service) {
+    console.log(`Không tìm thấy service nào với ID: ${serviceId}`);
+    return null;
+  }
+  const categoryId = service.categoryId;
+  // console.log("Tìm thấy categoryId:", categoryId);
+
+  const maxDistanceInMeters = radiusInKm * 1000;
+
+  try {
+    // Tạo query object
+    let matchQuery = {
+      availability: availability,
+      status: status,
+      balance: { $gte: minBalance },
+    };
+    if (categoryId) {
+      matchQuery.specialtiesCategories = new mongoose.Types.ObjectId(categoryId);
     }
-    const categoryId = service.categoryId;
-    // console.log("Tìm thấy categoryId:", categoryId);
 
-    const maxDistanceInMeters = radiusInKm * 1000;
-
-    try {
-        // Tạo query object
-        let matchQuery = {
-            availability: availability,
-            status: status,
-            balance: { $gte: minBalance },
-        };
-        if (categoryId) {
-            matchQuery.specialtiesCategories = new mongoose.Types.ObjectId(categoryId);
+    // Sử dụng currentLocation và chỉ định index cụ thể
+    const technicians = await Technician.aggregate([
+      {
+        $geoNear: {
+          near: {
+            type: "Point",
+            coordinates: [longitude, latitude]
+          },
+          distanceField: "distance",
+          maxDistance: maxDistanceInMeters,
+          spherical: true,
+          key: "currentLocation",
+          query: matchQuery
         }
+      },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'userId',
+          foreignField: '_id',
+          as: 'userInfo'
+        }
+      },
+      {
+        $lookup: {
+          from: 'categories',
+          localField: 'specialtiesCategories',
+          foreignField: '_id',
+          as: 'category'
+        }
+      },
+      {
+        $project: {
+          userId: 1,
+          currentLocation: 1,
+          status: 1,
+          ratingAverage: 1,
+          jobCompleted: 1,
+          experienceYears: 1,
+          specialtiesCategories: 1,
+          availability: 1,
+          balance: 1,
+          distance: 1,
+          // Chuyển đổi distance từ meters sang km
+          distanceInKm: { $round: [{ $divide: ["$distance", 1000] }, 2] },
+          // Thêm thông tin user
+          userInfo: { $arrayElemAt: ["$userInfo", 0] },
+          // category: 1
+        }
+      },
+      {
+        $sort: {
+          distance: 1
+        }
+      },
+      {
+        $limit: 10
+      }
+    ]);
 
-        // Sử dụng currentLocation và chỉ định index cụ thể
-        const technicians = await Technician.aggregate([
-            {
-                $geoNear: {
-                    near: {
-                        type: "Point",
-                        coordinates: [longitude, latitude]
-                    },
-                    distanceField: "distance",
-                    maxDistance: maxDistanceInMeters,
-                    spherical: true,
-                    key: "currentLocation",
-                    query: matchQuery
-                }
-            },
-            {
-                $lookup: {
-                    from: 'users',
-                    localField: 'userId',
-                    foreignField: '_id',
-                    as: 'userInfo'
-                }
-            },
-            {
-                $lookup: {
-                    from: 'categories',
-                    localField: 'specialtiesCategories',
-                    foreignField: '_id',
-                    as: 'category'
-                }
-            },
-            {
-                $project: {
-                    userId: 1,
-                    currentLocation: 1,
-                    status: 1,
-                    ratingAverage: 1,
-                    jobCompleted: 1,
-                    experienceYears: 1,
-                    specialtiesCategories: 1,
-                    availability: 1,
-                    balance: 1,
-                    distance: 1,
-                    // Chuyển đổi distance từ meters sang km
-                    distanceInKm: { $round: [{ $divide: ["$distance", 1000] }, 2] },
-                    // Thêm thông tin user
-                    userInfo: { $arrayElemAt: ["$userInfo", 0] },
-                    // category: 1
-                }
-            },
-            {
-                $sort: {
-                    distance: 1
-                }
-            },
-            {
-                $limit: 10
-            }
-        ]);
+    return {
+      success: true,
+      data: technicians,
+      total: technicians.length
+    };
 
-        return {
-            success: true,
-            data: technicians,
-            total: technicians.length
-        };
-
-    } catch (error) {
-        console.error('Lỗi khi tìm thợ:', error);
-        return {
-            success: false,
-            error: error.message,
-            data: []
-        };
-    }
+  } catch (error) {
+    console.error('Lỗi khi tìm thợ:', error);
+    return {
+      success: false,
+      error: error.message,
+      data: []
+    };
+  }
 };
 
 const sendQuotation = async (bookingPriceData) => {
-    const { bookingId, technicianId, laborPrice, warrantiesDuration, items } = bookingPriceData;
+  const { bookingId, technicianId, laborPrice, warrantiesDuration, items } = bookingPriceData;
 
-    const session = await mongoose.startSession();
-    session.startTransaction();
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-    try {
-        const booking = await Booking.findById(bookingId).session(session);
-        if (!booking) {
-            throw new Error('Không tìm thấy đặt lịch');
-        }
-        // if (booking.status !== 'PENDING') {
-        //     throw new Error('Không thể tạo báo giá cho đặt lịch này');
-        // }
-
-        // Set exprire time
-        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-
-        // Get current commission applied
-        const activeConfig = await CommissionConfig.findOne({ isApplied: true }).session(session);
-        if (!activeConfig) {
-            throw new Error("Chưa có cấu hình hoa hồng nào được áp dụng!");
-        }
-
-        // Calulate the total of items
-        const totalItemPrice = (items && Array.isArray(items))
-            ? items.reduce((total, item) => total + (item.price * item.quantity), 0)
-            : 0;
-        const finalPrice = laborPrice + totalItemPrice;
-
-        const newBookingPrice = new BookingPrice({
-            bookingId,
-            technicianId,
-            laborPrice,
-            warrantiesDuration,
-            finalPrice,
-            commissionConfigId: activeConfig._id,
-            expiresAt: expiresAt
-        });
-        const savedBookingPrice = await newBookingPrice.save({ session });
-        console.log('--- NEW BOOKING PRICE ---', savedBookingPrice);
-
-        let savedBookingItems = [];
-        if (items && Array.isArray(items) && items.length > 0) {
-            const bookingItems = items.map(item => ({
-                bookingPriceId: savedBookingPrice._id,
-                name: item.name,
-                price: item.price,
-                quantity: item.quantity,
-                note: item.note
-            }));
-            savedBookingItems = await BookingItem.insertMany(bookingItems, { session });
-        }
-
-        await BookingStatusLog.create([{
-            bookingId,
-            fromStatus: booking.status,
-            toStatus: 'QUOTED',
-            changedBy: technicianId,
-            role: 'TECHNICIAN'
-        }], { session });
-        
-        booking.status = 'QUOTED';
-        await booking.save({ session });
-
-        await session.commitTransaction();
-        return {
-            message: 'Gửi báo giá thành công',
-            bookingPrice: savedBookingPrice,
-            bookingItems: savedBookingItems,
-            totalItems: totalItemPrice
-        };
-    } catch (error) {
-        await session.abortTransaction();
-        session.endSession();
-        console.error("Lỗi trong quá trình gửi báo giá:", error);
-        throw new Error(`Lỗi gửi báo giá: ${error.message}`);
+  try {
+    const booking = await Booking.findById(bookingId).session(session);
+    if (!booking) {
+      throw new Error('Không tìm thấy đặt lịch');
     }
+    // if (booking.status !== 'PENDING') {
+    //     throw new Error('Không thể tạo báo giá cho đặt lịch này');
+    // }
+
+    // Set exprire time
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    // Get current commission applied
+    const activeConfig = await CommissionConfig.findOne({ isApplied: true }).session(session);
+    if (!activeConfig) {
+      throw new Error("Chưa có cấu hình hoa hồng nào được áp dụng!");
+    }
+
+    // Calulate the total of items
+    const totalItemPrice = (items && Array.isArray(items))
+      ? items.reduce((total, item) => total + (item.price * item.quantity), 0)
+      : 0;
+    const finalPrice = laborPrice + totalItemPrice;
+
+    const newBookingPrice = new BookingPrice({
+      bookingId,
+      technicianId,
+      laborPrice,
+      warrantiesDuration,
+      finalPrice,
+      commissionConfigId: activeConfig._id,
+      expiresAt: expiresAt
+    });
+    const savedBookingPrice = await newBookingPrice.save({ session });
+    console.log('--- NEW BOOKING PRICE ---', savedBookingPrice);
+
+    let savedBookingItems = [];
+    if (items && Array.isArray(items) && items.length > 0) {
+      const bookingItems = items.map(item => ({
+        bookingPriceId: savedBookingPrice._id,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        note: item.note
+      }));
+      savedBookingItems = await BookingItem.insertMany(bookingItems, { session });
+    }
+
+    await BookingStatusLog.create([{
+      bookingId,
+      fromStatus: booking.status,
+      toStatus: 'QUOTED',
+      changedBy: technicianId,
+      role: 'TECHNICIAN'
+    }], { session });
+
+    booking.status = 'QUOTED';
+    await booking.save({ session });
+
+    await session.commitTransaction();
+    return {
+      message: 'Gửi báo giá thành công',
+      bookingPrice: savedBookingPrice,
+      bookingItems: savedBookingItems,
+      totalItems: totalItemPrice
+    };
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    console.error("Lỗi trong quá trình gửi báo giá:", error);
+    throw new Error(`Lỗi gửi báo giá: ${error.message}`);
+  }
 };
 
 const confirmJobDoneByTechnician = async (bookingId, userId, role) => {
-    const session = await mongoose.startSession();
-    session.startTransaction();
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-    try {
-        const booking = await Booking.findById(bookingId);
-        if (!booking) {
-            throw new Error('Không tìm thấy booking');
-        }
-
-        // Kiểm tra quyền
-        if (role === 'CUSTOMER' && booking.customerId.toString() !== userId) {
-            throw new Error('Bạn không có quyền xác nhận booking này');
-        }
-        if (role === 'TECHNICIAN' && booking.technicianId?.toString() !== userId.toString()) {
-            throw new Error('Bạn không có quyền xác nhận booking này');
-        }
-
-        // Kiểm tra trạng thái hiện tại
-        if (booking.status === 'CANCELLED') {
-            throw new Error('Booking đã bị hủy trước đó');
-        }
-        if (booking.status === 'PENDING') {
-            throw new Error('Không thể hoàn thành booking khi chưa chọn thợ');
-        }
-        if (booking.status === 'WAITING_CONFIRM') {
-            throw new Error('Bạn đã xác nhận hoàn thành rồi!!');
-        }
-
-        // Cập nhật trạng thái booking
-        await Booking.findByIdAndUpdate(
-            bookingId,
-            {
-                $set: {
-                    status: 'WAITING_CONFIRM',
-                    technicianConfirmedDone: true,
-                    isChatAllowed: false,
-                    isVideoCallAllowed: false
-                }
-            },
-            { session }
-        );
-
-        // Lưu log trạng thái
-        await BookingStatusLog.create([{
-            bookingId,
-            fromStatus: booking.status,
-            toStatus: 'WAITING_CONFIRM',
-            changedBy: userId,
-            role
-        }], { session });
-
-        await session.commitTransaction();
-
-        // Lấy lại booking sau khi cập nhật
-        const updatedBooking = await Booking.findById(bookingId);
-        return updatedBooking;
-    } catch (error) {
-        await session.abortTransaction();
-        throw error;
-    } finally {
-        session.endSession();
+  try {
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      throw new Error('Không tìm thấy booking');
     }
+
+    // Kiểm tra quyền
+    if (role === 'CUSTOMER' && booking.customerId.toString() !== userId) {
+      throw new Error('Bạn không có quyền xác nhận booking này');
+    }
+    if (role === 'TECHNICIAN' && booking.technicianId?.toString() !== userId.toString()) {
+      throw new Error('Bạn không có quyền xác nhận booking này');
+    }
+
+    // Kiểm tra trạng thái hiện tại
+    if (booking.status === 'CANCELLED') {
+      throw new Error('Booking đã bị hủy trước đó');
+    }
+    if (booking.status === 'PENDING') {
+      throw new Error('Không thể hoàn thành booking khi chưa chọn thợ');
+    }
+    if (booking.status === 'WAITING_CONFIRM') {
+      throw new Error('Bạn đã xác nhận hoàn thành rồi!!');
+    }
+
+    // Cập nhật trạng thái booking
+    await Booking.findByIdAndUpdate(
+      bookingId,
+      {
+        $set: {
+          status: 'WAITING_CONFIRM',
+          technicianConfirmedDone: true,
+          isChatAllowed: false,
+          isVideoCallAllowed: false
+        }
+      },
+      { session }
+    );
+
+    // Lưu log trạng thái
+    await BookingStatusLog.create([{
+      bookingId,
+      fromStatus: booking.status,
+      toStatus: 'WAITING_CONFIRM',
+      changedBy: userId,
+      role
+    }], { session });
+
+    await session.commitTransaction();
+
+    // Lấy lại booking sau khi cập nhật
+    const updatedBooking = await Booking.findById(bookingId);
+    return updatedBooking;
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
+  }
 };
 
-const getTechnicianInformation = async (techId) => {
-    try {
-        const technician = await Technician.findById(techId)
-            .populate('userId')
-            .populate("specialtiesCategories")
+const getTechnicianProfile = async (technicianId) => {
+  const technician = await Technician.findById(technicianId)
+    .populate('userId')  // Populate để lấy thông tin User
+    .populate('specialtiesCategories');  // Nếu muốn lấy luôn categories (nếu có)
 
-        return technician;
-    } catch (error) {
-        console.log('Lỗi khi lấy thông tin kỹ thuật viên');
-        throw error;
-    }
-}
+  console.log(technician);
+  if (!technician) {
+    throw new Error('Technician not found');
+  }
+
+  return technician;
+};
+
+const getCertificatesByTechnicianId = async (technicianId) => {
+  if (!technicianId || !mongoose.Types.ObjectId.isValid(technicianId)) {
+    throw { status: 400, message: 'Invalid technician ID' };
+  }
+
+  const certificates = await Certificate.find({ technicianId }).sort({ createdAt: -1 });
+
+  if (!certificates || certificates.length === 0) {
+    throw { status: 404, message: 'No certificates found for this technician' };
+  }
+
+  return certificates;
+};
+
+const registerAsTechnician = async (data) => {
+  const { userId, identification, currentLocation, specialtiesCategories, experienceYears, bankAccount } = data;
+
+  // Kiểm tra user có tồn tại không
+  const user = await User.findById(userId);
+  if (!user) {
+    const error = new Error('User not found');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  // Kiểm tra user đã là technician chưa
+  const existingTechnician = await Technician.findOne({ userId });
+  if (existingTechnician) {
+    const error = new Error('User is already registered as a technician');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  // Tạo mới technician với trạng thái chờ xét duyệt
+  const newTechnician = await Technician.create({
+    userId,
+    identification,
+    currentLocation,
+    specialtiesCategories,
+    experienceYears,
+    bankAccount
+  });
+
+  return newTechnician;
+};
+
+const getJobDetails = async (bookingId, technicianId) => {
+  const booking = await Booking.findById(bookingId)
+    .populate('customerId')
+    .populate('serviceId')
+
+  if (!booking) {
+    throw { status: 404, message: 'Booking not found' };
+  }
+  
+  return booking;
+};
+
+const getEarningsAndCommissionList = async (technicianId) => {
+
+  const quotes = await BookingPrice.find(technicianId)
+    .sort({ createdAt: -1 })
+    .populate('commissionConfigId')
+    .populate({
+      path: 'bookingId',
+      populate: [
+        { path: 'customerId', select: 'fullName' },
+        { path: 'serviceId', select: 'serviceName' }
+      ]
+    })
+
+  const earningList = quotes.map(quote => ({
+    bookingId: quote.bookingId._id,
+    bookingCode: quote.bookingId?.bookingCode,
+    bookingInfo: {
+      customerName: quote.bookingId?.customerId,
+      service: quote.bookingId?.serviceId,
+    },
+    finalPrice: quote.finalPrice || 0,
+    commissionAmount: quote.commissionAmount || 0,
+    holdingAmount: quote.holdingAmount || 0,
+    technicianEarning: quote.technicianEarning || 0,
+
+  }));
+
+  return earningList;
+};
+
+const getAvailability = async (technicianId) => {
+  const technician = await Technician.findById(technicianId).select('availability');
+
+  if (!technician) {
+    throw new Error('Technician not found');
+  }
+
+  return technician.availability;
+};
+
+const updateTechnicianAvailability = async (technicianId) => {
+
+  const onJobStatuses = ['PENDING', 'QUOTED', 'IN_PROGRESS', 'WAITING_CONFIRM'];
+  const hasOngoing = await Booking.exists({
+    technicianId,
+    status: { $in: onJobStatuses }
+  });
+
+  if (hasOngoing) {
+    return await Technician.findByIdAndUpdate(
+      technicianId,
+      { availability: 'ONJOB' },
+      { new: true }
+    );
+  }
+
+  const technician = await Technician.findById(technicianId);
+  if (!technician) {
+    throw new Error('Technician not found');
+  }
+
+  const newAvailability = technician.availability === 'FREE' ? 'BUSY' : 'FREE';
+
+  return await Technician.findByIdAndUpdate(
+    technicianId,
+    { availability: newAvailability },
+    { new: true }
+  );
+};
+
 
 const getTechnicianById = async(technicianId) => {
 
@@ -306,9 +437,20 @@ const getTechnicianById = async(technicianId) => {
 }
 
 module.exports = {
-    findNearbyTechnicians,
-    sendQuotation,
-    confirmJobDoneByTechnician,
-    getTechnicianInformation,
-    getTechnicianById
+  registerAsTechnician,
+  getTechnicianProfile,
+  getCertificatesByTechnicianId,
+  getJobDetails,
+  getEarningsAndCommissionList,
+  getAvailability,
+  updateTechnicianAvailability,
+  findNearbyTechnicians,
+  sendQuotation,
+  confirmJobDoneByTechnician,
+  getTechnicianById,
+  findTechnicianByUserId
+
+
+
 };
+

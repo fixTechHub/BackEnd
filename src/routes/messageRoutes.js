@@ -1,13 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const messageController = require('../controllers/messageController');
-// const { protect } = require('../middlewares/authMiddleware');
+const { authenticateToken } = require('../middlewares/authMiddleware');
 
-router.get('/', 
-    // protect,
-     messageController.getMessages);
-router.post('/', 
-    // protect,
-     messageController.sendMessage);
+router.get('/', authenticateToken, messageController.getMessages);
+router.post('/', authenticateToken, messageController.sendMessage);
 
 module.exports = router;

@@ -1,13 +1,7 @@
 const contractService = require('../services/contractService');
-const { validateContract } = require('../validations/contractValidator');
 
 const createContract = async (req, res) => {
     try {
-        const validationError = validateContract(req.body);
-        if (validationError) {
-            return res.status(400).json({ message: validationError });
-        }
-
         const { signingUrl } = await contractService.createContract(req.body);
         res.status(200).json({ signingUrl });
     } catch (error) {

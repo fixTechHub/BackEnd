@@ -82,7 +82,7 @@ const generateContractOnRegistration = async (technicianId, session = null) => {
     const { dsApiClient, accountId } = await initializeApiClient();
     const envelopesApi = new docusign.EnvelopesApi(dsApiClient);
     const viewRequest = new docusign.RecipientViewRequest();
-    viewRequest.returnUrl = `${process.env.BACK_END_URL}/contracts/status/${envelopeId}`; // Redirect after signing
+    viewRequest.returnUrl = `${process.env.BACK_END_URL}/contracts/docusign/callback/${envelopeId}`; // Redirect after signing
     viewRequest.authenticationMethod = 'none';
     viewRequest.email = contractData.email;
     viewRequest.userName = contractData.fullName;
@@ -115,8 +115,9 @@ const generateContractOnRegistration = async (technicianId, session = null) => {
       referenceId: contract._id
     };
 
-    // Pass session to notification service if it supports transactions
-    await notificationService.createAndSend(notificationData, session);
+    const notification = await notificationService.createAndSend(notificationData, session);
+
+    return { contract, notification };
 
   } catch (error) {
     console.error('Failed to create contract on registration:', error);
