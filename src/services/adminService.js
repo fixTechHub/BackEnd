@@ -4,7 +4,7 @@ const contractService = require('./contractService');
 const notificationService = require('./notificationService');
 const HttpError = require('../utils/error');
 
-exports.approveTechnician = async (technicianId, io) => {
+exports.approveTechnician = async (technicianId) => {
     // Start a new session for the transaction
     const session = await mongoose.startSession();
     
@@ -26,7 +26,7 @@ exports.approveTechnician = async (technicianId, io) => {
 
         // After approval, automatically generate the contract
         // Note: Make sure contractService.generateContractOnRegistration supports sessions
-        await contractService.generateContractOnRegistration(technician._id, io, session);
+        await contractService.generateContractOnRegistration(technician._id, session);
 
         // Commit the transaction
         await session.commitTransaction();

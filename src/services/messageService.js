@@ -1,3 +1,4 @@
+const { getIo } = require('../sockets/socketManager');
 const Message = require('../models/Message');
 const { uploadFileToS3 } = require('./s3Service');
 const notificationService = require('./notificationService');
@@ -30,7 +31,8 @@ const createMessage = async (messageData) => {
   return await message.save();
 };
 
-const sendMessage = async (messageData, io) => {
+const sendMessage = async (messageData) => {
+  const io = getIo();
   // Create and save message
   const newMessage = await createMessage(messageData);
 
@@ -46,7 +48,7 @@ const sendMessage = async (messageData, io) => {
   };
   
   // Use createAndSend to ensure real-time notification
-  await notificationService.createAndSend(notificationData, io);
+  await notificationService.createAndSend(notificationData);
 
   // Emit events to update chat UI
   io.to(`user:${newMessage.fromUser}`).emit('receiveMessage', newMessage);

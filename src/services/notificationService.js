@@ -1,4 +1,5 @@
 const Notification = require('../models/Notification');
+const { getIo } = require('../sockets/socketManager');
 
 exports.createNotification = async (notificationData, session) => {
   const notification = new Notification({
@@ -13,18 +14,23 @@ exports.createNotification = async (notificationData, session) => {
   return await notification.save({ session });
 };
 
-exports.createAndSend = async (notificationData, io, session) => {
-  const notification = await exports.createNotification(notificationData, session);
+exports.createAndSend = async (notificationData, session) => {
+  const io = getIo();
+  const notification = await exports.createNotification(
+    notificationData,
+    session
+  );
   io.to(`user:${notification.userId}`).emit('receiveNotification', notification);
   return notification;
 };
 
-exports.sendNotification = async (notificationData, io) => {
-  const notification = await exports.createAndSend(notificationData, io);
+exports.sendNotification = async (notificationData) => {
+  const notification = await exports.createAndSend(notificationData);
   return notification;
 };
 
-exports.markNotificationRead = async (notificationId, io) => {
+exports.markNotificationRead = async (notificationId) => {
+  const io = getIo();
   const updatedNotification = await Notification.findByIdAndUpdate(
     notificationId,
     { isRead: true },
