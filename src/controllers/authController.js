@@ -33,7 +33,15 @@ exports.getAuthenticatedUser = async (req, res) => {
     try {
         const userId = req.user.userId;
         const { user, technician } = await authService.checkAuth(userId);
-        return res.status(200).json({ user, technician });
+        
+        // Thêm kiểm tra trạng thái xác thực
+        const verificationStatus = await checkVerificationStatus(user);
+        
+        return res.status(200).json({ 
+            user, 
+            technician,
+            verificationStatus 
+        });
     } catch (error) {
         console.error('Error fetching authenticated user:', error);
         res.status(error.statusCode || 500).json({ message: error.message });
@@ -109,14 +117,8 @@ exports.login = async (req, res) => {
         // Set auth cookie
         setAuthCookie(res, result.token);
 
-        // Lấy lastVerificationStep từ cookie nếu có
-        const lastStep = req.cookies.lastVerificationStep;
-        
-        // Xóa cookie lastVerificationStep sau khi đã lấy
-        res.clearCookie('lastVerificationStep');
-
-        // Kiểm tra và trả về trạng thái xác thực
-        const verificationStatus = await checkVerificationStatus(result.user, lastStep);
+        // Kiểm tra trạng thái xác thực
+        const verificationStatus = await checkVerificationStatus(result.user);
         
         return res.status(200).json({
             message: "Đăng nhập thành công",
@@ -226,77 +228,52 @@ exports.googleLogin = async (req, res) => {
 };
 
 // Helper function to check verification status
-const checkVerificationStatus = async (user, lastStep = null) => {
-    // Nếu có lastStep và user vẫn đang ở trạng thái cần xác thực đó
-    if (lastStep) {
-        switch (lastStep) {
-            case 'CHOOSE_ROLE':
-                if (user.role?.name === 'PENDING') {
-                    return {
-                        nextStep: 'CHOOSE_ROLE',
-                        redirectTo: '/choose-role'
-                    };
-                }
-                break;
-            case 'VERIFY_EMAIL':
-                if (user.email && !user.emailVerified) {
-                    return {
-                        nextStep: 'VERIFY_EMAIL',
-                        redirectTo: '/verify-email'
-                    };
-                }
-                break;
-            case 'VERIFY_PHONE':
-                if (user.phone && !user.phoneVerified) {
-                    return {
-                        nextStep: 'VERIFY_PHONE',
-                        redirectTo: '/verify-otp'
-                    };
-                }
-                break;
-            case 'COMPLETE_PROFILE':
-                if (user.role?.name === 'TECHNICIAN' && (!user.status || user.status === 'PENDING')) {
-                    return {
-                        nextStep: 'COMPLETE_PROFILE',
-                        redirectTo: '/technician/complete-profile'
-                    };
-                }
-                break;
-        }
+const checkVerificationStatus = async (user) => {
+    // Kiểm tra theo thứ tự ưu tiên
+    if (!user.role) {
+        return {
+            step: 'CHOOSE_ROLE',
+            redirectTo: '/choose-role',
+            message: 'Vui lòng chọn vai trò của bạn'
+        };
     }
 
-    // Nếu không có lastStep hoặc trạng thái đã thay đổi, kiểm tra theo thứ tự ưu tiên
     if (user.role?.name === 'PENDING') {
         return {
-            nextStep: 'CHOOSE_ROLE',
-            redirectTo: '/choose-role'
+            step: 'CHOOSE_ROLE',
+            redirectTo: '/choose-role',
+            message: 'Vui lòng chọn vai trò của bạn'
         };
     }
 
     if (user.email && !user.emailVerified) {
         return {
-            nextStep: 'VERIFY_EMAIL',
-            redirectTo: '/verify-email'
+            step: 'VERIFY_EMAIL',
+            redirectTo: '/verify-email',
+            message: 'Vui lòng xác thực email của bạn'
         };
     }
 
-    if (user.phone && !user.phoneVerified) {
+    if (user.phone && !user.phoneVerified && !user.email) {
         return {
-            nextStep: 'VERIFY_PHONE',
-            redirectTo: '/verify-otp'
+            step: 'VERIFY_PHONE',
+            redirectTo: '/verify-otp',
+            message: 'Vui lòng xác thực số điện thoại của bạn'
         };
     }
 
     if (user.role?.name === 'TECHNICIAN' && (!user.status || user.status === 'PENDING')) {
         return {
-            nextStep: 'COMPLETE_PROFILE',
-            redirectTo: '/technician/complete-profile'
+            step: 'COMPLETE_PROFILE',
+            redirectTo: '/technician/complete-profile',
+            message: 'Vui lòng hoàn thành hồ sơ kỹ thuật viên'
         };
     }
 
     return {
-        nextStep: 'COMPLETED',
-        redirectTo: '/'
+        step: 'COMPLETED',
+        redirectTo: '/',
+        message: 'Xác thực hoàn tất'
     };
 };
 
