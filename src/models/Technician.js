@@ -1,5 +1,4 @@
 const mongoose = require('mongoose');
-const Category = require('../models/Category');
 
 const technicianSchema = new mongoose.Schema({
     userId: {

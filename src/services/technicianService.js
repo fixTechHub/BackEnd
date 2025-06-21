@@ -343,11 +343,7 @@ const getJobDetails = async (bookingId, technicianId) => {
   if (!booking) {
     throw { status: 404, message: 'Booking not found' };
   }
-
-  // if (!booking.technicianId || booking.technicianId.toString() !== technicianId.toString()) {
-  //     throw { status: 403, message: 'You are not allowed to view this booking' };
-  // }
-
+  
   return booking;
 };
 
@@ -363,38 +359,6 @@ const getEarningsAndCommissionList = async (technicianId) => {
         { path: 'serviceId', select: 'serviceName' }
       ]
     })
-
-  //   const earningList = quotes.map(quote => {
-  //   const finalPrice = quote.finalPrice || 0;
-
-  //   const config = quote.commissionConfigId;
-  //   const commissionPercent = config?.commissionPercent || 0;
-  //   const holdingPercent = config?.holdingPercent || 0;
-
-  //   let commissionAmount = 0;
-  //   if (config?.commissionType === 'PERCENT') {
-  //     commissionAmount = (finalPrice * commissionPercent) / 100;
-  //   } else if (config?.commissionType === 'MIN_AMOUNT') {
-  //     commissionAmount = config?.commissionMinAmount || 0;
-  //   }
-
-  //   const holdingAmount = (finalPrice * holdingPercent) / 100;
-  //   const technicianEarning = finalPrice - commissionAmount - holdingAmount;
-
-  //   return {
-  //     bookingId: quote.bookingId?._id,
-  //     bookingInfo: {
-  //       customerName: quote.bookingId?.customerId?.name || 'N/A',
-  //       service: quote.bookingId?.service || 'N/A',
-  //     },
-  //     finalPrice,
-  //     commissionAmount,
-  //     holdingAmount,
-  //     technicianEarning,
-  //   };
-  // });
-
-  // return earningList;
 
   const earningList = quotes.map(quote => ({
     bookingId: quote.bookingId._id,

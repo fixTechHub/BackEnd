@@ -3,17 +3,6 @@ const validate = require('../middlewares/validationMiddleware');
 const technicianValidation = require('../validations/technicianValidation');
 const technicianController = require('../controllers/technicianController');
 const router = express.Router();
-// const { registerAsTechnician,
-//     viewTechnicianProfile,
-//     getCertificatesByTechnicianId,
-//     viewJobDetails,
-//     viewEarningsByBooking,
-//     getTechnicianAvailability,
-//     updateAvailability,
-//     sendQuotation,
-//     confirmJobDoneByTechnician } = require('../controllers/technicianController');
-
-
 
 router.get('/:technicianId', technicianController.viewTechnicianProfile);
 router.get('/:technicianId/certificates', technicianController.getCertificatesByTechnicianId);
