@@ -4,6 +4,7 @@ const technicianValidation = require('../validations/technicianValidation');
 const technicianController = require('../controllers/technicianController');
 const router = express.Router();
 
+router.get('/:technicianId', technicianController.getTechnicianInformation);
 router.post('/send-quotation', technicianController.sendQuotation);
 router.post('/:bookingId/done', technicianController.confirmJobDoneByTechnician);
 
