@@ -19,7 +19,7 @@ router.use('/reports', require('./reportRoutes'));
 router.use('/services', require('./serviceRoutes'));
 router.use('/technicians', require('./technicianRoutes'));
 router.use('/video-call', require('./videoCallRoutes'));
-router.get('/test', (req, res) => res.json('This Is API test page'));
+router.get('/test', (req, res) => res.json('This Is API test page for dev'));
 router.get('/roles', async (req, res) => {
     try {
         const roles = await Role.find();
