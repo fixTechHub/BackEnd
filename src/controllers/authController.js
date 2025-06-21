@@ -157,7 +157,7 @@ exports.googleLogin = async (req, res) => {
         const { email, name, picture, id: googleId } = response.data;
 
         // Check if user exists
-        let user = await User.findOne({ email }).populate('role');
+        let user = await User.findOne({ email }); // Không populate role nữa
         let isNewUser = false;
 
         if (!user) {
@@ -189,32 +189,27 @@ exports.googleLogin = async (req, res) => {
         }
 
         // Generate JWT token
-        const token = jwt.sign(
-            { userId: user._id },   
-            process.env.JWT_SECRET,
-            { expiresIn: '24h' }
-        );
+        const token = generateToken(user);
 
-        // Populate role if not populated
-        if (!user.role.name) {
-            await user.populate('role');
-        }
-
-        // Get technician profile if exists
         let technician = null;
-        if (user.role.name === 'TECHNICIAN') {
-            technician = await Technician.findOne({ user: user._id });
+        if (user.role && user.role.name === 'TECHNICIAN') {
+            technician = await technicianService.findTechnicianByUserId(user._id);
         }
 
-        // Check verification status
+        // Set cookie
+        res.cookie('token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        });
+
+        // Add verification status check
         const verificationStatus = await checkVerificationStatus(user);
 
-        // Set auth cookie
-        setAuthCookie(res, token);
-
-        return res.status(200).json({
-            message: isNewUser ? "Google signup successful" : "Google login successful",
-            user,
+        return res.status(200).json({ 
+            message: "Đăng nhập thành công",
+            user, 
             technician,
             verificationStatus
         });
@@ -335,16 +330,14 @@ exports.register = async (req, res) => {
         // Send verification code
         if (isEmail) {
             await sendVerificationEmail(emailOrPhone, verificationCode);
-            console.log('Verification code sent to email:', verificationCode); // Debug log
         } else {
             await sendVerificationSMS(emailOrPhone, verificationCode);
-            console.log('Verification code sent to phone:', verificationCode); // Debug log
         }
 
         // Return response
         return res.status(201).json({
             message: `Mã xác thực đã được gửi đến ${isEmail ? 'email' : 'số điện thoại'} của bạn`,
-            user: await user.populate('role'),
+            user: user, // Không cần populate role nữa
             verificationType: isEmail ? 'email' : 'phone'
         });
     } catch (error) {
@@ -357,8 +350,6 @@ exports.completeRegistration = async (req, res) => {
     try {
         const { role } = req.body;
         const userId = req.user.userId; // Get userId from cookie token (set by middleware)
-
-        console.log('Complete registration request:', { role, userId }); // Log để debug
 
         // Tìm role trong database
         const roleDoc = await userService.findRoleByName(role);
@@ -382,16 +373,16 @@ exports.completeRegistration = async (req, res) => {
         
         await user.save();
 
-        // Populate role before sending response
-        const updatedUser = await User.findById(userId).populate('role');
+        // Không cần populate role nữa vì role đã có trong token
+        // const updatedUser = await User.findById(userId).populate('role');
 
         // Generate new token with updated role
-        const newToken = generateToken(updatedUser);
+        const newToken = generateToken(user);
         setAuthCookie(res, newToken);
 
         return res.status(200).json({ 
             message: 'Cập nhật role thành công',
-            user: updatedUser
+            user: user
         });
     } catch (error) {
         console.error('Complete registration error:', error);
@@ -404,33 +395,16 @@ exports.verifyEmail = async (req, res) => {
         const { code } = req.body;
         const userId = req.user.userId;
 
-        console.log('Verifying email with:', { code, userId }); // Debug log
-
-        const user = await User.findById(userId).populate('role');
+        const user = await User.findById(userId);
         if (!user) {
-            console.log('User not found:', userId); // Debug log
             return res.status(404).json({ error: "User not found" });
         }
 
-        console.log('User verification data:', { // Debug log
-            storedCode: user.verificationCode,
-            codeExpires: user.verificationCodeExpires,
-            now: new Date()
-        });
-
         if (user.verificationCode !== code) {
-            console.log('Invalid code:', { // Debug log
-                provided: code,
-                stored: user.verificationCode
-            });
             return res.status(400).json({ error: "Invalid verification code" });
         }
 
         if (new Date() > user.verificationCodeExpires) {
-            console.log('Code expired:', { // Debug log
-                expires: user.verificationCodeExpires,
-                now: new Date()
-            });
             return res.status(400).json({ error: "Verification code has expired" });
         }
 
@@ -445,11 +419,9 @@ exports.verifyEmail = async (req, res) => {
 
         await user.save();
 
-        console.log('Email verified successfully for user:', userId); // Debug log
-
         return res.status(200).json({ 
             message: "Email verified successfully",
-            user: await user.populate('role')
+            user: user
         });
     } catch (error) {
         console.error("Verify Email Error:", error);
@@ -510,7 +482,7 @@ exports.verifyOTP = async (req, res) => {
         const { otp } = req.body;
         const userId = req.user.userId;
 
-        const user = await User.findById(userId).populate('role');
+        const user = await User.findById(userId);
         if (!user) {
             return res.status(404).json({ error: "User not found" });
         }
@@ -536,7 +508,7 @@ exports.verifyOTP = async (req, res) => {
 
         return res.status(200).json({ 
             message: "Phone number verified successfully",
-            user: await user.populate('role')
+            user: user
         });
     } catch (error) {
         console.error("Verify OTP Error:", error);
@@ -564,7 +536,7 @@ exports.updateUserRole = async (req, res) => {
 
         return res.status(200).json({ 
             message: "Role updated successfully",
-            user: await user.populate('role')
+            user: user
         });
     } catch (error) {
         console.error("Update Role Error:", error);

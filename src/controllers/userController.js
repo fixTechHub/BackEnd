@@ -6,13 +6,24 @@ const bcrypt = require('bcrypt');
 exports.getProfile = async (req, res) => {
     try {
         const userId = req.user.userId;
+        console.log('=== getProfile Debug ===');
+        console.log('req.user:', req.user);
+        console.log('req.user.role:', req.user?.role);
+        console.log('userId:', userId);
+        
         const user = await User.findById(userId)
-            .populate('role')
             .select('-passwordHash -verificationCode -verificationCodeExpires -verificationOTP -otpExpires');
 
         if (!user) {
             return res.status(404).json({ message: 'Không tìm thấy thông tin người dùng' });
         }
+
+        // Thêm role từ token vào user object để tương thích với frontend
+        const roleFromToken = req.user?.role || 'CUSTOMER';
+        console.log('roleFromToken:', roleFromToken);
+        user.role = { name: roleFromToken };
+
+        console.log('Final user object:', user);
 
         res.status(200).json({
             success: true,
@@ -45,10 +56,12 @@ exports.updateProfile = async (req, res) => {
 
         await user.save();
 
-        // Get updated user with populated role
+        // Không cần populate role nữa, thêm role từ token
         const updatedUser = await User.findById(userId)
-            .populate('role')
             .select('-passwordHash -verificationCode -verificationCodeExpires -verificationOTP -otpExpires');
+
+        // Thêm role từ token vào user object
+        updatedUser.role = { name: req.user?.role || 'CUSTOMER' };
 
         res.status(200).json({
             success: true,
@@ -90,10 +103,12 @@ exports.updateAvatar = async (req, res) => {
         user.avatar = avatarUrl;
         await user.save();
 
-        // Get updated user with populated role
+        // Không cần populate role nữa, thêm role từ token
         const updatedUser = await User.findById(userId)
-            .populate('role')
             .select('-passwordHash -verificationCode -verificationCodeExpires -verificationOTP -otpExpires');
+
+        // Thêm role từ token vào user object
+        updatedUser.role = { name: req.user?.role || 'CUSTOMER' };
 
         res.status(200).json({
             success: true,

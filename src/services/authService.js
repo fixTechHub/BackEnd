@@ -58,11 +58,9 @@ exports.googleAuth = async (access_token) => {
                 });
             }
         
-        // Populate role trước khi trả về
-        user = await User.findById(user._id).populate('role');
             
             let technician = null;
-            if(user.role && user.role.name==='Technician'){
+            if(user.role && user.role.name==='TECHNICIAN'){
                 technician = await technicianService.findTechnicianByUserId(user._id);
             }
             const token = generateToken(user);
@@ -78,18 +76,21 @@ exports.googleAuth = async (access_token) => {
 exports.normalLogin = async (email, password) => {
     try {
         const user = await userService.findUserByEmail(email);
-        if (!user) {
-            throw new HttpError(400, "Email không tồn tại");
+
+        // Check if user exists and has a password.
+        // If not, they might have registered via a social login like Google.
+        if (!user || !user.passwordHash) {
+            throw new HttpError(400, "Email hoặc mật khẩu không đúng.");
         }
 
         const isMatch = await comparePassword(password, user.passwordHash);
         if (!isMatch) {
-            throw new HttpError(400, "Mật khẩu không đúng");
+            throw new HttpError(400, "Email hoặc mật khẩu không đúng.");
         }
         
         const token = generateToken(user);
         let technician = null;
-        if (user.role.name === 'Technician') {
+        if (user.role && user.role.name === 'TECHNICIAN') {
             technician = await technicianService.findTechnicianByUserId(user._id);
         }
         
@@ -245,7 +246,7 @@ exports.checkAuth = async (userId) => {
         }
 
         let technician = null;
-        if (user.role && user.role.name === 'Technician') {
+        if (user.role && user.role.name === 'TECHNICIAN') {
             technician = await technicianService.findTechnicianByUserId(user._id);
         }
 
