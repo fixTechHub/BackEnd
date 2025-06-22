@@ -26,10 +26,21 @@ exports.approveTechnician = async (technicianId) => {
 
         // After approval, automatically generate the contract
         // Note: Make sure contractService.generateContractOnRegistration supports sessions
-        await contractService.generateContractOnRegistration(technician._id, session);
+       
+        const result = await contractService.generateContractOnRegistration(technician._id, session);
+       
 
         // Commit the transaction
+  
         await session.commitTransaction();
+      
+        
+        // After successful transaction commit, emit the notification
+        if (result && result.notificationData) {
+            
+            await notificationService.emitSocketNotification(result.notificationData);
+          
+        } 
         
         return technician;
         

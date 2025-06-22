@@ -105,18 +105,26 @@ const generateContractOnRegistration = async (technicianId, session = null) => {
     });
 
     await contract.save({ session });
-    console.log(`Contract created automatically for technician: ${technicianId}`);
+    
 
+    // Create notification within transaction but don't emit socket yet
     const notificationData = {
-      userId: technician.userId,
+      userId: technician.userId._id,
       title: 'Your Account has been Approved!',
       content: 'Tài khoản kỹ thuật viên của bạn đã được phê duyệt. Vui lòng đăng nhập và ký hợp đồng để bắt đầu nhận việc.',
       type: 'NEW_REQUEST',
       referenceId: contract._id
     };
 
-    // Pass session to notification service if it supports transactions
-    await notificationService.createAndSend(notificationData, session);
+    
+
+    // Create notification within transaction
+    await notificationService.createNotification(notificationData, session);
+    
+    
+
+    // Return the notification data so it can be emitted after transaction commit
+    return { contract, notificationData };
 
   } catch (error) {
     console.error('Failed to create contract on registration:', error);

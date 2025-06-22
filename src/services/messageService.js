@@ -47,8 +47,11 @@ const sendMessage = async (messageData) => {
     referenceId: newMessage._id,
   };
   
-  // Use createAndSend to ensure real-time notification
-  await notificationService.createAndSend(notificationData);
+  // Create notification first, then emit socket notification
+  const notification = await notificationService.createNotification(notificationData);
+  
+  // Emit socket notification after successful creation
+  io.to(`user:${notification.userId}`).emit('receiveNotification', notification);
 
   // Emit events to update chat UI
   io.to(`user:${newMessage.fromUser}`).emit('receiveMessage', newMessage);

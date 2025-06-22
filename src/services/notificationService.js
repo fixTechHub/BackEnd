@@ -2,6 +2,12 @@ const Notification = require('../models/Notification');
 const { getIo } = require('../sockets/socketManager');
 
 exports.createNotification = async (notificationData, session) => {
+  console.log('📝 [NOTIFICATION SERVICE] Creating notification in database:', {
+    userId: notificationData.userId,
+    title: notificationData.title,
+    hasSession: !!session
+  });
+  
   const notification = new Notification({
     userId: notificationData.userId,
     title: notificationData.title,
@@ -11,7 +17,9 @@ exports.createNotification = async (notificationData, session) => {
     isRead: false,
   });
 
-  return await notification.save({ session });
+  const savedNotification = await notification.save({ session });
+  console.log('✅ [NOTIFICATION SERVICE] Notification saved to database:', savedNotification._id);
+  return savedNotification;
 };
 
 exports.createAndSend = async (notificationData, session) => {
@@ -67,5 +75,35 @@ exports.markAllNotificationsAsRead = async (userId) => {
 
 exports.getUnreadNotificationsCount = async (userId) => {
   return await Notification.countDocuments({ userId, isRead: false });
+};
+
+// New function to emit socket notification after transaction commit
+exports.emitNotificationAfterCommit = async (notificationData) => {
+  const io = getIo();
+  const notification = await exports.createNotification(notificationData);
+  io.to(`user:${notification.userId}`).emit('receiveNotification', notification);
+  return notification;
+};
+
+// Function to emit socket notification for existing notification data (without creating duplicate)
+exports.emitSocketNotification = async (notificationData) => {
+  
+  
+  const io = getIo();
+  // Create a notification object for socket emission (without saving to DB again)
+  const notification = {
+    userId: notificationData.userId,
+    title: notificationData.title,
+    content: notificationData.content,
+    type: notificationData.type,
+    referenceId: notificationData.referenceId,
+    isRead: false,
+    createdAt: new Date()
+  };
+  
+
+  io.to(`user:${notification.userId}`).emit('receiveNotification', notification);
+
+  return notification;
 };
 

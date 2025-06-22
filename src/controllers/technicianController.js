@@ -190,5 +190,6 @@ module.exports = {
   sendQuotation,
   confirmJobDoneByTechnician,
   updateAvailability,
-  getTechnicianInformation
+  getTechnicianInformation,
+  
 };
