@@ -33,7 +33,7 @@ const initializeApiClient = async () => {
       }
     }
 
-    // Request JWT token with proper parameters
+    // Request JWT token with proper parameters 
     const results = await client.requestJWTUserToken(
       process.env.DOCUSIGN_INTEGRATION_KEY,
       process.env.DOCUSIGN_USER_ID,
@@ -65,6 +65,11 @@ const initializeApiClient = async () => {
       message: error.message,
       response: error.response?.data || error.response,
       status: error.response?.status,
+      config: {
+        integrationKey: process.env.DOCUSIGN_INTEGRATION_KEY,
+        userId: process.env.DOCUSIGN_USER_ID,
+        basePath: client.basePath
+      }
     });
     
     if (error.response?.data?.error === 'consent_required') {
@@ -72,6 +77,10 @@ const initializeApiClient = async () => {
       console.error('User consent required. Visit this URL to grant consent:');
       console.error(consentUrl);
       throw new Error('User consent required. Visit the consent URL above.');
+    }
+
+    if (error.response?.data?.error) {
+      throw new Error(`DocuSign Error: ${error.response.data.error} - ${error.response.data.error_description || 'No description'}`);
     }
     
     throw error;
