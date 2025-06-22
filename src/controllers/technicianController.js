@@ -271,5 +271,7 @@ module.exports = {
   sendQuotation,
   confirmJobDoneByTechnician,
   updateAvailability,
-  getTechnicianInformation
+  getTechnicianInformation,
+  completeTechnicianProfile,
+  uploadCertificate,
 };
