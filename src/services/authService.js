@@ -99,15 +99,24 @@ exports.normalLogin = async (email, password) => {
     try {
         const user = await userService.findUserByEmail(email);
 
-        // Check if user exists and has a password.
-        // If not, they might have registered via a social login like Google.
-        if (!user || !user.passwordHash) {
+        // Check if user exists
+        if (!user) {
+            throw new HttpError(400, "Email không tồn tại trong hệ thống");
+        }
+
+        // Check if user was registered via Google (has googleId but no passwordHash)
+        if (user.googleId && !user.passwordHash) {
+            throw new HttpError(400, "Tài khoản này được đăng ký bằng Google. Vui lòng sử dụng đăng nhập Google.");
+        }
+
+        // Check if user has a password
+        if (!user.passwordHash) {
             throw new HttpError(400, "Email hoặc mật khẩu không đúng.");
         }
 
         const isMatch = await comparePassword(password, user.passwordHash);
         if (!isMatch) {
-            throw new HttpError(400, "Email hoặc mật khẩu không đúng.");
+            throw new HttpError(400, "Mật khẩu không đúng");
         }
 
         // Kiểm tra trạng thái tài khoản
