@@ -115,9 +115,8 @@ const generateContractOnRegistration = async (technicianId, session = null) => {
       referenceId: contract._id
     };
 
-    const notification = await notificationService.createAndSend(notificationData, session);
-
-    return { contract, notification };
+    // Pass session to notification service if it supports transactions
+    await notificationService.createAndSend(notificationData, session);
 
   } catch (error) {
     console.error('Failed to create contract on registration:', error);

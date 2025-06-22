@@ -15,25 +15,17 @@ exports.createNotification = async (notificationData, session) => {
 };
 
 exports.createAndSend = async (notificationData, session) => {
+  const io = getIo();
   const notification = await exports.createNotification(
     notificationData,
     session
   );
+  io.to(`user:${notification.userId}`).emit('receiveNotification', notification);
   return notification;
-};
-
-exports.sendSocketNotification = (notification) => {
-  const io = getIo();
-  if (io && notification) {
-    const notificationObject = notification.toObject ? notification.toObject() : notification;
-    io.to(`user:${notificationObject.userId}`).emit('receiveNotification', notificationObject);
-    console.log(`Socket notification sent to user: ${notificationObject.userId}`);
-  }
 };
 
 exports.sendNotification = async (notificationData) => {
   const notification = await exports.createAndSend(notificationData);
-  exports.sendSocketNotification(notification);
   return notification;
 };
 
