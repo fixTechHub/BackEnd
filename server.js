@@ -2,7 +2,7 @@ require('dotenv').config();
 const app = require('./src/app');
 const http = require('http');
 const connectDB = require('./src/config/connectDB');
-const initializeSocket = require('./src/sockets/socket');
+const { initializeSocket } = require('./src/sockets/socket');
 const { setIo } = require('./src/sockets/socketManager');
 
 const PORT = process.env.PORT || 3000;
