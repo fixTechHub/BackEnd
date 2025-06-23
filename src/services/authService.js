@@ -34,10 +34,32 @@ exports.googleAuth = async (access_token) => {
         const { sub: googleId, email, name: fullName, picture: avatar } = payload;
 
         let user = await userService.findUserByEmail(email);
+        let wasReactivated = false;
 
             if (user) {
                 if (!user.googleId) {
                     user = await userService.updateUserGoogleId(user, googleId);
+                }
+                
+                // Kiểm tra trạng thái tài khoản
+                if (user.status === 'INACTIVE_ADMIN') {
+                    throw new HttpError(403, "Tài khoản của bạn đã bị vô hiệu hóa bởi quản trị viên. Vui lòng liên hệ với quản trị viên để được hỗ trợ.");
+                }
+
+                // Kiểm tra xem tài khoản có vừa được kích hoạt lại không
+                if (user.status === 'INACTIVE_USER') {
+                    user.status = 'ACTIVE';
+                    await user.save();
+                    wasReactivated = true;
+                }
+                
+                // Kiểm tra và khôi phục tài khoản đang chờ xóa
+                if (user.status === 'PENDING_DELETION') {
+                    user.status = 'ACTIVE';
+                    user.deletionRequestedAt = undefined;
+                    user.deletionScheduledAt = undefined;
+                    await user.save();
+                    wasReactivated = true;
                 }
             } else {
             // Tìm role PENDING
@@ -58,16 +80,14 @@ exports.googleAuth = async (access_token) => {
                 });
             }
         
-        // Populate role trước khi trả về
-        user = await User.findById(user._id).populate('role');
             
             let technician = null;
-            if(user.role && user.role.name==='Technician'){
+            if(user.role && user.role.name==='TECHNICIAN'){
                 technician = await technicianService.findTechnicianByUserId(user._id);
             }
             const token = generateToken(user);
 
-            return { user, token, technician };
+            return { user, token, technician, wasReactivated };
     } catch (error) {
         console.error('Google auth error:', error);
         throw new HttpError(500, `Google authentication failed: ${error.message}`);
@@ -78,22 +98,62 @@ exports.googleAuth = async (access_token) => {
 exports.normalLogin = async (email, password) => {
     try {
         const user = await userService.findUserByEmail(email);
+
+        // Check if user exists
         if (!user) {
-            throw new HttpError(400, "Email không tồn tại");
+            throw new HttpError(400, "Email không tồn tại trong hệ thống");
+        }
+
+        // Check if user was registered via Google (has googleId but no passwordHash)
+        if (user.googleId && !user.passwordHash) {
+            throw new HttpError(400, "Tài khoản này được đăng ký bằng Google. Vui lòng sử dụng đăng nhập Google.");
+        }
+
+        // Check if user has a password
+        if (!user.passwordHash) {
+            throw new HttpError(400, "Email hoặc mật khẩu không đúng.");
         }
 
         const isMatch = await comparePassword(password, user.passwordHash);
         if (!isMatch) {
             throw new HttpError(400, "Mật khẩu không đúng");
         }
+
+        // Kiểm tra trạng thái tài khoản
+        if (user.status === 'INACTIVE_ADMIN') {
+            throw new HttpError(403, "Tài khoản của bạn đã bị vô hiệu hóa bởi quản trị viên. Vui lòng liên hệ với quản trị viên để được hỗ trợ.");
+        }
+
+        // Kiểm tra xem tài khoản có vừa được kích hoạt lại không
+        let wasReactivated = false;
+        if (user.status === 'INACTIVE_USER') {
+            user.status = 'ACTIVE';
+            await user.save();
+            wasReactivated = true;
+        }
+        
+        // Kiểm tra và khôi phục tài khoản đang chờ xóa
+        if (user.status === 'PENDING_DELETION') {
+            user.status = 'ACTIVE';
+            user.deletionRequestedAt = undefined;
+            user.deletionScheduledAt = undefined;
+            await user.save();
+            wasReactivated = true;
+        }
+        
+        // Đảm bảo user thường không có googleId
+        if (user.googleId) {
+            user.googleId = undefined;
+            await user.save();
+        }
         
         const token = generateToken(user);
         let technician = null;
-        if (user.role.name === 'Technician') {
+        if (user.role && user.role.name === 'TECHNICIAN') {
             technician = await technicianService.findTechnicianByUserId(user._id);
         }
         
-        return { user, token, technician };
+        return { user, token, technician, wasReactivated };
     } catch (error) {
         throw new HttpError(error.statusCode || 500, error.message);
     }
@@ -244,8 +304,13 @@ exports.checkAuth = async (userId) => {
             throw new HttpError(404, "Không tìm thấy người dùng");
         }
 
+        // Kiểm tra trạng thái tài khoản
+        if (user.status === 'INACTIVE_ADMIN') {
+            throw new HttpError(403, "Tài khoản của bạn đã bị vô hiệu hóa bởi quản trị viên. Vui lòng liên hệ với quản trị viên để được hỗ trợ.");
+        }
+
         let technician = null;
-        if (user.role && user.role.name === 'Technician') {
+        if (user.role && user.role.name === 'TECHNICIAN') {
             technician = await technicianService.findTechnicianByUserId(user._id);
         }
 

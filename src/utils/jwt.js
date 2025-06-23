@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
  * @returns {string} - Signed JWT token.
  */
 const generateToken = (user, expiresIn = '2h') => {
+    // Lấy tên role từ user object
     const roleName = user.role && user.role.name ? user.role.name : user.role;
     
     return jwt.sign(

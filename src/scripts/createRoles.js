@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const Role = require('../models/Role');
 require('dotenv').config();
 
-const roles = ['ADMIN', 'CUSTOMER', 'TECHNICIAN'];
+const roles = ['ADMIN', 'CUSTOMER', 'TECHNICIAN', 'PENDING'];
 
 async function createRoles() {
     try {

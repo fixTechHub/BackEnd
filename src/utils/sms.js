@@ -12,7 +12,6 @@ exports.sendVerificationSMS = async (phone, otp) => {
             to: phone,
             from: process.env.TWILIO_PHONE_NUMBER
         });
-        console.log(`Verification SMS sent to ${phone}`);
     } catch (error) {
         console.error(`Failed to send verification SMS to ${phone}:`, error.message);
         throw error;
