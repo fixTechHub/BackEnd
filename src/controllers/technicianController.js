@@ -115,6 +115,21 @@ const viewJobDetails = async (req, res) => {
   }
 }
 
+const viewTechnicianBookings = async (req, res, next) => {
+  try {
+    const { technicianId } = req.params;
+
+    const bookings = await technicianService.getListBookingForTechnician(technicianId);
+
+    res.json({
+      success: true,
+      data: bookings
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 const viewEarningsByBooking = async (req, res) => {
   try {
     const technicianId = req.params;
@@ -180,6 +195,49 @@ const getTechnicianInformation = async (req, res) => {
   }
 };
 
+const depositMoney = async (req, res, next) => {
+  try {
+    const { technicianId, amount, paymentMethod } = req.body;
+
+    const result = await technicianService.depositMoney(
+      technicianId,
+      amount,
+      paymentMethod
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Nạp tiền thành công',
+      data: result
+    });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const requestWithdraw = async (req, res, next) => {
+    try {
+        const { technicianId, amount, paymentMethod } = req.body;
+
+        const result = await technicianService.requestWithdraw(
+            technicianId,
+            amount,
+            paymentMethod
+        );
+
+        res.status(200).json({
+            success: true,
+            message: 'Yêu cầu rút tiền đã gửi đến admin',
+            data: result
+        });
+    } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+
 module.exports = {
   registerAsTechnician,
   viewTechnicianProfile,
@@ -190,5 +248,9 @@ module.exports = {
   sendQuotation,
   confirmJobDoneByTechnician,
   updateAvailability,
-  getTechnicianInformation
+  getTechnicianInformation,
+  viewTechnicianBookings,
+  depositMoney,
+  requestWithdraw
+
 };
