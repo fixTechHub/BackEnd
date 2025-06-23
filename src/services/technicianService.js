@@ -10,20 +10,31 @@ const BookingStatusLog = require('../models/BookingStatusLog');
 const User = require('../models/User');
 
 exports.createNewTechnician = async (userId, technicianData) => {
-  const technician = new Technician({
-    userId,
-    identification: technicianData.identification,
-    specialties: technicianData.specialties || '',
-    certificate: technicianData.certificate || [],
-    certificateVerificationStatus: false,
-    jobCompleted: 0,
-    availability: 'FREE',
-    contractAccepted: false,
-    balance: 0,
-    isAvailableForAssignment: false,
-  });
-
-  return await technician.save();
+    const technician = new Technician({
+        userId,
+        identification: technicianData.identification,
+        experienceYears: technicianData.experienceYears || 0,
+        currentLocation: technicianData.currentLocation || {
+            type: 'Point',
+            coordinates: [0, 0]
+        },
+        specialtiesCategories: technicianData.specialties || [],
+        certificate: technicianData.certificate || [],
+        certificateVerificationStatus: false,
+        jobCompleted: 0,
+        availability: 'FREE',
+        contractAccepted: false,
+        balance: 0,
+        isAvailableForAssignment: false,
+        bankAccount: technicianData.bankAccount || {
+            bankName: '',
+            accountNumber: '',
+            accountHolder: '',
+            branch: ''
+        }
+    });
+    
+    return await technician.save();
 };
 
 exports.findTechnicianByUserId = async (userId) => {

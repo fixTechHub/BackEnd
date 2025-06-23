@@ -43,10 +43,12 @@ const userSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['PENDING', 'ACTIVE', 'INACTIVE', 'BLOCKED'],
+        enum: ['PENDING', 'ACTIVE', 'INACTIVE', 'INACTIVE_USER', 'INACTIVE_ADMIN', 'BLOCKED', 'DELETED', 'PENDING_DELETION'],
         default: 'PENDING'
     },
     deletedAt: Date,
+    pendingDeletionAt: Date, // Thời điểm bắt đầu chờ xóa
+    lastDeletionReminderSent: Date, // Thời điểm gửi reminder cuối cùng
     verificationCode: String,
     verificationCodeExpires: Date
 }, {
