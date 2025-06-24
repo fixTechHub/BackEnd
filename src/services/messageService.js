@@ -35,14 +35,14 @@ const sendMessage = async (messageData) => {
   const io = getIo();
   // Create and save message
   const newMessage = await createMessage(messageData);
-
+  await newMessage.populate('fromUser')
   // Create notification for recipient
   const notificationData = {
     userId: newMessage.toUser,
-    title: 'New Message',
+    title: `New Message from ${newMessage.fromUser.fullName}`,
     content: newMessage.content.length > 50 
       ? `${newMessage.content.substring(0, 47)}...` 
-      : newMessage.content,
+      : newMessage.content, 
     type: 'MESSAGE',
     referenceId: newMessage._id,
   };

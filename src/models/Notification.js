@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { type } = require('os');
 
 const notificationSchema = new mongoose.Schema({
     userId: {
@@ -18,6 +19,14 @@ const notificationSchema = new mongoose.Schema({
         type: String,
         enum: ['NEW_REQUEST', 'MESSAGE', 'PAYMENT'],
         required: true
+    },
+    url: {
+        type: String,
+    },
+    status: {
+        type: String,
+        enum: ['DISPLAY', 'DELETED'],
+        default: 'DISPLAY'
     },
     referenceId: {
         type: mongoose.Schema.Types.ObjectId

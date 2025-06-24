@@ -1,6 +1,7 @@
 const { Server } = require('socket.io');
 
 const userSocketMap = new Map(); // Maps userId to socketId
+const activeCallsMap = new Map(); // Maps userId to their current call partner
 
 const initializeSocket = (server) => {
   console.log(`--- Socket.IO configured to allow origin: ${process.env.FRONT_END_URL} ---`);
@@ -9,14 +10,12 @@ const initializeSocket = (server) => {
       origin: process.env.FRONT_END_URL,
       methods: ["GET", "POST"],
       credentials: true
-    }
+    } 
   });
-
 
   io.on('connection', (socket) => {
     const userId = socket.handshake.query.userId;
     if (userId) {
-      // If this user is already connected, disconnect the old socket
       if (userSocketMap.has(userId)) {
         const oldSocketId = userSocketMap.get(userId);
         const oldSocket = io.sockets.sockets.get(oldSocketId);
@@ -26,9 +25,8 @@ const initializeSocket = (server) => {
         }
       }
 
-      // Store the new socket for this user
       userSocketMap.set(userId, socket.id);
-      socket.userId = userId; // Store userId on the socket instance for easy lookup on disconnect
+      socket.userId = userId;
 
       const roomName = `user:${userId}`;
       socket.join(roomName);
@@ -37,74 +35,89 @@ const initializeSocket = (server) => {
       console.log(`A user connected: ${socket.id}, but no userId was provided.`);
     }
 
-    // Video call signaling handlers
-    socket.on('join_call_room', (data) => {
-      const { callId } = data;
-      socket.join(`call:${callId}`);
-      console.log(`User ${socket.userId} joined call room: ${callId}`);
-    });
+    socket.emit("me", socket.id);
 
-    socket.on('leave_call_room', (data) => {
-      const { callId } = data;
-      socket.leave(`call:${callId}`);
-      console.log(`User ${socket.userId} left call room: ${callId}`);
-    });
-
-    // WebRTC signaling
-    socket.on('offer', (data) => {
-      const { callId, offer, targetUserId } = data;
-      const targetSocketId = userSocketMap.get(targetUserId);
-      
-      if (targetSocketId) {
-        io.to(targetSocketId).emit('offer', {
-          callId,
-          offer,
-          fromUserId: socket.userId
-        });
-        console.log(`Offer sent from ${socket.userId} to ${targetUserId} for call ${callId}`);
-      }
-    });
-
-    socket.on('answer', (data) => {
-      const { callId, answer, targetUserId } = data;
-      const targetSocketId = userSocketMap.get(targetUserId);
-      
-      if (targetSocketId) {
-        io.to(targetSocketId).emit('answer', {
-          callId,
-          answer,
-          fromUserId: socket.userId
-        });
-        console.log(`Answer sent from ${socket.userId} to ${targetUserId} for call ${callId}`);
-      }
-    });
-
-    socket.on('ice_candidate', (data) => {
-      const { callId, candidate, targetUserId } = data;
-      const targetSocketId = userSocketMap.get(targetUserId);
-      
-      if (targetSocketId) {
-        io.to(targetSocketId).emit('ice_candidate', {
-          callId,
-          candidate,
-          fromUserId: socket.userId
-        });
-        console.log(`ICE candidate sent from ${socket.userId} to ${targetUserId} for call ${callId}`);
-      }
-    });
-
-    socket.on('disconnect', () => {
+    socket.on("disconnect", () => {
       console.log(`User disconnected: ${socket.id}`);
-      // If the disconnected socket is the one we have on record, remove it from the map
+      if (socket.userId && activeCallsMap.has(socket.userId)) {
+        const partnerId = activeCallsMap.get(socket.userId);
+        const partnerSocketId = userSocketMap.get(partnerId);
+        if (partnerSocketId) {
+          console.log(`Notifying partner ${partnerId} that user ${socket.userId} disconnected`);
+          io.to(partnerSocketId).emit("callEnded");
+        }
+        activeCallsMap.delete(socket.userId);
+        activeCallsMap.delete(partnerId);
+      }
       if (socket.userId && userSocketMap.get(socket.userId) === socket.id) {
         userSocketMap.delete(socket.userId);
         console.log(`Removed user ${socket.userId} from socket map.`);
       }
     });
+
+    socket.on("callUser", ({ userToCall, signalData, from, name }) => {
+      console.log(`Call initiated from ${from} to ${userToCall}`);
+      const userToCallSocketId = userSocketMap.get(userToCall);
+      if (userToCallSocketId) {
+        activeCallsMap.set(from, userToCall);
+        activeCallsMap.set(userToCall, from);
+        io.to(userToCallSocketId).emit("callUser", { signal: signalData, from, name });
+        console.log(`Call signal sent to ${userToCall}`);
+      } else {
+        console.log(`User ${userToCall} is not online`);
+        socket.emit("callFailed", { message: "User is not online." });
+      }
+    });
+
+    socket.on("answerCall", (data) => {
+      console.log(`Call answered by ${socket.userId} to ${data.to}`);
+      const callerSocketId = userSocketMap.get(data.to);
+      if (callerSocketId) {
+        io.to(callerSocketId).emit("callAccepted", data.signal);
+      }
+    });
+
+    socket.on("ice-candidate", (data) => {
+      const recipientSocketId = userSocketMap.get(data.to);
+      if (recipientSocketId) {
+        io.to(recipientSocketId).emit("ice-candidate", data.candidate);
+      }
+    });
+
+    socket.on("callEnded", (data) => {
+      console.log(`Call ended by ${socket.userId} to ${data.to}`);
+      const recipientSocketId = userSocketMap.get(data.to);
+      if (recipientSocketId) {
+        io.to(recipientSocketId).emit("callEnded");
+        console.log(`Call ended notification sent to ${data.to}`);
+      }
+      if (socket.userId) {
+        activeCallsMap.delete(socket.userId);
+        activeCallsMap.delete(data.to);
+        console.log(`Cleaned up call mapping for ${socket.userId} and ${data.to}`);
+      }
+    });
+
+    socket.on("callDeclined", (data) => {
+      console.log(`Call declined by ${socket.userId} to ${data.to}`);
+      const callerSocketId = userSocketMap.get(data.to);
+      if (callerSocketId) {
+        io.to(callerSocketId).emit("callDeclined", { from: socket.userId }); // Send back the decliner's ID
+        console.log(`Call declined notification sent to ${data.to}`);
+      }
+      if (socket.userId) {
+        activeCallsMap.delete(socket.userId);
+        activeCallsMap.delete(data.to);
+        console.log(`Cleaned up call mapping for ${socket.userId} and ${data.to}`);
+      }
+    });
+
+    socket.on('ping', () => {
+      socket.emit('pong');
+    });
   });
 
   return io;
-
-}
+};
 
 module.exports = { initializeSocket, userSocketMap };

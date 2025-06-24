@@ -3,25 +3,17 @@ const router = express.Router();
 const videoCallController = require('../controllers/videoCallController');
 const { authenticateToken } = require('../middlewares/authMiddleware');
 
-// All routes require authentication
-router.use(authenticateToken);
+router.get('/online-users', authenticateToken, videoCallController.getOnlineUsers);
+router.get('/status/:sessionId', authenticateToken, videoCallController.getVideoCallStatus);
+router.patch('/status/:sessionId', authenticateToken, videoCallController.updateVideoCallStatus);
 
-// Initiate a video call
-router.post('/initiate', videoCallController.initiateCall);
+// New routes for video call events
+router.post('/initiate', authenticateToken, videoCallController.initiateCall);
+router.post('/answer', authenticateToken, videoCallController.answerCall);
+router.post('/end', authenticateToken, videoCallController.endCall);
+router.post('/decline', authenticateToken, videoCallController.declineCall);
 
-// Accept a video call
-router.post('/accept', videoCallController.acceptCall);
-
-// Reject a video call
-router.post('/reject', videoCallController.rejectCall);
-
-// End a video call
-router.post('/end', videoCallController.endCall);
-
-// Get call history for a user
-router.get('/history/:userId', videoCallController.getCallHistory);
-
-// Get active call for a user
-router.get('/active/:userId', videoCallController.getActiveCall);
+// New route for call history
+router.get('/history/:bookingId', authenticateToken, videoCallController.getCallHistory);
 
 module.exports = router;

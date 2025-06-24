@@ -13,6 +13,7 @@ exports.createNotification = async (notificationData, session) => {
     title: notificationData.title,
     content: notificationData.content,
     type: notificationData.type,
+    url: notificationData.url ?? null,
     referenceId: notificationData.referenceId || null,
     isRead: false,
   });
@@ -52,12 +53,13 @@ exports.markNotificationRead = async (notificationId) => {
 };
 
 exports.getUserNotifications = async (userId, options = {}) => {
-  const { limit = 20, skip = 0, isRead = null } = options;
+  const { limit = 20, skip = 0, isRead = null, } = options;
   
   const query = { userId };
   if (isRead !== null) {
     query.isRead = isRead;
   }
+  
 
   return await Notification.find(query)
     .sort({ createdAt: -1 })
@@ -106,4 +108,5 @@ exports.emitSocketNotification = async (notificationData) => {
 
   return notification;
 };
+
 

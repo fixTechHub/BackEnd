@@ -19,8 +19,8 @@ const createPayOsPayment = async ( bookingPriceId) => {
         const bookingPrice = await BookingPrice.findById(bookingPriceId)
         const paymentData = {
             orderCode: orderCode,
-            // amount: bookingPrice.finalPrice,
-            amount: 3000,
+            amount: bookingPrice.finalPrice,
+            // amount: 3000,
             description: `Thanh toan don hang `,
             returnUrl: `${process.env.BACK_END_URL}/payments/success?orderCode=${orderCode}&bookingPriceId=${bookingPriceId}`,
             cancelUrl: `${process.env.BACK_END_URL}/payments/cancel?bookingPriceId=${bookingPriceId}` 

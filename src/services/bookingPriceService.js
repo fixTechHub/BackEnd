@@ -143,6 +143,7 @@ const getAcceptedQuotation = async (bookingId, technicianId) => {
         }
         await session.commitTransaction();
         session.endSession();
+        console.log(bookingPrice);
         
         return bookingPrice
     } catch (error) {
