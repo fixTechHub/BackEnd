@@ -2,11 +2,7 @@ const Notification = require('../models/Notification');
 const { getIo } = require('../sockets/socketManager');
 
 exports.createNotification = async (notificationData, session) => {
-  console.log('📝 [NOTIFICATION SERVICE] Creating notification in database:', {
-    userId: notificationData.userId,
-    title: notificationData.title,
-    hasSession: !!session
-  });
+ 
   
   const notification = new Notification({
     userId: notificationData.userId,
@@ -14,12 +10,12 @@ exports.createNotification = async (notificationData, session) => {
     content: notificationData.content,
     type: notificationData.type,
     url: notificationData.url ?? null,
+
     referenceId: notificationData.referenceId || null,
     isRead: false,
   });
 
   const savedNotification = await notification.save({ session });
-  console.log('✅ [NOTIFICATION SERVICE] Notification saved to database:', savedNotification._id);
   return savedNotification;
 };
 
@@ -108,5 +104,21 @@ exports.emitSocketNotification = async (notificationData) => {
 
   return notification;
 };
+exports.clearAllNotifications = async (userId) => {
+  return await Notification.updateMany(
+    { userId, status: 'DISPLAY' },
+    { status: 'DELETED' }
+  );
+};
 
+exports.getAllUserNotifications = async (userId, options = {}) => {
+  const { limit = 20, skip = 0 } = options;
+  
+  const query = { userId, status: 'DISPLAY' };
 
+  return await Notification.find(query)
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .populate('userId', 'fullName email');
+};
