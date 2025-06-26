@@ -85,6 +85,8 @@ const cancelBooking = async (req, res) => {
         const { reason } = req.body;
         const userId = req.user.userId;        
         const role = req.user.role;
+        // console.log('--- ROLE ---', role);
+        
         
         // const user = await User.findById(userId).populate('role'); console.log(user)
         // const role = user.role.name;

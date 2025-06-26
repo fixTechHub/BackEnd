@@ -1,8 +1,7 @@
 const authService = require('../services/authService');
 const userService = require('../services/userService');
 const technicianService = require('../services/technicianService');
-
-const { loginSchema,passwordSchema } = require('../validations/authValidation');
+const { loginSchema, passwordSchema } = require('../validations/authValidation');
 const { generateUserCode, generateCookie } = require('../utils/generateCode');
 const { createUserSchema } = require('../validations/userValidation');
 const { createTechnicianSchema } = require('../validations/technicianValidation');
@@ -31,15 +30,15 @@ exports.finalizeRegistration = async (req, res) => {
 
         // Determine if emailOrPhone is email or phone
         const isEmail = emailOrPhone.includes('@');
-        
+
         // Check if user already exists
-        const existingUser = isEmail 
+        const existingUser = isEmail
             ? await User.findOne({ email: emailOrPhone.toLowerCase() })
             : await User.findOne({ phone: emailOrPhone });
 
         if (existingUser) {
-            return res.status(400).json({ 
-                error: isEmail ? "Email đã được sử dụng." : "Số điện thoại đã được sử dụng." 
+            return res.status(400).json({
+                error: isEmail ? "Email đã được sử dụng." : "Số điện thoại đã được sử dụng."
             });
         }
 
@@ -62,7 +61,7 @@ exports.finalizeRegistration = async (req, res) => {
             phone: !isEmail ? emailOrPhone : undefined,
             passwordHash: hashedPassword,
             role: roleDoc._id,
-            emailVerified: false, 
+            emailVerified: false,
             phoneVerified: false,
             status: role === 'CUSTOMER' ? 'ACTIVE' : 'PENDING',
             verificationCode,
@@ -70,7 +69,7 @@ exports.finalizeRegistration = async (req, res) => {
         });
 
         await newUser.save();
-        
+
         // Populate role for the response
         await newUser.populate('role');
 
@@ -84,7 +83,7 @@ exports.finalizeRegistration = async (req, res) => {
                 // For now, we'll just log it and continue
             }
         }
-        
+
         // --- Create Token and Set Cookie ---
         const token = generateToken(newUser);
         generateCookie(token, res);
@@ -107,14 +106,14 @@ exports.getAuthenticatedUser = async (req, res) => {
     try {
         const userId = req.user.userId;
         const { user, technician } = await authService.checkAuth(userId);
-        
+
         // Thêm kiểm tra trạng thái xác thực
         const verificationStatus = await checkVerificationStatus(user);
-        
-        return res.status(200).json({ 
-            user, 
+
+        return res.status(200).json({
+            user,
             technician,
-            verificationStatus 
+            verificationStatus
         });
     } catch (error) {
         console.error('Error fetching authenticated user:', error);
@@ -137,7 +136,7 @@ exports.googleAuthController = async (req, res) => {
                     'Authorization': `Bearer ${access_token}`
                 }
             });
-            
+
             if (!response.ok) {
                 throw new Error('Failed to get user info from Google');
             }
@@ -145,7 +144,7 @@ exports.googleAuthController = async (req, res) => {
             const payload = await response.json();
 
             const { user, token, technician, wasReactivated } = await authService.googleAuth(access_token);
-            
+
             // Set auth cookie
             generateCookie(token, res);
 
@@ -170,7 +169,7 @@ exports.logout = async (req, res) => {
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'strict'
         });
-        
+
         return res.status(200).json({ message: "Logged out successfully" });
     } catch (error) {
         return res.status(500).json({ error: "Logout failed" });
@@ -186,14 +185,14 @@ exports.login = async (req, res) => {
 
         const { email, password } = req.body;
         const result = await authService.normalLogin(email, password);
-        
+
         // Set auth cookie
         generateCookie(result.token, res);
         await result.user.populate('role');
 
         // Kiểm tra trạng thái xác thực
         const verificationStatus = await checkVerificationStatus(result.user);
-        
+
         return res.status(200).json({
             message: "Đăng nhập thành công",
             user: result.user,
@@ -214,17 +213,19 @@ exports.googleLogin = async (req, res) => {
         }
 
         const result = await authService.googleAuth(access_token);
-        
+
         // Set auth cookie
         generateCookie(result.token, res);
         await result.user.populate('role');
 
+        // console.log('--- GOOLE AUTHENTICATION ---', result.user);
+
         // Kiểm tra trạng thái xác thực
         const verificationStatus = await checkVerificationStatus(result.user);
 
-        return res.status(200).json({ 
+        return res.status(200).json({
             message: "Đăng nhập thành công",
-            user: result.user, 
+            user: result.user,
             technician: result.technician,
             verificationStatus,
             wasReactivated: result.wasReactivated
@@ -264,11 +265,11 @@ const checkVerificationStatus = async (user) => {
 
     // Kiểm tra role PENDING - có thể là ObjectId hoặc object đã populate
     const pendingRole = await Role.findOne({ name: 'PENDING' });
-    
-    const isPendingRole = user.role?.name === 'PENDING' || 
-                         (user.role && pendingRole && user.role._id && user.role._id.toString() === pendingRole._id.toString()) ||
-                         (user.role && pendingRole && user.role.toString() === pendingRole._id.toString());
-    
+
+    const isPendingRole = user.role?.name === 'PENDING' ||
+        (user.role && pendingRole && user.role._id && user.role._id.toString() === pendingRole._id.toString()) ||
+        (user.role && pendingRole && user.role.toString() === pendingRole._id.toString());
+
     if (isPendingRole) {
         return {
             step: 'CHOOSE_ROLE',
@@ -281,7 +282,7 @@ const checkVerificationStatus = async (user) => {
     if (user.role?.name === 'TECHNICIAN') {
         try {
             const technician = await technicianService.findTechnicianByUserId(user._id);
-            
+
             if (!technician) {
                 return {
                     step: 'COMPLETE_PROFILE',
@@ -491,22 +492,22 @@ exports.forgotPassword = async (req, res) => {
     try {
         const { emailOrPhone } = req.body;
         if (!emailOrPhone) {
-            return res.status(400).json({ 
-                error: "Vui lòng nhập email hoặc số điện thoại" 
+            return res.status(400).json({
+                error: "Vui lòng nhập email hoặc số điện thoại"
             });
         }
 
         const result = await authService.handleForgotPassword(emailOrPhone);
-        
+
         return res.status(200).json({
-            message: result.type === 'email' 
+            message: result.type === 'email'
                 ? "Đã gửi hướng dẫn đặt lại mật khẩu qua email"
                 : "Đã gửi mã xác thực qua SMS",
             type: result.type
         });
     } catch (error) {
-        res.status(error.statusCode || 500).json({ 
-            error: error.message || "Có lỗi xảy ra khi xử lý yêu cầu đặt lại mật khẩu" 
+        res.status(error.statusCode || 500).json({
+            error: error.message || "Có lỗi xảy ra khi xử lý yêu cầu đặt lại mật khẩu"
         });
     }
 };
@@ -523,12 +524,12 @@ exports.resetPassword = async (req, res) => {
 
         await authService.handleResetPassword(token, newPassword);
 
-        return res.status(200).json({ 
-            message: "Đặt lại mật khẩu thành công" 
+        return res.status(200).json({
+            message: "Đặt lại mật khẩu thành công"
         });
     } catch (error) {
-        res.status(error.statusCode || 500).json({ 
-            error: error.message || "Có lỗi xảy ra khi đặt lại mật khẩu" 
+        res.status(error.statusCode || 500).json({
+            error: error.message || "Có lỗi xảy ra khi đặt lại mật khẩu"
         });
     }
 };
@@ -573,7 +574,7 @@ exports.verifyOTP = async (req, res) => {
         // Kiểm tra trạng thái xác thực sau khi xác thực OTP
         const verificationStatus = await checkVerificationStatus(populatedUser);
 
-        return res.status(200).json({ 
+        return res.status(200).json({
             message: "Phone number verified successfully",
             user: populatedUser,
             verificationStatus: verificationStatus
@@ -604,7 +605,7 @@ exports.updateUserRole = async (req, res) => {
         // Populate role trước khi gửi về
         await user.populate('role');
 
-        return res.status(200).json({ 
+        return res.status(200).json({
             message: "Role updated successfully",
             user: user
         });
@@ -644,14 +645,14 @@ exports.checkExist = async (req, res) => {
 exports.refreshToken = async (req, res) => {
     try {
         const refreshToken = req.cookies.refreshToken;
-        
+
         if (!refreshToken) {
             return res.status(401).json({ message: 'Không tìm thấy refresh token' });
         }
 
         // Verify refresh token
         const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
-        
+
         // Tìm user
         const user = await User.findById(decoded.userId);
         if (!user) {
@@ -683,7 +684,7 @@ exports.resendEmailCode = async (req, res) => {
     try {
         const userId = req.user.userId;
         const user = await User.findById(userId);
-        
+
         if (!user) {
             return res.status(404).json({ error: "User not found" });
         }
@@ -707,7 +708,7 @@ exports.resendEmailCode = async (req, res) => {
         // Send new verification code
         await sendVerificationEmail(user.email, verificationCode);
 
-        return res.status(200).json({ 
+        return res.status(200).json({
             message: "New verification code sent successfully",
             expiresIn: 300 // 5 minutes in seconds
         });
@@ -720,7 +721,7 @@ exports.resendOTP = async (req, res) => {
     try {
         const userId = req.user.userId;
         const user = await User.findById(userId);
-        
+
         if (!user) {
             return res.status(404).json({ error: "User not found" });
         }
@@ -744,7 +745,7 @@ exports.resendOTP = async (req, res) => {
         // Send new OTP
         await sendVerificationSMS(user.phone, verificationOTP);
 
-        return res.status(200).json({ 
+        return res.status(200).json({
             message: "New OTP sent successfully",
             expiresIn: 300 // 5 minutes in seconds
         });

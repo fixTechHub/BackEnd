@@ -1,6 +1,6 @@
 const User = require('../models/User');
 const Role = require('../models/Role');
-const {generateUserCode} = require('../utils/generateCode')
+const { generateUserCode } = require('../utils/generateCode')
 const mongoose = require('mongoose');
 const Booking = require('../models/Booking');
 const Technician = require('../models/Technician');
@@ -13,11 +13,11 @@ const { sendVerificationSMS } = require('../utils/sms');
 exports.generateUserCode = generateUserCode;
 
 exports.findUserByEmail = async (email) => {
-    return await User.findOne({ email }) // Không cần populate role nữa
+    return await User.findOne({ email }).populate('role', 'name');
 };
 
 exports.findUserByPhone = async (phone) => {
-    return await User.findOne({ phone }) // Không cần populate role nữa
+    return await User.findOne({ phone }).populate('role', 'name');
 };
 
 exports.updateUserGoogleId = async (user, googleId) => {
@@ -35,7 +35,7 @@ exports.findRoleByName = async (role) => {
             }
             return roleDoc;
         }
-        
+
         // Nếu role là string, tìm theo tên
         const roleDoc = await Role.findOne({ name: role.toUpperCase() });
         if (!roleDoc) {
@@ -49,11 +49,11 @@ exports.findRoleByName = async (role) => {
 };
 
 exports.findRoleById = async (roleId) => {
-    return await Role.findById({roleId})
+    return await Role.findById({ roleId })
 };
 
 exports.findUserById = async (userId) => {
-    return await User.findById(userId) // Không cần populate role nữa
+    return await User.findById(userId).populate('role', 'name');
 };
 
 exports.createNewUser = async (userData) => {
@@ -67,8 +67,8 @@ exports.createNewUser = async (userData) => {
         role = null,
         verificationCode = null,
         verificationCodeExpires = null
-    } = userData;   
-    
+    } = userData;
+
     const userCode = await generateUserCode();
 
     // Kiểm tra xem emailOrPhone là email hay số điện thoại
@@ -83,7 +83,7 @@ exports.createNewUser = async (userData) => {
         passwordHash: password || undefined,
         status,
         emailVerified: emailVerified,
-        role: role, // Sử dụng role được truyền vào
+        role: role,
         verificationCode,
         verificationCodeExpires
     });
@@ -93,7 +93,7 @@ exports.createNewUser = async (userData) => {
 
 exports.getUserById = async (id) => {
     try {
-        const user = await User.findById(id).select('-password'); // omit password
+        const user = await User.findById(id).select('-password').populate('role'); // omit password
         return user;
     } catch (error) {
         console.error('Error in getUserById:', error);
@@ -104,7 +104,7 @@ exports.getUserById = async (id) => {
 exports.deleteAccount = async (userId) => {
     try {
         const user = await User.findById(userId).populate('role');
-        
+
         if (!user) {
             throw new Error('User not found');
         }
@@ -181,7 +181,7 @@ exports.deleteAccount = async (userId) => {
 exports.requestDeleteVerification = async (userId, method) => {
     try {
         const user = await User.findById(userId).populate('role');
-        
+
         if (!user) {
             throw new Error('User not found');
         }
@@ -226,7 +226,7 @@ exports.requestDeleteVerification = async (userId, method) => {
 exports.verifyDeleteOTP = async (userId, otp) => {
     try {
         const user = await User.findById(userId).populate('role');
-        
+
         if (!user) {
             throw new Error('User not found');
         }
@@ -259,7 +259,7 @@ exports.verifyDeleteOTP = async (userId, otp) => {
 exports.restoreAccount = async (userId) => {
     try {
         const user = await User.findById(userId).populate('role');
-        
+
         if (!user) {
             throw new Error('User not found');
         }
