@@ -38,7 +38,7 @@ exports.createNewTechnician = async (userId, technicianData) => {
   return await technician.save();
 };
 
-exports.findTechnicianByUserId = async (userId) => {
+const findTechnicianByUserId = async (userId) => {
   return await Technician.findOne({ userId })
 }
 
@@ -144,7 +144,14 @@ const findNearbyTechnicians = async (searchParams, radiusInKm) => {
 };
 
 const sendQuotation = async (bookingPriceData) => {
-  const { bookingId, technicianId, laborPrice, warrantiesDuration, items } = bookingPriceData;
+  const { bookingId, userId, laborPrice, warrantiesDuration, items } = bookingPriceData;
+
+  const technician = await Technician.findOne({ userId });
+  if (!technician) {
+    throw new Error('Không tìm thấy thông tin kỹ thuật viên');
+  }
+
+  const technicianId = technician._id;
 
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -154,6 +161,7 @@ const sendQuotation = async (bookingPriceData) => {
     if (!booking) {
       throw new Error('Không tìm thấy đặt lịch');
     }
+
     // if (booking.status !== 'PENDING') {
     //     throw new Error('Không thể tạo báo giá cho đặt lịch này');
     // }
@@ -209,6 +217,7 @@ const sendQuotation = async (bookingPriceData) => {
     await booking.save({ session });
 
     await session.commitTransaction();
+
     return {
       message: 'Gửi báo giá thành công',
       bookingPrice: savedBookingPrice,
@@ -308,7 +317,7 @@ const getCertificatesByTechnicianId = async (technicianId) => {
   }
 
   const certificates = await Certificate.find({ technicianId }).sort({ createdAt: -1 });
-  
+
   return certificates;
 };
 
@@ -529,5 +538,6 @@ module.exports = {
   confirmJobDoneByTechnician,
   getListBookingForTechnician,
   depositMoney,
-  requestWithdraw
+  requestWithdraw,
+  findTechnicianByUserId
 };

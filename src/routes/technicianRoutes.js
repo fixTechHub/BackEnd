@@ -14,7 +14,7 @@ router.get('/:technicianId/bookings', technicianController.viewTechnicianBooking
 router.get('/:technicianId/bookings/:bookingId', technicianController.viewJobDetails);
 router.put('/:technicianId/availability', technicianController.updateAvailability);
 router.post('/register', technicianController.registerAsTechnician);
-router.post('/send-quotation', technicianController.sendQuotation);
+router.post('/send-quotation', authenticateToken, technicianController.sendQuotation);
 router.post('/:bookingId/done', technicianController.confirmJobDoneByTechnician);
 router.post('/:technicianId/deposit', technicianController.depositMoney);
 router.post('/:technicianId/withdraw', technicianController.requestWithdraw);

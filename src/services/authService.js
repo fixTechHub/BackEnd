@@ -86,7 +86,7 @@ exports.googleAuth = async (access_token) => {
                 technician = await technicianService.findTechnicianByUserId(user._id);
             }
             const token = generateToken(user);
-
+            
             return { user, token, technician, wasReactivated };
     } catch (error) {
         console.error('Google auth error:', error);
