@@ -17,6 +17,19 @@ const createReceipt = async (receiptData, session) => {
     }
 };
 
+const viewUserReceiptsByUserId = async (userId) => {
+    try {
+        if (!userId) {
+            throw new Error('User ID không tìm thấy ');
+        }
+        return await Receipt.find({ userId }).lean();
+    } catch (error) {
+        console.error('Error creating receipt:', error);
+        throw new Error('Failed to create receipt');
+    }
+}
+
 module.exports = {
-    createReceipt
+    createReceipt,
+    viewUserReceiptsByUserId
 };

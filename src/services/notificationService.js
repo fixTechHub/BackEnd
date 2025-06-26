@@ -2,16 +2,22 @@ const Notification = require('../models/Notification');
 const { getIo } = require('../sockets/socketManager');
 
 exports.createNotification = async (notificationData, session) => {
- 
-  
+  // Validate referenceModel when referenceId is provided
+  if (notificationData.referenceId && !notificationData.referenceModel) {
+    throw new Error('referenceModel is required when referenceId is provided');
+  }
+  if (notificationData.referenceModel && !['User', 'Payment', 'Message', 'Booking', 'Contract', 'BookingPrice'].includes(notificationData.referenceModel)) {
+    throw new Error('Invalid referenceModel value');
+  }
+
   const notification = new Notification({
     userId: notificationData.userId,
     title: notificationData.title,
     content: notificationData.content,
     type: notificationData.type,
     url: notificationData.url ?? null,
-
     referenceId: notificationData.referenceId || null,
+    referenceModel: notificationData.referenceModel || null,
     isRead: false,
   });
 
@@ -51,7 +57,7 @@ exports.markNotificationRead = async (notificationId) => {
 exports.getUserNotifications = async (userId, options = {}) => {
   const { limit = 20, skip = 0, isRead = null, } = options;
   
-  const query = { userId };
+  const query = { userId,status: 'DISPLAY' };
   if (isRead !== null) {
     query.isRead = isRead;
   }

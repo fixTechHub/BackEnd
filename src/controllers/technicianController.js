@@ -115,6 +115,21 @@ const viewJobDetails = async (req, res) => {
   }
 }
 
+const viewTechnicianBookings = async (req, res, next) => {
+  try {
+    const { technicianId } = req.params;
+
+    const bookings = await technicianService.getListBookingForTechnician(technicianId);
+
+    res.json({
+      success: true,
+      data: bookings
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 const viewEarningsByBooking = async (req, res) => {
   try {
     const technicianId = req.params;
@@ -180,6 +195,142 @@ const getTechnicianInformation = async (req, res) => {
   }
 };
 
+const getTechnicianDepositLogs = async (req,res) => {
+  try {
+      const technicianDepositLogs = await technicianService.getTechnicianDepositLogs(req.user.userId)
+      res.status(200).json({
+        technicianDepositLogs
+      })
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+const depositMoney = async (req, res, next) => {
+  try {
+    const { technicianId, amount, paymentMethod } = req.body;
+
+    const result = await technicianService.depositMoney(
+      technicianId,
+      amount,
+      paymentMethod
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Nạp tiền thành công',
+      data: result
+    });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const requestWithdraw = async (req, res, next) => {
+  try {
+    const { technicianId, amount, paymentMethod } = req.body;
+
+    const result = await technicianService.requestWithdraw(
+      technicianId,
+      amount,
+      paymentMethod
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Yêu cầu rút tiền đã gửi đến admin',
+      data: result
+    });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+
+const completeTechnicianProfile = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const technicianData = req.body;
+
+    // Kiểm tra xem user có phải là technician không
+    const user = await User.findById(userId).populate('role');
+    if (!user || user.role?.name !== 'TECHNICIAN') {
+      return res.status(403).json({
+        success: false,
+        message: 'Chỉ kỹ thuật viên mới có thể hoàn thành hồ sơ này'
+      });
+    }
+
+    // Kiểm tra xem đã có technician profile chưa
+    const existingTechnician = await Technician.findOne({ userId: userId });
+    if (existingTechnician) {
+      return res.status(400).json({
+        success: false,
+        message: 'Hồ sơ kỹ thuật viên đã tồn tại'
+      });
+    }
+
+    // Tạo technician profile
+    const technician = await technicianService.createNewTechnician(userId, technicianData);
+
+    // Cập nhật status user thành ACTIVE
+    user.status = 'ACTIVE';
+    await user.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Hoàn thành hồ sơ kỹ thuật viên thành công',
+      data: technician
+    });
+  } catch (error) {
+    console.error('Error completing technician profile:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Có lỗi xảy ra khi hoàn thành hồ sơ',
+      error: error.message
+    });
+  }
+};
+
+const uploadCertificate = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    // Kiểm tra xem user có phải là technician không
+    const user = await User.findById(userId).populate('role');
+    if (!user || user.role?.name !== 'TECHNICIAN') {
+      return res.status(403).json({
+        success: false,
+        message: 'Chỉ kỹ thuật viên mới có thể upload chứng chỉ'
+      });
+    }
+
+    // File đã được upload bởi middleware và URL đã được gắn vào req.fileUrl
+    if (!req.fileUrl) {
+      return res.status(400).json({
+        success: false,
+        message: 'Không có file được upload'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Upload chứng chỉ thành công',
+      fileUrl: req.fileUrl
+    });
+  } catch (error) {
+    console.error('Error uploading certificate:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Có lỗi xảy ra khi upload chứng chỉ',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   registerAsTechnician,
   viewTechnicianProfile,
@@ -191,5 +342,10 @@ module.exports = {
   confirmJobDoneByTechnician,
   updateAvailability,
   getTechnicianInformation,
-  
+  viewTechnicianBookings,
+  getTechnicianDepositLogs,
+  depositMoney,
+  requestWithdraw,
+  completeTechnicianProfile,
+  uploadCertificate,
 };

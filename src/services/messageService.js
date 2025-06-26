@@ -39,12 +39,13 @@ const sendMessage = async (messageData) => {
   // Create notification for recipient
   const notificationData = {
     userId: newMessage.toUser,
-    title: `New Message from ${newMessage.fromUser.fullName}`,
+    title: `Tin nhắn mới từ ${newMessage.fromUser.fullName}`,
     content: newMessage.content.length > 50 
       ? `${newMessage.content.substring(0, 47)}...` 
       : newMessage.content, 
     type: 'MESSAGE',
     referenceId: newMessage._id,
+    referenceModel: 'Message', 
   };
   
   // Create notification first, then emit socket notification

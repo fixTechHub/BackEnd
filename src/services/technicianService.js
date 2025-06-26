@@ -8,12 +8,18 @@ const CommissionConfig = require('../models/CommissionConfig');
 const Booking = require('../models/Booking');
 const BookingStatusLog = require('../models/BookingStatusLog');
 const User = require('../models/User');
+const DepositLog = require('../models/DepositLog');
 
 exports.createNewTechnician = async (userId, technicianData) => {
   const technician = new Technician({
     userId,
     identification: technicianData.identification,
-    specialties: technicianData.specialties || '',
+    experienceYears: technicianData.experienceYears || 0,
+    currentLocation: technicianData.currentLocation || {
+      type: 'Point',
+      coordinates: [0, 0]
+    },
+    specialtiesCategories: technicianData.specialties || [],
     certificate: technicianData.certificate || [],
     certificateVerificationStatus: false,
     jobCompleted: 0,
@@ -21,6 +27,12 @@ exports.createNewTechnician = async (userId, technicianData) => {
     contractAccepted: false,
     balance: 0,
     isAvailableForAssignment: false,
+    bankAccount: technicianData.bankAccount || {
+      bankName: '',
+      accountNumber: '',
+      accountHolder: '',
+      branch: ''
+    }
   });
 
   return await technician.save();
@@ -132,7 +144,14 @@ const findNearbyTechnicians = async (searchParams, radiusInKm) => {
 };
 
 const sendQuotation = async (bookingPriceData) => {
-  const { bookingId, technicianId, laborPrice, warrantiesDuration, items } = bookingPriceData;
+  const { bookingId, userId, laborPrice, warrantiesDuration, items } = bookingPriceData;
+
+  const technician = await Technician.findOne({ userId });
+  if (!technician) {
+    throw new Error('Không tìm thấy thông tin kỹ thuật viên');
+  }
+
+  const technicianId = technician._id;
 
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -142,6 +161,7 @@ const sendQuotation = async (bookingPriceData) => {
     if (!booking) {
       throw new Error('Không tìm thấy đặt lịch');
     }
+
     // if (booking.status !== 'PENDING') {
     //     throw new Error('Không thể tạo báo giá cho đặt lịch này');
     // }
@@ -197,6 +217,7 @@ const sendQuotation = async (bookingPriceData) => {
     await booking.save({ session });
 
     await session.commitTransaction();
+
     return {
       message: 'Gửi báo giá thành công',
       bookingPrice: savedBookingPrice,
@@ -281,12 +302,13 @@ const getTechnicianProfile = async (technicianId) => {
     .populate('userId')  // Populate để lấy thông tin User
     .populate('specialtiesCategories');  // Nếu muốn lấy luôn categories (nếu có)
 
+
   console.log(technician);
   if (!technician) {
     throw new Error('Technician not found');
   }
 
-  return technician;
+  return technician
 };
 
 const getCertificatesByTechnicianId = async (technicianId) => {
@@ -295,10 +317,6 @@ const getCertificatesByTechnicianId = async (technicianId) => {
   }
 
   const certificates = await Certificate.find({ technicianId }).sort({ createdAt: -1 });
-
-  if (!certificates || certificates.length === 0) {
-    throw { status: 404, message: 'No certificates found for this technician' };
-  }
 
   return certificates;
 };
@@ -343,9 +361,33 @@ const getJobDetails = async (bookingId, technicianId) => {
   if (!booking) {
     throw { status: 404, message: 'Booking not found' };
   }
-  
+
   return booking;
 };
+
+const getListBookingForTechnician = async (technicianId) => {
+  const bookings = await Booking.find({ technicianId })
+    .sort({ createdAt: -1 }) // sắp xếp mới nhất trước
+    .populate({
+      path: 'customerId',
+      select: 'fullName' // assuming User model có fullName
+    })
+    .populate({
+      path: 'serviceId',
+      select: 'serviceName'
+    });
+
+  // format dữ liệu trả về
+  return bookings.map(booking => ({
+    bookingCode: booking.bookingCode,
+    customerName: booking.customerId?.fullName || 'N/A',
+    serviceName: booking.serviceId?.serviceName || 'N/A',
+    address: booking.location?.address || 'N/A',
+    schedule: booking.schedule,
+    status: booking.status
+  }));
+};
+
 
 const getEarningsAndCommissionList = async (technicianId) => {
 
@@ -361,7 +403,7 @@ const getEarningsAndCommissionList = async (technicianId) => {
     })
 
   const earningList = quotes.map(quote => ({
-    bookingId: quote.bookingId._id,
+    // bookingId: quote.bookingId._id,
     bookingCode: quote.bookingId?.bookingCode,
     bookingInfo: {
       customerName: quote.bookingId?.customerId,
@@ -417,6 +459,71 @@ const updateTechnicianAvailability = async (technicianId) => {
   );
 };
 
+const depositMoney = async (technicianId, amount, paymentMethod) => {
+  if (amount <= 0) {
+    throw new Error('Số tiền nạp phải lớn hơn 0');
+  }
+
+  const technician = await Technician.findById(technicianId);
+  if (!technician) {
+    throw new Error('Kỹ thuật viên không tồn tại');
+  }
+
+  const balanceBefore = technician.balance;
+  technician.balance += amount;
+
+  const log = await DepositLog.create({
+    technicianId,
+    type: 'DEPOSIT',
+    amount,
+    status: 'COMPLETED',
+    paymentMethod,
+    balanceBefore,
+    balanceAfter: technician.balance
+  });
+
+  await technician.save();
+
+  return {
+    balanceBefore,
+    balanceAfter: technician.balance,
+    log
+  };
+};
+
+const requestWithdraw = async (technicianId, amount, paymentMethod) => {
+  if (amount <= 0) {
+    throw new Error('Số tiền rút phải lớn hơn 0');
+  }
+
+  const technician = await Technician.findById(technicianId);
+  if (!technician) {
+    throw new Error('Kỹ thuật viên không tồn tại');
+  }
+
+  if (technician.balance < amount) {
+    throw new Error('Số dư không đủ');
+  }
+
+  const balanceBefore = technician.balance;
+
+  // Chưa trừ tiền, đợi admin duyệt mới trừ
+  const log = await DepositLog.create({
+    technicianId,
+    type: 'WITHDRAW',
+    amount,
+    status: 'PENDING',
+    paymentMethod,
+    balanceBefore
+  });
+
+  return {
+    message: 'Yêu cầu rút tiền đã gửi đến admin',
+    log
+  };
+};
+
+
 
 const getTechnicianById = async(technicianId) => {
 
@@ -426,7 +533,7 @@ const getTechnicianById = async(technicianId) => {
         }
         const technician = await Technician.findById(technicianId)
         if (!technician) {
-            throw new Error('Không tìm thấy Kỹ thuật viênviên');
+            throw new Error('Không tìm thấy Kỹ thuật viên');
         }
 
         return technician;
@@ -435,6 +542,24 @@ const getTechnicianById = async(technicianId) => {
         throw error;
     }
 }
+
+const getTechnicianDepositLogs = async (userId) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+        throw new Error('ID Kỹ người dùngdùng không hợp lệ');
+    }
+    const technician = await findTechnicianByUserId(userId)
+    if (!technician) {
+        throw new Error('Không tìm thấy Kỹ thuật viên');
+    }
+    const technicianId = technician._id
+   return await DepositLog.find({ technicianId }).lean();
+} catch (error) {
+ 
+    throw error;
+}
+}
+
 
 module.exports = {
   registerAsTechnician,
@@ -448,7 +573,11 @@ module.exports = {
   sendQuotation,
   confirmJobDoneByTechnician,
   getTechnicianById,
-  findTechnicianByUserId
+  findTechnicianByUserId,
+  getListBookingForTechnician,
+  depositMoney,
+  requestWithdraw,
+  getTechnicianDepositLogs
 
 
 

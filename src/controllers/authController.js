@@ -1,18 +1,16 @@
 const authService = require('../services/authService');
 const userService = require('../services/userService');
 const technicianService = require('../services/technicianService');
-const contractService = require('../services/contractService');
-
-const { loginSchema,passwordSchema } = require('../validations/authValidation');
-const { generateCookie } = require('../utils/generateCode');
+const { loginSchema, passwordSchema } = require('../validations/authValidation');
+const { generateUserCode, generateCookie } = require('../utils/generateCode');
 const { createUserSchema } = require('../validations/userValidation');
 const { createTechnicianSchema } = require('../validations/technicianValidation');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { generateToken } = require('../utils/jwt');
-const { sendVerificationEmail, sendPasswordResetEmail } = require('../utils/mail');
+const { sendVerificationEmail } = require('../utils/mail');
 const { sendVerificationSMS } = require('../utils/sms');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const { OAuth2Client } = require('google-auth-library');
 const Role = require('../models/Role');
 const axios = require('axios');
@@ -21,28 +19,102 @@ const mongoose = require('mongoose');
 
 const oAuth2Client = new OAuth2Client(process.env.CLIENT_ID);
 
-// Helper function to set auth cookie
-const setAuthCookie = (res, token) => {
-    res.cookie('token', token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-    });
+// New controller for the final, staged registration
+exports.finalizeRegistration = async (req, res) => {
+    try {
+        const { fullName, emailOrPhone, password, role } = req.body;
+
+        // Validate required fields
+        if (!fullName || !emailOrPhone || !password || !role) {
+            return res.status(400).json({ error: "Tất cả các trường là bắt buộc." });
+        }
+
+        // Determine if emailOrPhone is email or phone
+        const isEmail = emailOrPhone.includes('@');
+
+        // Check if user already exists
+        const existingUser = isEmail
+            ? await User.findOne({ email: emailOrPhone.toLowerCase() })
+            : await User.findOne({ phone: emailOrPhone });
+
+        if (existingUser) {
+            return res.status(400).json({
+                error: isEmail ? "Email đã được sử dụng." : "Số điện thoại đã được sử dụng."
+            });
+        }
+
+        // Validate role
+        const roleDoc = await Role.findOne({ name: role });
+        if (!roleDoc) {
+            return res.status(400).json({ error: "Vai trò không hợp lệ." });
+        }
+
+        // --- Create User ---
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const verificationCode = isEmail ? Math.floor(100000 + Math.random() * 900000).toString() : undefined;
+        const verificationCodeExpires = isEmail ? new Date(Date.now() + 5 * 60000) : undefined; // 5 minutes
+        const userCode = await generateUserCode(); // Generate unique user code
+
+        const newUser = new User({
+            userCode, // Add the generated user code
+            fullName,
+            email: isEmail ? emailOrPhone : undefined,
+            phone: !isEmail ? emailOrPhone : undefined,
+            passwordHash: hashedPassword,
+            role: roleDoc._id,
+            emailVerified: false,
+            phoneVerified: false,
+            status: role === 'CUSTOMER' ? 'ACTIVE' : 'PENDING',
+            verificationCode,
+            verificationCodeExpires
+        });
+
+        await newUser.save();
+
+        // Populate role for the response
+        await newUser.populate('role');
+
+        // --- Send Verification Email ---
+        if (isEmail) {
+            try {
+                await sendVerificationEmail(emailOrPhone, verificationCode);
+            } catch (emailError) {
+                console.error("Failed to send verification email:", emailError);
+                // Decide if you want to fail the whole registration or just log the error
+                // For now, we'll just log it and continue
+            }
+        }
+
+        // --- Create Token and Set Cookie ---
+        const token = generateToken(newUser);
+        generateCookie(token, res);
+
+        // --- Return Response ---
+        res.status(201).json({
+            message: "Đăng ký thành công!",
+            user: newUser,
+            token
+        });
+
+    } catch (error) {
+        console.error("Finalize Registration Error:", error);
+        res.status(500).json({ error: "Đăng ký thất bại: lỗi không xác định" });
+    }
 };
+
 
 exports.getAuthenticatedUser = async (req, res) => {
     try {
         const userId = req.user.userId;
         const { user, technician } = await authService.checkAuth(userId);
-        
+
         // Thêm kiểm tra trạng thái xác thực
         const verificationStatus = await checkVerificationStatus(user);
-        
-        return res.status(200).json({ 
-            user, 
+
+        return res.status(200).json({
+            user,
             technician,
-            verificationStatus 
+            verificationStatus
         });
     } catch (error) {
         console.error('Error fetching authenticated user:', error);
@@ -53,7 +125,6 @@ exports.getAuthenticatedUser = async (req, res) => {
 exports.googleAuthController = async (req, res) => {
     try {
         const { access_token } = req.body;
-        console.log('Google auth attempt with access_token:', access_token ? 'Exists' : 'Missing');
 
         if (!access_token) {
             return res.status(400).json({ error: "Missing access token" });
@@ -66,27 +137,27 @@ exports.googleAuthController = async (req, res) => {
                     'Authorization': `Bearer ${access_token}`
                 }
             });
-            
+
             if (!response.ok) {
                 throw new Error('Failed to get user info from Google');
             }
 
             const payload = await response.json();
-            console.log('Google user info:', payload);
 
-            const { user, token, technician } = await authService.googleAuth(access_token);
-            
+            const { user, token, technician, wasReactivated } = await authService.googleAuth(access_token);
+
             // Set auth cookie
-            setAuthCookie(res, token);
+            generateCookie(token, res);
+
+            // Populate role before sending to client
+            await user.populate('role');
 
             // Return user data without token in body
-            return res.status(200).json({ user, technician });
+            return res.status(200).json({ user, technician, wasReactivated });
         } catch (error) {
-            console.error('Google API Error:', error);
             return res.status(400).json({ error: "Invalid Google access token" });
         }
     } catch (error) {
-        console.error("GoogleAuthController Error:", error);
         return res.status(error.statusCode || 500).json({ error: error.message });
     }
 };
@@ -99,10 +170,9 @@ exports.logout = async (req, res) => {
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'strict'
         });
-        
+
         return res.status(200).json({ message: "Logged out successfully" });
     } catch (error) {
-        console.error("Logout Error:", error);
         return res.status(500).json({ error: "Logout failed" });
     }
 };
@@ -116,21 +186,22 @@ exports.login = async (req, res) => {
 
         const { email, password } = req.body;
         const result = await authService.normalLogin(email, password);
-        
+
         // Set auth cookie
-        setAuthCookie(res, result.token);
+        generateCookie(result.token, res);
+        await result.user.populate('role');
 
         // Kiểm tra trạng thái xác thực
         const verificationStatus = await checkVerificationStatus(result.user);
-        
+
         return res.status(200).json({
             message: "Đăng nhập thành công",
             user: result.user,
             technician: result.technician,
-            verificationStatus
+            verificationStatus,
+            wasReactivated: result.wasReactivated
         });
     } catch (error) {
-        console.error("Login Error:", error);
         res.status(error.statusCode || 500).json({ error: error.message });
     }
 };
@@ -142,117 +213,32 @@ exports.googleLogin = async (req, res) => {
             return res.status(400).json({ error: "Access token is required" });
         }
 
-        // Verify Google token
-        const response = await axios.get(
-            `https://www.googleapis.com/oauth2/v1/userinfo?access_token=${access_token}`,
-            {
-                headers: {
-                    Authorization: `Bearer ${access_token}`,
-                    Accept: 'application/json'
-                }
-            }
-        );
+        const result = await authService.googleAuth(access_token);
 
-        if (!response.data) {
-            return res.status(400).json({ error: "Invalid Google access token" });
-        }
+        // Set auth cookie
+        generateCookie(result.token, res);
+        await result.user.populate('role');
 
-        const { email, name, picture, id: googleId } = response.data;
+        // console.log('--- GOOLE AUTHENTICATION ---', result.user);
 
-        // Check if user exists
-        let user = await User.findOne({ email }).populate('role');
-        let isNewUser = false;
+        // Kiểm tra trạng thái xác thực
+        const verificationStatus = await checkVerificationStatus(result.user);
 
-        if (!user) {
-            // Generate unique userCode
-            const latestUser = await User.findOne({}, {}, { sort: { 'createdAt': -1 } });
-            let userCode = 'U0001';
-            
-            if (latestUser && latestUser.userCode) {
-                const lastNumber = parseInt(latestUser.userCode.slice(1));
-                userCode = `U${String(lastNumber + 1).padStart(4, '0')}`;
-            }
-
-            // Create new user with PENDING role
-            const pendingRole = await Role.findOne({ name: 'PENDING' });
-            user = await User.create({
-                email,
-                fullName: name,
-                userCode,
-                avatar: picture,
-                googleId,
-                emailVerified: true,
-                role: pendingRole._id
-            });
-            isNewUser = true;
-        } else if (!user.googleId) {
-            // If existing user doesn't have googleId, update it
-            user.googleId = googleId;
-            await user.save();
-        }
-
-        // Generate JWT token
-        const token = jwt.sign(
-            { userId: user._id, email: user.email, fullName: user.fullName, role: user.role.name },   
-            process.env.JWT_SECRET,
-            { expiresIn: '24h' }
-        );
-
-        // Populate role if not populated
-        if (!user.role.name) {
-            await user.populate('role');
-        }
-
-        let technician = null;
-        if (user.role && user.role.name === 'TECHNICIAN') {
-            technician = await technicianService.findTechnicianByUserId(user._id);
-        }
-
-        // Set cookie
-        res.cookie('token', token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
-            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-        });
-
-        // Add verification status check
-        const verificationStatus = await checkVerificationStatus(user);
-
-        return res.status(200).json({ 
+        return res.status(200).json({
             message: "Đăng nhập thành công",
-            user, 
-            technician,
-            verificationStatus
+            user: result.user,
+            technician: result.technician,
+            verificationStatus,
+            wasReactivated: result.wasReactivated
         });
     } catch (error) {
-        console.error("Google Login Error:", error);
-        if (error.response?.data?.error) {
-            return res.status(400).json({ error: error.response.data.error });
-        }
         res.status(error.statusCode || 500).json({ error: error.message });
     }
 };
 
 // Helper function to check verification status
 const checkVerificationStatus = async (user) => {
-    // Kiểm tra theo thứ tự ưu tiên
-    if (!user.role) {
-        return {
-            step: 'CHOOSE_ROLE',
-            redirectTo: '/choose-role',
-            message: 'Vui lòng chọn vai trò của bạn'
-        };
-    }
-
-    if (user.role?.name === 'PENDING') {
-        return {
-            step: 'CHOOSE_ROLE',
-            redirectTo: '/choose-role',
-            message: 'Vui lòng chọn vai trò của bạn'
-        };
-    }
-
+    // Kiểm tra xác thực email trước tiên
     if (user.email && !user.emailVerified) {
         return {
             step: 'VERIFY_EMAIL',
@@ -269,21 +255,63 @@ const checkVerificationStatus = async (user) => {
         };
     }
 
-    if (user.role?.name === 'TECHNICIAN' && (!user.status || user.status === 'PENDING')) {
+    // Sau khi đã xác thực email/phone, kiểm tra role
+    if (!user.role) {
         return {
-            step: 'COMPLETE_PROFILE',
-            redirectTo: '/technician/complete-profile',
-            message: 'Vui lòng hoàn thành hồ sơ kỹ thuật viên'
+            step: 'CHOOSE_ROLE',
+            redirectTo: '/choose-role',
+            message: 'Vui lòng chọn vai trò của bạn'
         };
     }
 
+    // Kiểm tra role PENDING - có thể là ObjectId hoặc object đã populate
+    const pendingRole = await Role.findOne({ name: 'PENDING' });
+
+    const isPendingRole = user.role?.name === 'PENDING' ||
+        (user.role && pendingRole && user.role._id && user.role._id.toString() === pendingRole._id.toString()) ||
+        (user.role && pendingRole && user.role.toString() === pendingRole._id.toString());
+
+    if (isPendingRole) {
+        return {
+            step: 'CHOOSE_ROLE',
+            redirectTo: '/choose-role',
+            message: 'Vui lòng chọn vai trò của bạn'
+        };
+    }
+
+    // Kiểm tra technician profile
+    if (user.role?.name === 'TECHNICIAN') {
+        try {
+            const technician = await technicianService.findTechnicianByUserId(user._id);
+
+            if (!technician) {
+                return {
+                    step: 'COMPLETE_PROFILE',
+                    redirectTo: '/technician/complete-profile',
+                    message: 'Vui lòng hoàn thành hồ sơ kỹ thuật viên'
+                };
+            }
+        } catch (error) {
+            console.error('Error checking technician profile:', error);
+            // Fallback: assume technician needs to complete profile
+            return {
+                step: 'COMPLETE_PROFILE',
+                redirectTo: '/technician/complete-profile',
+                message: 'Vui lòng hoàn thành hồ sơ kỹ thuật viên'
+            };
+        }
+    }
+
+    // User đã hoàn thành tất cả bước xác thực
     return {
         step: 'COMPLETED',
-        redirectTo: '/',
+        redirectTo: null, // Không có redirectTo để frontend tự xử lý
         message: 'Xác thực hoàn tất'
     };
 };
 
+/*
+// OLD REGISTRATION FLOW - Temporarily disabled to prevent conflicts
 exports.register = async (req, res) => {
     try {
         const { error } = createUserSchema.validate(req.body);
@@ -335,27 +363,34 @@ exports.register = async (req, res) => {
             verificationCodeExpires
         });
 
+        // Populate role before generating token
+        await user.populate('role');
+
+        // Lấy lại user với role đã populate
+        const populatedUser = await User.findById(user._id).populate('role');
+
         // Generate token
-        const token = generateToken(user);
+        const token = generateToken(populatedUser);
         setAuthCookie(res, token);
 
         // Send verification code
         if (isEmail) {
             await sendVerificationEmail(emailOrPhone, verificationCode);
-            console.log('Verification code sent to email:', verificationCode); // Debug log
         } else {
             await sendVerificationSMS(emailOrPhone, verificationCode);
-            console.log('Verification code sent to phone:', verificationCode); // Debug log
         }
+
+        // Kiểm tra trạng thái xác thực sau khi tạo user
+        const verificationStatus = await checkVerificationStatus(populatedUser);
 
         // Return response
         return res.status(201).json({
             message: `Mã xác thực đã được gửi đến ${isEmail ? 'email' : 'số điện thoại'} của bạn`,
-            user: await user.populate('role'),
-            verificationType: isEmail ? 'email' : 'phone'
+            user: populatedUser, // Không cần populate role nữa
+            verificationType: isEmail ? 'email' : 'phone',
+            verificationStatus: verificationStatus
         });
     } catch (error) {
-        console.error('Register Error:', error);
         res.status(error.statusCode || 500).json({ error: error.message });
     }
 };
@@ -368,7 +403,14 @@ exports.completeRegistration = async (req, res) => {
         const { role, specialties, experienceYears, identification } = req.body;
         const userId = req.user.userId;
 
-        const user = await User.findById(userId).session(session);
+        // Tìm role trong database
+        const roleDoc = await userService.findRoleByName(role);
+        if (!roleDoc) {
+            return res.status(400).json({ message: 'Role không hợp lệ' });
+        }
+
+        // Find and update user
+        const user = await User.findById(userId);
         if (!user) {
             return res.status(404).json({ message: "Không tìm thấy người dùng" });
         }
@@ -382,29 +424,10 @@ exports.completeRegistration = async (req, res) => {
         }
 
         user.role = roleDoc._id;
-
-        let technician = null;
-        if (role === 'TECHNICIAN') {
-            if (!identification) {
-                return res.status(400).json({ message: "Cần có CMND/CCCD cho kỹ thuật viên" });
-            }
-            
-            const newTechnician = new Technician({
-                userId: user._id,
-                specialtiesCategories: specialties,
-                experienceYears: experienceYears,
-                identification: identification,
-                status: 'PENDING',
-                currentLocation: { // Default location, update as needed
-                    type: 'Point',
-                    coordinates: [108.2234, 16.0748]
-                }
-            });
-            technician = await newTechnician.save({ session });
-            
-            // Automatically generate the contract in the background
-            await contractService.generateContractOnRegistration(technician._id);
-
+        
+        // Nếu role là CUSTOMER và đã xác thực email, cập nhật status thành ACTIVE
+        if (role === 'CUSTOMER' && user.emailVerified) {
+            user.status = 'ACTIVE';
         }
 
         await user.save({ session });
@@ -414,77 +437,72 @@ exports.completeRegistration = async (req, res) => {
         const token = generateToken(user);
         setAuthCookie(res, token);
         
-        const verificationStatus = await checkVerificationStatus(user);
+        await user.save();
+        await user.populate('role');
 
-        res.status(200).json({
-            message: "Hoàn tất đăng ký thành công",
-            user,
-            technician,
-            verificationStatus
+        // Lấy lại user với role đã populate
+        const populatedUser = await User.findById(userId).populate('role');
+
+        // Generate new token with updated role
+        const newToken = generateToken(populatedUser);
+        setAuthCookie(res, newToken);
+
+        // Kiểm tra trạng thái xác thực sau khi cập nhật role
+        const verificationStatus = await checkVerificationStatus(populatedUser);
+
+        return res.status(200).json({ 
+            message: 'Cập nhật role thành công',
+            user: populatedUser,
+            verificationStatus: verificationStatus
         });
     } catch (error) {
-        await session.abortTransaction();
-        session.endSession();
-        console.error("Complete Registration Error:", error);
-        res.status(500).json({ message: "Lỗi khi hoàn tất đăng ký", error: error.message });
+        return res.status(500).json({ message: 'Lỗi server' });
     }
 };
+*/
 
 exports.verifyEmail = async (req, res) => {
     try {
         const { code } = req.body;
         const userId = req.user.userId;
 
-        console.log('Verifying email with:', { code, userId }); // Debug log
-
-        const user = await User.findById(userId).populate('role');
+        const user = await User.findById(userId);
         if (!user) {
-            console.log('User not found:', userId); // Debug log
             return res.status(404).json({ error: "User not found" });
         }
 
-        console.log('User verification data:', { // Debug log
-            storedCode: user.verificationCode,
-            codeExpires: user.verificationCodeExpires,
-            now: new Date()
-        });
-
         if (user.verificationCode !== code) {
-            console.log('Invalid code:', { // Debug log
-                provided: code,
-                stored: user.verificationCode
-            });
             return res.status(400).json({ error: "Invalid verification code" });
         }
 
         if (new Date() > user.verificationCodeExpires) {
-            console.log('Code expired:', { // Debug log
-                expires: user.verificationCodeExpires,
-                now: new Date()
-            });
             return res.status(400).json({ error: "Verification code has expired" });
         }
 
         user.emailVerified = true;
         user.verificationCode = undefined;
         user.verificationCodeExpires = undefined;
-
-        // Nếu user có role là CUSTOMER và đã xác thực email, cập nhật status thành ACTIVE
-        if (user.role && user.role.name === 'CUSTOMER') {
-            user.status = 'ACTIVE';
-        }
-
         await user.save();
 
-        console.log('Email verified successfully for user:', userId); // Debug log
+        // Populate role for verification status check
+        await user.populate('role');
 
-        return res.status(200).json({ 
+        // Generate new token
+        const newToken = generateToken(user);
+        generateCookie(newToken, res);
+
+        // Check verification status
+        const verificationStatus = await checkVerificationStatus(user);
+
+        return res.status(200).json({
             message: "Email verified successfully",
-            user: await user.populate('role')
+            user: user,
+            verificationStatus: verificationStatus
         });
+
     } catch (error) {
-        console.error("Verify Email Error:", error);
-        res.status(500).json({ error: "Email verification failed" });
+        console.error('Email verification error:', error);
+        return res.status(500).json({ error: "Email verification failed" });
     }
 };
 
@@ -492,23 +510,22 @@ exports.forgotPassword = async (req, res) => {
     try {
         const { emailOrPhone } = req.body;
         if (!emailOrPhone) {
-            return res.status(400).json({ 
-                error: "Vui lòng nhập email hoặc số điện thoại" 
+            return res.status(400).json({
+                error: "Vui lòng nhập email hoặc số điện thoại"
             });
         }
 
         const result = await authService.handleForgotPassword(emailOrPhone);
-        
+
         return res.status(200).json({
-            message: result.type === 'email' 
+            message: result.type === 'email'
                 ? "Đã gửi hướng dẫn đặt lại mật khẩu qua email"
                 : "Đã gửi mã xác thực qua SMS",
             type: result.type
         });
     } catch (error) {
-        console.error("Forgot Password Error:", error);
-        res.status(error.statusCode || 500).json({ 
-            error: error.message || "Có lỗi xảy ra khi xử lý yêu cầu đặt lại mật khẩu" 
+        res.status(error.statusCode || 500).json({
+            error: error.message || "Có lỗi xảy ra khi xử lý yêu cầu đặt lại mật khẩu"
         });
     }
 };
@@ -525,13 +542,12 @@ exports.resetPassword = async (req, res) => {
 
         await authService.handleResetPassword(token, newPassword);
 
-        return res.status(200).json({ 
-            message: "Đặt lại mật khẩu thành công" 
+        return res.status(200).json({
+            message: "Đặt lại mật khẩu thành công"
         });
     } catch (error) {
-        console.error("Reset Password Error:", error);
-        res.status(error.statusCode || 500).json({ 
-            error: error.message || "Có lỗi xảy ra khi đặt lại mật khẩu" 
+        res.status(error.statusCode || 500).json({
+            error: error.message || "Có lỗi xảy ra khi đặt lại mật khẩu"
         });
     }
 };
@@ -541,7 +557,7 @@ exports.verifyOTP = async (req, res) => {
         const { otp } = req.body;
         const userId = req.user.userId;
 
-        const user = await User.findById(userId).populate('role');
+        const user = await User.findById(userId);
         if (!user) {
             return res.status(404).json({ error: "User not found" });
         }
@@ -558,19 +574,30 @@ exports.verifyOTP = async (req, res) => {
         user.verificationOTP = undefined;
         user.otpExpires = undefined;
 
-        // Nếu user có role là CUSTOMER và đã xác thực số điện thoại, cập nhật status thành ACTIVE
-        if (user.role && user.role.name === 'CUSTOMER') {
-            user.status = 'ACTIVE';
-        }
-
         await user.save();
 
-        return res.status(200).json({ 
+        // Lấy lại user với role đã populate
+        const populatedUser = await User.findById(userId).populate('role');
+
+        // Nếu user có role là CUSTOMER và đã xác thực số điện thoại, cập nhật status thành ACTIVE
+        if (populatedUser.role && populatedUser.role.name === 'CUSTOMER') {
+            populatedUser.status = 'ACTIVE';
+            await populatedUser.save();
+        }
+
+        // Generate new token
+        const newToken = generateToken(populatedUser);
+        generateCookie(newToken, res);
+
+        // Kiểm tra trạng thái xác thực sau khi xác thực OTP
+        const verificationStatus = await checkVerificationStatus(populatedUser);
+
+        return res.status(200).json({
             message: "Phone number verified successfully",
-            user: await user.populate('role')
+            user: populatedUser,
+            verificationStatus: verificationStatus
         });
     } catch (error) {
-        console.error("Verify OTP Error:", error);
         res.status(500).json({ error: "Phone verification failed" });
     }
 };
@@ -593,12 +620,14 @@ exports.updateUserRole = async (req, res) => {
         user.role = userRole._id;
         await user.save();
 
-        return res.status(200).json({ 
+        // Populate role trước khi gửi về
+        await user.populate('role');
+
+        return res.status(200).json({
             message: "Role updated successfully",
-            user: await user.populate('role')
+            user: user
         });
     } catch (error) {
-        console.error("Update Role Error:", error);
         res.status(error.statusCode || 500).json({ error: error.message });
     }
 };
@@ -627,7 +656,6 @@ exports.checkExist = async (req, res) => {
         }
         return res.json({ exists: false, message: "Email/Số điện thoại có thể sử dụng" });
     } catch (error) {
-        console.error("Check Exist Error:", error);
         res.status(500).json({ error: "Lỗi kiểm tra tồn tại" });
     }
 };
@@ -635,14 +663,14 @@ exports.checkExist = async (req, res) => {
 exports.refreshToken = async (req, res) => {
     try {
         const refreshToken = req.cookies.refreshToken;
-        
+
         if (!refreshToken) {
             return res.status(401).json({ message: 'Không tìm thấy refresh token' });
         }
 
         // Verify refresh token
         const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
-        
+
         // Tìm user
         const user = await User.findById(decoded.userId);
         if (!user) {
@@ -666,7 +694,6 @@ exports.refreshToken = async (req, res) => {
 
         res.json({ message: 'Refresh token thành công' });
     } catch (error) {
-        console.error('Refresh token error:', error);
         res.status(401).json({ message: 'Refresh token không hợp lệ' });
     }
 };
@@ -675,7 +702,7 @@ exports.resendEmailCode = async (req, res) => {
     try {
         const userId = req.user.userId;
         const user = await User.findById(userId);
-        
+
         if (!user) {
             return res.status(404).json({ error: "User not found" });
         }
@@ -699,12 +726,11 @@ exports.resendEmailCode = async (req, res) => {
         // Send new verification code
         await sendVerificationEmail(user.email, verificationCode);
 
-        return res.status(200).json({ 
+        return res.status(200).json({
             message: "New verification code sent successfully",
             expiresIn: 300 // 5 minutes in seconds
         });
     } catch (error) {
-        console.error("Resend Email Code Error:", error);
         res.status(500).json({ error: "Failed to resend verification code" });
     }
 };
@@ -713,7 +739,7 @@ exports.resendOTP = async (req, res) => {
     try {
         const userId = req.user.userId;
         const user = await User.findById(userId);
-        
+
         if (!user) {
             return res.status(404).json({ error: "User not found" });
         }
@@ -737,12 +763,11 @@ exports.resendOTP = async (req, res) => {
         // Send new OTP
         await sendVerificationSMS(user.phone, verificationOTP);
 
-        return res.status(200).json({ 
+        return res.status(200).json({
             message: "New OTP sent successfully",
             expiresIn: 300 // 5 minutes in seconds
         });
     } catch (error) {
-        console.error("Resend OTP Error:", error);
         res.status(500).json({ error: "Failed to resend OTP" });
     }
 };

@@ -110,10 +110,11 @@ const generateContractOnRegistration = async (technicianId, session = null) => {
     // Create notification within transaction but don't emit socket yet
     const notificationData = {
       userId: technician.userId._id,
-      title: 'Your Account has been Approved!',
+      title: 'Hợp đồng kỹ thuật viên',
       content: 'Tài khoản kỹ thuật viên của bạn đã được phê duyệt. Vui lòng đăng nhập và ký hợp đồng để bắt đầu nhận việc.',
       type: 'NEW_REQUEST',
-      referenceId: contract._id
+      referenceId: contract._id,
+      referenceModel: 'Contract',
     };
 
     

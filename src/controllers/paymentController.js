@@ -1,9 +1,8 @@
 const bookingPriceService = require("../services/bookingPriceService");
 const paymentService = require('../services/paymentService');
-const BookingPrice = require('../models/BookingPrice');
 const { generateToken } = require('../utils/jwt');
 const { generateCookie } = require('../utils/generateCode');
-
+const userService = require('../services/userService')
 const finalizeBooking = async (req, res) => {
     try {
         const { bookingPriceId } = req.params;
@@ -15,8 +14,7 @@ const finalizeBooking = async (req, res) => {
             finalPrice,
             paymentMethod
         );
-        console.log("Updated Booking Price :",updatedBookingPrice);
-        
+
         const paymentUrl = updatedBookingPrice.paymentUrl || null;
 
         res.status(200).json({
@@ -46,8 +44,6 @@ const handlePayOsSuccess = async (req, res) => {
 
         if (bookingPrice && bookingPrice.bookingId && bookingPrice.bookingId.customerId) {
             const user = bookingPrice.bookingId.customerId.toObject();
-            console.log('---------USER------------',user);
-
             const token = generateToken(user);
             await generateCookie(token, res);
         }
@@ -61,8 +57,8 @@ const handlePayOsSuccess = async (req, res) => {
 
                 if (bookingPrice && bookingPrice.bookingId && bookingPrice.bookingId.customerId) {
                     const user = bookingPrice.bookingId.customerId.toObject();
-                    console.log('---------USER------------',user);
-                    
+                    console.log('---------USER------------', user);
+
                     const token = generateToken(user);
                     await generateCookie(token, res);
                 }
@@ -82,7 +78,6 @@ const handlePayOsCancel = async (req, res) => {
 
             if (bookingPrice && bookingPrice.bookingId && bookingPrice.bookingId.customerId) {
                 const user = bookingPrice.bookingId.customerId.toObject();
-                console.log('---------USER------------',user);
 
                 const token = generateToken(user);
                 await generateCookie(token, res);
@@ -91,12 +86,81 @@ const handlePayOsCancel = async (req, res) => {
     } catch (error) {
         console.error('Error in PayOS cancel handler:', error);
     } finally {
-        res.redirect(`${process.env.FRONT_END_URL}/payment-cancel?error=Payment was cancelled by the user.`);
+        res.redirect(`${process.env.FRONT_END_URL}/payment-cancel?error=Thanh toán được hủy bởi người dùng.`);
+    }
+};
+
+const depositBalance = async (req,res) => {
+    try {
+        const { amount } = req.body
+        const depositURL = await paymentService.createPayOsDeposit(req.user.userId,amount)
+        res.status(200).json({
+            success: true,
+            message: 'Cập nhật và xử lý nạp tiền thành công',
+            data: {
+                depositURL: depositURL
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Đã xảy ra lỗi khi xử lý nạp tiền',
+            error: error.message
+        });
+    }
+}
+
+const handleDepositPayOsSuccess = async (req, res) => {
+    const { amount, userId } = req.query;
+    try {
+        await paymentService.handleSuccessfulDeposit(amount, userId);
+
+        const user = await userService.findUserById(userId)
+
+        if (user) {
+            const token = generateToken(user);
+            await generateCookie(token, res);
+        }
+
+        res.redirect(`${process.env.FRONT_END_URL}/deposit-success`);
+    } catch (error) {
+        console.error('Error in PayOS success handler:', error);
+        try {
+            const user = await userService.findUserById(userId)
+
+            if (user) {
+                const token = generateToken(user);
+                await generateCookie(token, res);
+            }
+        } catch (loginError) {
+            console.error('Error during login on payment failure:', loginError);
+        }
+        res.redirect(`${process.env.FRONT_END_URL}/deposit-fail?error=${error.message}`);
+    }
+}
+
+const handleDepositPayOsCancel = async (req, res) => {
+    const { userId } = req.query;
+    try {
+        if (userId) {
+            const user = await userService.findUserById(userId)
+            if (user) {
+                const token = generateToken(user);
+                await generateCookie(token, res);
+            }
+        }
+    } catch (error) {
+        console.error('Error in PayOS cancel handler:', error);
+    } finally {
+        res.redirect(`${process.env.FRONT_END_URL}/deposit-cancel?error=Deposit was cancelled by the user.`);
     }
 };
 
 module.exports = {
     finalizeBooking,
     handlePayOsSuccess,
-    handlePayOsCancel
+    handlePayOsCancel,
+    depositBalance,
+    handleDepositPayOsSuccess,
+    handleDepositPayOsCancel
 }; 

@@ -44,6 +44,5 @@ const contractSchema = new mongoose.Schema({
 contractSchema.index({ contractCode: 1 }, { unique: true });
 contractSchema.index({ technicianId: 1 });
 contractSchema.index({ status: 1 });
-contractSchema.index({ technicianId: 1, status: 1 });
 
 module.exports = mongoose.model('Contract', contractSchema);
