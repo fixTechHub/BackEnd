@@ -86,10 +86,6 @@ const cancelBooking = async (req, res) => {
         const userId = req.user.userId;        
         const role = req.user.role;
         // console.log('--- ROLE ---', role);
-        
-        
-        // const user = await User.findById(userId).populate('role'); console.log(user)
-        // const role = user.role.name;
 
         if (!reason) {
             return res.status(400).json({
@@ -118,8 +114,7 @@ const confirmJobDone = async (req, res) => {
     try {
         const { bookingId } = req.params;
         const { userId } = req.body;
-        // const userId = req.user._id;
-        // const role = req.user.role.name;
+
         const user = await User.findById(userId).populate('role'); console.log(user)
         const role = user.role.name;
 
