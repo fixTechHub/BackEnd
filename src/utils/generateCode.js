@@ -1,4 +1,9 @@
 const User = require('../models/User');
+
+exports.generateCode = () => {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
 exports.generateCookie = async (token, res) => {
     res.cookie("token", token, {
         httpOnly: true,

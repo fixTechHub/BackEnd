@@ -1,8 +1,9 @@
 const authService = require('../services/authService');
 const userService = require('../services/userService');
 const technicianService = require('../services/technicianService');
-const { loginSchema, passwordSchema } = require('../validations/authValidation');
-const { generateUserCode, generateCookie } = require('../utils/generateCode');
+
+const { loginSchema,passwordSchema } = require('../validations/authValidation');
+const { generateUserCode, generateCookie, generateCode } = require('../utils/generateCode');
 const { createUserSchema } = require('../validations/userValidation');
 const { createTechnicianSchema } = require('../validations/technicianValidation');
 const jwt = require('jsonwebtoken');
@@ -50,7 +51,7 @@ exports.finalizeRegistration = async (req, res) => {
 
         // --- Create User ---
         const hashedPassword = await bcrypt.hash(password, 10);
-        const verificationCode = isEmail ? Math.floor(100000 + Math.random() * 900000).toString() : undefined;
+        const verificationCode = isEmail ? generateCode() : undefined;
         const verificationCodeExpires = isEmail ? new Date(Date.now() + 5 * 60000) : undefined; // 5 minutes
         const userCode = await generateUserCode(); // Generate unique user code
 
@@ -698,7 +699,7 @@ exports.resendEmailCode = async (req, res) => {
         }
 
         // Generate new verification code
-        const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+        const verificationCode = generateCode();
         const verificationCodeExpires = new Date(Date.now() + 5 * 60000); // 5 minutes
 
         user.verificationCode = verificationCode;
@@ -735,7 +736,7 @@ exports.resendOTP = async (req, res) => {
         }
 
         // Generate new OTP
-        const verificationOTP = Math.floor(100000 + Math.random() * 900000).toString();
+        const verificationOTP = generateCode();
         const otpExpires = new Date(Date.now() + 5 * 60000); // 5 minutes
 
         user.verificationOTP = verificationOTP;
@@ -752,4 +753,30 @@ exports.resendOTP = async (req, res) => {
     } catch (error) {
         res.status(500).json({ error: "Failed to resend OTP" });
     }
+};
+
+// === Verify current password ===
+exports.verifyPassword = async (req, res) => {
+  try {
+    const { currentPassword } = req.body;
+    if (!currentPassword) {
+      return res.status(400).json({ message: 'Thiếu mật khẩu' });
+    }
+
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ message: 'Không xác thực' });
+    }
+
+    const user = await User.findById(userId).select('+passwordHash');
+    if (!user) {
+      return res.status(404).json({ message: 'Không tìm thấy người dùng' });
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+    return res.status(200).json({ valid: isMatch });
+  } catch (error) {
+    console.error('verifyPassword error:', error);
+    return res.status(500).json({ message: 'Lỗi máy chủ' });
+  }
 };
