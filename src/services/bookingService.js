@@ -80,9 +80,21 @@ const getBookingById = async (bookingId) => {
         }
 
         const booking = await Booking.findById(bookingId)
-            .populate('customerId')
-            .populate('technicianId')
-            .populate('serviceId')
+            .populate({
+                path: 'customerId',
+                select: 'fullName email phone avatar' 
+            })
+            .populate({
+                path: 'technicianId',
+                populate: {
+                    path: 'userId',
+                    select: 'fullName email phone avatar'
+                }
+            })
+            .populate({
+                path: 'serviceId',
+            })
+            
             .populate('cancelledBy');
 
         if (!booking) {

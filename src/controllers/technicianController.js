@@ -4,25 +4,18 @@ const Technician = require('../models/Technician');
 
 const sendQuotation = async (req, res) => {
   try {
-    const userId = req.user.userId;
-    // console.log("Technician ID:", technicianId);
-    
-    const { bookingId, laborPrice, items, warrantiesDuration } = req.body;
+    // const technicianId = req.user._id;
+    const { bookingId, technicianId, laborPrice, items, warrantiesDuration } = req.body;
     const bookingPriceData = {
       bookingId,
-      userId,
+      technicianId,
       laborPrice,
       warrantiesDuration,
       items
     };
 
     const result = await technicianService.sendQuotation(bookingPriceData);
-
-    res.status(200).json({
-      success: true,
-      message: 'Gửi báo giá thành công',
-      data: result
-    });
+    res.status(200).json(result);
   } catch (error) {
     console.error('Error sending quotation:', error);
     res.status(500).json({ message: 'Failed to send quotation', error: error.message });
@@ -57,19 +50,14 @@ const viewTechnicianProfile = async (req, res) => {
   try {
     const { technicianId } = req.params;
 
-    const [technician, certificates] = await Promise.all([
+    const technician = await Promise.all([
       technicianService.getTechnicianProfile(technicianId),
       technicianService.getCertificatesByTechnicianId(technicianId) // Sửa đúng
     ]);
 
     res.json({
       success: true,
-      data: {
-        technician,
-        certificates: (certificates && certificates.length > 0) ? certificates : null
-      }
-
-
+      data: technician,
     });
   } catch (error) {
     console.error('Error fetching technician profile:', error);
@@ -207,6 +195,18 @@ const getTechnicianInformation = async (req, res) => {
   }
 };
 
+const getTechnicianDepositLogs = async (req,res) => {
+  try {
+      const technicianDepositLogs = await technicianService.getTechnicianDepositLogs(req.user.userId)
+      res.status(200).json({
+        technicianDepositLogs
+      })
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+}
+
 const depositMoney = async (req, res, next) => {
   try {
     const { technicianId, amount, paymentMethod } = req.body;
@@ -343,6 +343,7 @@ module.exports = {
   updateAvailability,
   getTechnicianInformation,
   viewTechnicianBookings,
+  getTechnicianDepositLogs,
   depositMoney,
   requestWithdraw,
   completeTechnicianProfile,

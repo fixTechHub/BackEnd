@@ -15,6 +15,7 @@ const { OAuth2Client } = require('google-auth-library');
 const Role = require('../models/Role');
 const axios = require('axios');
 const Technician = require('../models/Technician');
+const mongoose = require('mongoose');
 
 const oAuth2Client = new OAuth2Client(process.env.CLIENT_ID);
 
@@ -395,9 +396,12 @@ exports.register = async (req, res) => {
 };
 
 exports.completeRegistration = async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
     try {
-        const { role } = req.body;
-        const userId = req.user.userId; // Get userId from cookie token (set by middleware)
+        const { role, specialties, experienceYears, identification } = req.body;
+        const userId = req.user.userId;
 
         // Tìm role trong database
         const roleDoc = await userService.findRoleByName(role);
@@ -408,16 +412,30 @@ exports.completeRegistration = async (req, res) => {
         // Find and update user
         const user = await User.findById(userId);
         if (!user) {
-            return res.status(404).json({ message: 'Không tìm thấy người dùng' });
+            return res.status(404).json({ message: "Không tìm thấy người dùng" });
+        }
+        if (user.role.name !== 'PENDING') {
+            return res.status(400).json({ message: "Vai trò đã được chọn" });
         }
 
-        // Cập nhật role cho user
+        const roleDoc = await Role.findOne({ name: role }).session(session);
+        if (!roleDoc) {
+            return res.status(400).json({ message: "Vai trò không hợp lệ" });
+        }
+
         user.role = roleDoc._id;
         
         // Nếu role là CUSTOMER và đã xác thực email, cập nhật status thành ACTIVE
         if (role === 'CUSTOMER' && user.emailVerified) {
             user.status = 'ACTIVE';
         }
+
+        await user.save({ session });
+        await session.commitTransaction();
+        session.endSession();
+
+        const token = generateToken(user);
+        setAuthCookie(res, token);
         
         await user.save();
         await user.populate('role');

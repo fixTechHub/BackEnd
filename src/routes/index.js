@@ -8,11 +8,11 @@ router.use('/auth', require('./authRoutes'));
 router.use('/admin', require('./adminRoutes'));
 router.use('/users', require('./userRoutes'));
 router.use('/bookings', require('./bookingRoutes'));
-router.use('/certificates', require('./certificateRoutes'));
 router.use('/booking-prices', require('./bookingPriceRoutes'));
 router.use('/warranties', require('./bookingWarrantyRoutes'));
 router.use('/categories', require('./categoryRoutes'));
 router.use('/commissions-config', require('./commissionRoutes'));
+router.use('/contracts', require('./contractRoutes'));
 router.use('/coupons', require('./couponRoutes'));
 router.use('/feedbacks', require('./feedbackRoutes'));
 router.use('/messages', require('./messageRoutes'));
@@ -22,8 +22,8 @@ router.use('/reports', require('./reportRoutes'));
 router.use('/services', require('./serviceRoutes'));
 router.use('/technicians', require('./technicianRoutes'));
 router.use('/video-call', require('./videoCallRoutes'));
-router.get('/test', (req, res) => res.json('This Is API test page'));
-router.get('/roles', async (req, res) => {
+router.use('/receipts', require('./receiptRoutes'))
+router.get('/test', async (req, res) => {
     try {
         const roles = await Role.find();
         const b = await require('../models/BookingItem').find();
@@ -87,6 +87,14 @@ router.get('/roles', async (req, res) => {
             users: b1qq,
         });
 
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+router.get('/roles', async (req, res) => {
+    try {
+        const roles = await Role.find();
+        res.json(roles);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

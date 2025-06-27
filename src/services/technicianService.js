@@ -525,6 +525,42 @@ const requestWithdraw = async (technicianId, amount, paymentMethod) => {
 
 
 
+const getTechnicianById = async(technicianId) => {
+
+    try {
+        if (!mongoose.Types.ObjectId.isValid(technicianId)) {
+            throw new Error('ID Kỹ thuật viên không hợp lệ');
+        }
+        const technician = await Technician.findById(technicianId)
+        if (!technician) {
+            throw new Error('Không tìm thấy Kỹ thuật viên');
+        }
+
+        return technician;
+    } catch (error) {
+     
+        throw error;
+    }
+}
+
+const getTechnicianDepositLogs = async (userId) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+        throw new Error('ID Kỹ người dùngdùng không hợp lệ');
+    }
+    const technician = await findTechnicianByUserId(userId)
+    if (!technician) {
+        throw new Error('Không tìm thấy Kỹ thuật viên');
+    }
+    const technicianId = technician._id
+   return await DepositLog.find({ technicianId }).lean();
+} catch (error) {
+ 
+    throw error;
+}
+}
+
+
 module.exports = {
   registerAsTechnician,
   getTechnicianProfile,
@@ -536,8 +572,14 @@ module.exports = {
   findNearbyTechnicians,
   sendQuotation,
   confirmJobDoneByTechnician,
+  getTechnicianById,
+  findTechnicianByUserId,
   getListBookingForTechnician,
   depositMoney,
   requestWithdraw,
-  findTechnicianByUserId
+  getTechnicianDepositLogs
+
+
+
 };
+
