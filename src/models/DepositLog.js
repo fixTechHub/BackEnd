@@ -22,7 +22,7 @@ const depositLogSchema = new mongoose.Schema({
     },
     paymentMethod: {
         type: String,
-        enum: ['BANK', 'MISA']
+        enum: ['BANK']
     },
     paymentGatewayTransactionId: String,
     transactionCode: String,

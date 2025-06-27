@@ -116,7 +116,7 @@ exports.normalLogin = async (email, password) => {
 
         const isMatch = await comparePassword(password, user.passwordHash);
         if (!isMatch) {
-            throw new HttpError(400, "Mật khẩu không đúng");
+            throw new HttpError(400, "Email hoặc mật khẩu không đúng.");
         }
 
         // Kiểm tra trạng thái tài khoản

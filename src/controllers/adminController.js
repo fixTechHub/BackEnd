@@ -1,3 +1,4 @@
+const adminService = require('../services/adminService');   
 const User = require('../models/User');
 const Booking = require('../models/Booking');
 const Receipt = require('../models/Receipt');
@@ -121,5 +122,18 @@ exports.activateUserAccount = async (req, res) => {
             message: 'Lỗi khi kích hoạt lại tài khoản người dùng',
             error: error.message 
         });
+    }
+};
+
+exports.approveTechnician = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const technician = await adminService.approveTechnician(id);
+        res.status(200).json({
+            message: 'Technician approved successfully',
+            data: technician
+        });
+    } catch (error) {
+        res.status(error.statusCode || 500).json({ message: error.message });
     }
 };

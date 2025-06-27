@@ -4,6 +4,7 @@ const technicianValidation = require('../validations/technicianValidation');
 const technicianController = require('../controllers/technicianController');
 const { authenticateToken } = require('../middlewares/authMiddleware');
 const { handleMulter, processAndUploadToS3 } = require('../middlewares/uploadMiddleware');
+
 const router = express.Router();
 
 router.get('/:technicianId', technicianController.viewTechnicianProfile);
@@ -21,5 +22,6 @@ router.post('/:technicianId/withdraw', technicianController.requestWithdraw);
 router.post('/complete-profile', authenticateToken, handleMulter.fields([{ name: 'frontIdImage', maxCount: 1 }, { name: 'backIdImage', maxCount: 1 }, { name: 'certificates', maxCount: 10 }]), technicianController.completeTechnicianProfile);
 router.post('/upload/certificate', authenticateToken, handleMulter.single('certificate'), processAndUploadToS3('certificates'), technicianController.uploadCertificate);
 router.post('/upload/cccd', authenticateToken, handleMulter.fields([{ name: 'frontIdImage', maxCount: 1 }, { name: 'backIdImage', maxCount: 1 }]), processAndUploadToS3('cccd'), technicianController.uploadCCCDImages);
+router.get('/technician-deposit',authenticateToken,technicianController.getTechnicianDepositLogs);
 
 module.exports = router;
