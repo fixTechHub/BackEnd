@@ -10,32 +10,34 @@ const BookingStatusLog = require('../models/BookingStatusLog');
 const User = require('../models/User');
 const DepositLog = require('../models/DepositLog');
 
-exports.createNewTechnician = async (userId, technicianData) => {
-  const technician = new Technician({
-    userId,
-    identification: technicianData.identification,
-    experienceYears: technicianData.experienceYears || 0,
-    currentLocation: technicianData.currentLocation || {
-      type: 'Point',
-      coordinates: [0, 0]
-    },
-    specialtiesCategories: technicianData.specialties || [],
-    certificate: technicianData.certificate || [],
-    certificateVerificationStatus: false,
-    jobCompleted: 0,
-    availability: 'FREE',
-    contractAccepted: false,
-    balance: 0,
-    isAvailableForAssignment: false,
-    bankAccount: technicianData.bankAccount || {
-      bankName: '',
-      accountNumber: '',
-      accountHolder: '',
-      branch: ''
-    }
-  });
-
-  return await technician.save();
+const createNewTechnician = async (userId, technicianData, session = null) => {
+    const technician = new Technician({
+        userId,
+        identification: technicianData.identification,
+        experienceYears: technicianData.experienceYears || 0,
+        currentLocation: technicianData.currentLocation || {
+            type: 'Point',
+            coordinates: [0, 0]
+        },
+        specialtiesCategories: technicianData.specialtiesCategories || [],
+        certificate: technicianData.certificate || [],
+        frontIdImage: technicianData.frontIdImage || null,
+        backIdImage: technicianData.backIdImage || null,
+        certificateVerificationStatus: false,
+        jobCompleted: 0,
+        availability: 'FREE',
+        contractAccepted: false,
+        balance: 0,
+        isAvailableForAssignment: false,
+        bankAccount: technicianData.bankAccount || {
+            bankName: '',
+            accountNumber: '',
+            accountHolder: '',
+            branch: ''
+        }
+    });
+    
+    return await technician.save({ session });
 };
 
 const findTechnicianByUserId = async (userId) => {
@@ -554,10 +556,9 @@ const getTechnicianDepositLogs = async (userId) => {
     }
     const technicianId = technician._id
    return await DepositLog.find({ technicianId }).lean();
-} catch (error) {
- 
+  } catch (error) {
     throw error;
-}
+  }
 }
 
 
@@ -577,9 +578,8 @@ module.exports = {
   getListBookingForTechnician,
   depositMoney,
   requestWithdraw,
+  createNewTechnician,
+  findTechnicianByUserId
   getTechnicianDepositLogs
-
-
-
 };
 

@@ -19,7 +19,9 @@ router.post('/send-quotation', authenticateToken, technicianController.sendQuota
 router.post('/:bookingId/done', technicianController.confirmJobDoneByTechnician);
 router.post('/:technicianId/deposit', technicianController.depositMoney);
 router.post('/:technicianId/withdraw', technicianController.requestWithdraw);
-router.post('/complete-profile', authenticateToken, technicianController.completeTechnicianProfile);
+router.post('/complete-profile', authenticateToken, handleMulter.fields([{ name: 'frontIdImage', maxCount: 1 }, { name: 'backIdImage', maxCount: 1 }, { name: 'certificates', maxCount: 10 }]), technicianController.completeTechnicianProfile);
 router.post('/upload/certificate', authenticateToken, handleMulter.single('certificate'), processAndUploadToS3('certificates'), technicianController.uploadCertificate);
-router.get('/technician-deposit',authenticateToken,technicianController.getTechnicianDepositLogs)
+router.post('/upload/cccd', authenticateToken, handleMulter.fields([{ name: 'frontIdImage', maxCount: 1 }, { name: 'backIdImage', maxCount: 1 }]), processAndUploadToS3('cccd'), technicianController.uploadCCCDImages);
+router.get('/technician-deposit',authenticateToken,technicianController.getTechnicianDepositLogs);
+
 module.exports = router;

@@ -299,7 +299,11 @@ exports.handleResetPassword = async (token, newPassword) => {
 // Check Authentication
 exports.checkAuth = async (userId) => {
     try {
-        const user = await userService.findUserById(userId);
+        let user = await userService.findUserById(userId);
+        if (user && user.populate) {
+            await user.populate('role');
+        }
+
         if (!user) {
             throw new HttpError(404, "Không tìm thấy người dùng");
         }

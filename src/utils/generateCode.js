@@ -1,7 +1,10 @@
 const User = require('../models/User');
+const Contract = require('../models/Contract');
+const Receipt = require('../models/Receipt');
 
-const Contract = require('../models/Contract')
-const Receipt = require('../models/Receipt')
+exports.generateCode = () => {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+};
 
 exports.generateCookie = async (token, res) => {
     res.cookie("token", token, {

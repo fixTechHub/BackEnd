@@ -21,6 +21,8 @@ const technicianSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    frontIdImage: { type: String },
+    backIdImage: { type: String },
     status: {
         type: String,
         enum: ['PENDING', 'APPROVED', 'REJECTED'],
@@ -52,6 +54,10 @@ const technicianSchema = new mongoose.Schema({
     balance: {
         type: Number,
         default: 0
+    },
+    certificate: {
+        type: [String],
+        default: []
     },
     bankAccount: {
         bankName: String,
