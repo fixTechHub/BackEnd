@@ -11,33 +11,33 @@ const User = require('../models/User');
 const DepositLog = require('../models/DepositLog');
 
 const createNewTechnician = async (userId, technicianData, session = null) => {
-    const technician = new Technician({
-        userId,
-        identification: technicianData.identification,
-        experienceYears: technicianData.experienceYears || 0,
-        currentLocation: technicianData.currentLocation || {
-            type: 'Point',
-            coordinates: [0, 0]
-        },
-        specialtiesCategories: technicianData.specialtiesCategories || [],
-        certificate: technicianData.certificate || [],
-        frontIdImage: technicianData.frontIdImage || null,
-        backIdImage: technicianData.backIdImage || null,
-        certificateVerificationStatus: false,
-        jobCompleted: 0,
-        availability: 'FREE',
-        contractAccepted: false,
-        balance: 0,
-        isAvailableForAssignment: false,
-        bankAccount: technicianData.bankAccount || {
-            bankName: '',
-            accountNumber: '',
-            accountHolder: '',
-            branch: ''
-        }
-    });
-    
-    return await technician.save({ session });
+  const technician = new Technician({
+    userId,
+    identification: technicianData.identification,
+    experienceYears: technicianData.experienceYears || 0,
+    currentLocation: technicianData.currentLocation || {
+      type: 'Point',
+      coordinates: [0, 0]
+    },
+    specialtiesCategories: technicianData.specialtiesCategories || [],
+    certificate: technicianData.certificate || [],
+    frontIdImage: technicianData.frontIdImage || null,
+    backIdImage: technicianData.backIdImage || null,
+    certificateVerificationStatus: false,
+    jobCompleted: 0,
+    availability: 'FREE',
+    contractAccepted: false,
+    balance: 0,
+    isAvailableForAssignment: false,
+    bankAccount: technicianData.bankAccount || {
+      bankName: '',
+      accountNumber: '',
+      accountHolder: '',
+      branch: ''
+    }
+  });
+
+  return await technician.save({ session });
 };
 
 const findTechnicianByUserId = async (userId) => {
@@ -527,40 +527,43 @@ const requestWithdraw = async (technicianId, amount, paymentMethod) => {
 
 
 
-const getTechnicianById = async(technicianId) => {
+const getTechnicianById = async (technicianId) => {
 
-    try {
-        if (!mongoose.Types.ObjectId.isValid(technicianId)) {
-            throw new Error('ID Kỹ thuật viên không hợp lệ');
-        }
-        const technician = await Technician.findById(technicianId)
-        if (!technician) {
-            throw new Error('Không tìm thấy Kỹ thuật viên');
-        }
-
-        return technician;
-    } catch (error) {
-     
-        throw error;
-    }
-}
-
-const getTechnicianDepositLogs = async (userId) => {
   try {
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
-        throw new Error('ID Kỹ người dùngdùng không hợp lệ');
+    if (!mongoose.Types.ObjectId.isValid(technicianId)) {
+      throw new Error('ID Kỹ thuật viên không hợp lệ');
     }
-    const technician = await findTechnicianByUserId(userId)
+    const technician = await Technician.findById(technicianId)
     if (!technician) {
-        throw new Error('Không tìm thấy Kỹ thuật viên');
+      throw new Error('Không tìm thấy Kỹ thuật viên');
     }
-    const technicianId = technician._id
-   return await DepositLog.find({ technicianId }).lean();
+
+    return technician;
   } catch (error) {
+
     throw error;
   }
 }
-
+const getTechnicianDepositLogs = async (userId, limit, skip) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      throw new Error('ID Kỹ thuật viên không hợp lệ');
+    }
+    const technician = await Technician.findOne({ userId }).lean();
+    if (!technician) {
+      throw new Error('Không tìm thấy Kỹ thuật viên');
+    }
+    const technicianId = technician._id;
+    const depositLogs = await DepositLog.find({ technicianId })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+    return depositLogs;
+  } catch (error) {
+    throw new Error(`Failed to fetch deposit logs: ${error.message}`);
+  }
+};
 
 module.exports = {
   registerAsTechnician,
@@ -579,7 +582,7 @@ module.exports = {
   depositMoney,
   requestWithdraw,
   createNewTechnician,
-  findTechnicianByUserId
+  findTechnicianByUserId,
   getTechnicianDepositLogs
 };
 

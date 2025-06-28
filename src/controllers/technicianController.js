@@ -2,14 +2,17 @@ const technicianService = require('../services/technicianService');
 const User = require('../models/User');
 const Technician = require('../models/Technician');
 const { deleteFileFromS3, uploadFileToS3 } = require('../services/s3Service');
-
+const contractService = require('../services/contractService')
+const notificationService = require('../services/notificationService')
 const sendQuotation = async (req, res) => {
   try {
-    // const technicianId = req.user._id;
-    const { bookingId, technicianId, laborPrice, items, warrantiesDuration } = req.body;
+    const userId = req.user.userId;
+    console.log('USERID', userId);
+    
+    const { bookingId, laborPrice, items, warrantiesDuration } = req.body;
     const bookingPriceData = {
       bookingId,
-      technicianId,
+      userId,
       laborPrice,
       warrantiesDuration,
       items
@@ -87,6 +90,8 @@ const getCertificatesByTechnicianId = async (req, res) => {
 const registerAsTechnician = async (req, res, next) => {
   try {
     const technician = await technicianService.registerAsTechnician(req.body);
+    const result = await contractService.generateContractOnRegistration(technician._id, session);
+    
     res.status(201).json({
       message: 'Technician registration submitted. Waiting for admin approval.',
       technician,
@@ -196,17 +201,23 @@ const getTechnicianInformation = async (req, res) => {
   }
 };
 
-const getTechnicianDepositLogs = async (req,res) => {
+const getTechnicianDepositLogs = async (req, res) => {
   try {
-      const technicianDepositLogs = await technicianService.getTechnicianDepositLogs(req.user.userId)
-      res.status(200).json({
-        technicianDepositLogs
-      })
+    const userId = req.user.userId;
+    const { limit = 20, skip = 0 } = req.query;
+    console.log('Fetching logs for userId:', userId, 'with limit:', limit, 'skip:', skip);
+    const technicianDepositLogs = await technicianService.getTechnicianDepositLogs(userId, parseInt(limit), parseInt(skip));
+    console.log('Logs:', technicianDepositLogs);
+    res.status(200).json({
+      technicianDepositLogs
+    });
   } catch (error) {
-    console.error("Error:", error);
+    console.error('Error in getTechnicianDepositLogs:', error.message, error.stack);
     res.status(500).json({ success: false, message: error.message });
   }
-}
+};
+
+module.exports = { getTechnicianDepositLogs };
 
 const depositMoney = async (req, res, next) => {
   try {
@@ -273,8 +284,8 @@ const completeTechnicianProfile = async (req, res) => {
     // Lấy file từ req.files (multer.fields)
     const fileObj = req.files || {};
     const frontArr = fileObj.frontIdImage || [];
-    const backArr  = fileObj.backIdImage || [];
-    const certArr  = fileObj.certificates || [];
+    const backArr = fileObj.backIdImage || [];
+    const certArr = fileObj.certificates || [];
 
     if (frontArr.length === 0 || backArr.length === 0 || certArr.length === 0) {
       throw new Error('Thiếu file bắt buộc (CCCD hoặc chứng chỉ)');
@@ -282,7 +293,7 @@ const completeTechnicianProfile = async (req, res) => {
 
     // Upload lần lượt
     const frontUrl = await uploadFileToS3(frontArr[0].buffer, frontArr[0].originalname, frontArr[0].mimetype, 'technicians');
-    const backUrl  = await uploadFileToS3(backArr[0].buffer, backArr[0].originalname, backArr[0].mimetype, 'technicians');
+    const backUrl = await uploadFileToS3(backArr[0].buffer, backArr[0].originalname, backArr[0].mimetype, 'technicians');
     const certUrls = await Promise.all(certArr.map(f => uploadFileToS3(f.buffer, f.originalname, f.mimetype, 'technicians')));
 
     // Gom url để rollback nếu cần
@@ -294,7 +305,7 @@ const completeTechnicianProfile = async (req, res) => {
       frontIdImage: frontUrl,
       backIdImage: backUrl,
       certificate: certUrls,
-      specialtiesCategories: req.body.specialtiesCategories ? JSON.parse(req.body.specialtiesCategories) : [] ,
+      specialtiesCategories: req.body.specialtiesCategories ? JSON.parse(req.body.specialtiesCategories) : [],
       bankAccount: req.body.bankAccount ? JSON.parse(req.body.bankAccount) : undefined
     };
 
@@ -314,7 +325,7 @@ const completeTechnicianProfile = async (req, res) => {
 
     // rollback: xoá file đã upload để tránh rác
     for (const url of uploadedUrls) {
-      try { await deleteFileFromS3(url); } catch (_) {}
+      try { await deleteFileFromS3(url); } catch (_) { }
     }
 
     console.error('Error completing technician profile:', error);
@@ -359,51 +370,51 @@ const uploadCertificate = async (req, res) => {
 };
 
 const uploadCCCDImages = async (req, res) => {
-    try {
-        const userId = req.user.userId;
-        // Kiểm tra user là technician
-        const user = await User.findById(userId).populate('role');
-        if (!user || user.role?.name !== 'TECHNICIAN') {
-            return res.status(403).json({
-                success: false,
-                message: 'Chỉ kỹ thuật viên mới có thể upload ảnh CCCD'
-            });
-        }
-        // Lấy URL từ req.s3FileUrls (do processAndUploadToS3 gắn vào)
-        const frontUrl = req.s3FileUrls?.frontIdImage?.[0] || null;
-        const backUrl = req.s3FileUrls?.backIdImage?.[0] || null;
-        if (!frontUrl || !backUrl) {
-            return res.status(400).json({
-                success: false,
-                message: 'Thiếu ảnh mặt trước hoặc mặt sau CCCD'
-            });
-        }
-        // Cập nhật vào model Technician
-        const technician = await Technician.findOneAndUpdate(
-            { userId: userId },
-            { frontIdImage: frontUrl, backIdImage: backUrl },
-            { new: true }
-        );
-        if (!technician) {
-            return res.status(404).json({
-                success: false,
-                message: 'Không tìm thấy kỹ thuật viênviên'
-            });
-        }
-        res.status(200).json({
-            success: true,
-            message: 'Upload ảnh CCCD thành công',
-            frontIdImage: frontUrl,
-            backIdImage: backUrl
-        });
-    } catch (error) {
-        console.error('Error uploading CCCD images:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Có lỗi xảy ra khi upload ảnh CCCD',
-            error: error.message
-        });
+  try {
+    const userId = req.user.userId;
+    // Kiểm tra user là technician
+    const user = await User.findById(userId).populate('role');
+    if (!user || user.role?.name !== 'TECHNICIAN') {
+      return res.status(403).json({
+        success: false,
+        message: 'Chỉ kỹ thuật viên mới có thể upload ảnh CCCD'
+      });
     }
+    // Lấy URL từ req.s3FileUrls (do processAndUploadToS3 gắn vào)
+    const frontUrl = req.s3FileUrls?.frontIdImage?.[0] || null;
+    const backUrl = req.s3FileUrls?.backIdImage?.[0] || null;
+    if (!frontUrl || !backUrl) {
+      return res.status(400).json({
+        success: false,
+        message: 'Thiếu ảnh mặt trước hoặc mặt sau CCCD'
+      });
+    }
+    // Cập nhật vào model Technician
+    const technician = await Technician.findOneAndUpdate(
+      { userId: userId },
+      { frontIdImage: frontUrl, backIdImage: backUrl },
+      { new: true }
+    );
+    if (!technician) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy kỹ thuật viênviên'
+      });
+    }
+    res.status(200).json({
+      success: true,
+      message: 'Upload ảnh CCCD thành công',
+      frontIdImage: frontUrl,
+      backIdImage: backUrl
+    });
+  } catch (error) {
+    console.error('Error uploading CCCD images:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Có lỗi xảy ra khi upload ảnh CCCD',
+      error: error.message
+    });
+  }
 };
 
 module.exports = {

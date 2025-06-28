@@ -31,7 +31,7 @@ const bookingWarrantySchema = new mongoose.Schema({
     expireAt: Date,
     status: {
         type: String,
-        enum: ['PENDING', 'CONFIRMED', 'RESOLVED', 'DENIED'],
+        enum: ['PENDING', 'CONFIRMED', 'RESOLVED', 'DENIED','EXPIRED'],
         default: 'PENDING'
     },
     resolutionNote: String,

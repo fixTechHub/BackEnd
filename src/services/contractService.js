@@ -4,7 +4,7 @@ const Contract = require('../models/Contract');
 const { generateContractCode } = require('../utils/generateCode');
 const Technician = require('../models/Technician');
 const User = require('../models/User');
-const notificationService = require('./notificationService');
+const mongoose = require('mongoose');
 
 // Internal helper function to create the DocuSign envelope
 const _createDocusignEnvelope = async (contractData, contractCode) => {
@@ -105,7 +105,7 @@ const generateContractOnRegistration = async (technicianId, session = null) => {
     });
 
     await contract.save({ session });
-    
+
 
     // Create notification within transaction but don't emit socket yet
     const notificationData = {
@@ -117,12 +117,12 @@ const generateContractOnRegistration = async (technicianId, session = null) => {
       referenceModel: 'Contract',
     };
 
-    
 
-    // Create notification within transaction
-    await notificationService.createNotification(notificationData, session);
-    
-    
+
+    // // Create notification within transaction
+    // await notificationService.createNotification(notificationData, session);
+
+
 
     // Return the notification data so it can be emitted after transaction commit
     return { contract, notificationData };
@@ -275,5 +275,6 @@ module.exports = {
   getContractsByTechnicianId,
   updateContractStatus,
   findContractByEnvelopeId,
-  updateExpiredContracts
+  updateExpiredContracts,
+  
 };
