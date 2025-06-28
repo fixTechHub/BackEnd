@@ -9,7 +9,7 @@ const deductCommission = async (technicianId, amount, session) => {
 
         // Using a fixed 10% commission rate as per the example.
         // This could be made dynamic later by fetching from CommissionConfig.
-        const commissionRate = 0.10;
+        const commissionRate = 0.30;
         const commissionAmount = amount * commissionRate;
 
         technician.balance -= commissionAmount;
@@ -36,7 +36,7 @@ const creditCommission = async (technicianId, amount, session) => {
 
         // Using a fixed 10% commission rate as per the example.
         // This could be made dynamic later by fetching from CommissionConfig.
-        const commissionRate = 0.10;
+        const commissionRate = 0.70;
         const commissionAmount = amount * commissionRate;
 
         technician.balance += commissionAmount;
