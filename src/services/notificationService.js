@@ -101,6 +101,7 @@ exports.emitSocketNotification = async (notificationData) => {
     content: notificationData.content,
     type: notificationData.type,
     referenceId: notificationData.referenceId,
+    referenceModel: notificationData.referenceModel,
     isRead: false,
     createdAt: new Date()
   };
