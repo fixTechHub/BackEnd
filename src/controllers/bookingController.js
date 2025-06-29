@@ -1,8 +1,9 @@
 const bookingService = require('../services/bookingService');
 const { addressToPoint } = require('../services/geocodingService');
 const User = require('../models/User');
-
+const {getIo} = require('../sockets/socketManager')
 const createBookingRequest = async (req, res) => {
+    const io = getIo()
     try {
         const customerId = req.user.userId; 
         // console.log('--- CUSTOMER ID ---', customerId);
@@ -40,7 +41,6 @@ const createBookingRequest = async (req, res) => {
         };
         // console.log('--- Booking Data ---', bookingData);
 
-        const io = req.app.get('io');
 
         const result = await bookingService.createRequestAndNotify(bookingData, io);
         // console.log('Booking Request Result:', result);

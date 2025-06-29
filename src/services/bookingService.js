@@ -4,7 +4,7 @@ const Notification = require('../models/Notification');
 const technicianService = require('./technicianService');
 const BookingPrice = require('../models/BookingPrice');
 const BookingStatusLog = require('../models/BookingStatusLog');
-
+const notificationService = require('../services/notificationService')
 const createRequestAndNotify = async (bookingData, io) => {
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -48,19 +48,22 @@ const createRequestAndNotify = async (bookingData, io) => {
         }
 
         // 3. Tạo và gửi thông báo cho các thợ đã tìm thấy
-        const notificationPromises = nearbyTechnicians.data.map(tech => {
+        const notificationPromises = nearbyTechnicians.data.map(async tech => {
             const notifData = {
                 userId: tech.userId,
                 title: 'Yêu cầu công việc mới gần bạn',
                 content: `Có một yêu cầu mới cách bạn khoảng ${(tech.distance / 1000).toFixed(1)} km. Nhấn để xem và báo giá.`,
+                referenceModel: 'Booking',
                 referenceId: newBooking._id,
+                url: `technician/send-quotation?bookingId=${newBooking._id}`,
                 type: 'NEW_REQUEST'
             };
-            // return notificationService.createAndSend(notifData, io);
             console.log('--- THONG BAO CHO THO ---', notifData);
+            const notify = await notificationService.createNotification(notifData);
+            io.to(`user:${notify.userId}`).emit('receiveNotification', notify);
         });
 
-        // await Promise.all(notificationPromises);
+        await Promise.all(notificationPromises);
 
         await session.commitTransaction();
         session.endSession();
@@ -73,7 +76,7 @@ const createRequestAndNotify = async (bookingData, io) => {
     }
 };
 
-const getBookingById = async (bookingId) => {
+const   getBookingById = async (bookingId) => {
     try {
         if (!mongoose.Types.ObjectId.isValid(bookingId)) {
             throw new Error('ID đặt lịch không hợp lệ');
@@ -82,7 +85,7 @@ const getBookingById = async (bookingId) => {
         const booking = await Booking.findById(bookingId)
             .populate({
                 path: 'customerId',
-                select: 'fullName email phone avatar' 
+                select: 'fullName email phone avatar'
             })
             .populate({
                 path: 'technicianId',
@@ -94,7 +97,7 @@ const getBookingById = async (bookingId) => {
             .populate({
                 path: 'serviceId',
             })
-            
+
             .populate('cancelledBy');
 
         if (!booking) {
