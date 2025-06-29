@@ -101,7 +101,7 @@ const createPayOsDeposit = async (userId, amount) => {
             amount: amount,
             description: `Nap tien vao tai khoan`,
             returnUrl: `${process.env.BACK_END_URL}/payments/deposit/success?userId=${userId}&amount=${amount}`,
-            cancelUrl: `${process.env.BACK_END_URL}/payments/deposit/cancel?userId=${userId}` 
+            cancelUrl: `${process.env.BACK_END_URL}/payments/deposit/cancel?userId=${userId}&amount=${amount}` 
         };
 
         const paymentLink = await payOs.createPaymentLink(paymentData);
@@ -119,7 +119,7 @@ const createPayOsDeposit = async (userId, amount) => {
 const handleSuccessfulDeposit = async (amount, userId) => {
   const session = await mongoose.startSession();
   session.startTransaction();
-
+  const amountNumber = Number(amount);
   try {
     if (!amount) {
       throw new Error('Không có tiền để nạp');
@@ -135,7 +135,7 @@ const handleSuccessfulDeposit = async (amount, userId) => {
     }
 
     const balanceBefore = technician.balance;
-    const balanceAfter = balanceBefore + amount;
+    const balanceAfter = balanceBefore + amountNumber;
 
     // Update balance
     technician.balance = balanceAfter;
@@ -150,7 +150,7 @@ const handleSuccessfulDeposit = async (amount, userId) => {
       paymentMethod: 'BANK', // Or dynamically set if you have it
       balanceBefore: balanceBefore,
       balanceAfter: balanceAfter,
-      note: `Nạp ${amount}đ thành côngcông`,
+      note: `Nạp ${amount}đ thành công`,
     });
 
     await depositLog.save({ session });
@@ -165,10 +165,49 @@ const handleSuccessfulDeposit = async (amount, userId) => {
   }
 };
 
+const handleCancelDeposit = async (amount,userId) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    if (!userId) {
+      throw new Error('Thiếu ID người dùng');
+    }
+
+    const technician = await Technician.findOne({ userId }).session(session);
+    if (!technician) {
+      throw new Error('Không tìm thấy kỹ thuật viên');
+    }
+    const balanceBefore = technician.balance;
+    const balanceAfter = balanceBefore;
+    // Create deposit log
+    const depositLog = new DepositLog({
+      technicianId: technician._id,
+      type: 'DEPOSIT',
+      amount: amount,
+      status: 'CANCELLED',
+      paymentMethod: 'BANK', // Or dynamically set if you have it
+      balanceBefore: balanceBefore,
+      balanceAfter: balanceAfter,
+      note: `Hủy nạp ${amount}đ thành công`,
+    });
+
+    await depositLog.save({ session });
+
+    // Commit transaction
+    await session.commitTransaction();
+    session.endSession();
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    throw error;
+  }
+}
 
 module.exports = {
     createPayOsPayment,
     handleSuccessfulPayment,
     createPayOsDeposit,
-    handleSuccessfulDeposit
+    handleSuccessfulDeposit,
+    handleCancelDeposit
 };

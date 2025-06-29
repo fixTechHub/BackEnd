@@ -48,7 +48,7 @@ const handlePayOsSuccess = async (req, res) => {
             await generateCookie(token, res);
         }
 
-        res.redirect(`${process.env.FRONT_END_URL}/payment-success`);
+        res.redirect(`${process.env.FRONT_END_URL}/feedback`);
     } catch (error) {
         console.error('Error in PayOS success handler:', error);
         try {
@@ -82,18 +82,19 @@ const handlePayOsCancel = async (req, res) => {
                 const token = generateToken(user);
                 await generateCookie(token, res);
             }
+            res.redirect(`${process.env.FRONT_END_URL}/checkout?bookingId=${bookingPrice.bookingId}.`);
+
         }
+
     } catch (error) {
         console.error('Error in PayOS cancel handler:', error);
-    } finally {
-        res.redirect(`${process.env.FRONT_END_URL}/payment-cancel?error=Thanh toán được hủy bởi người dùng.`);
     }
 };
 
-const depositBalance = async (req,res) => {
+const depositBalance = async (req, res) => {
     try {
         const { amount } = req.body
-        const depositURL = await paymentService.createPayOsDeposit(req.user.userId,amount)
+        const depositURL = await paymentService.createPayOsDeposit(req.user.userId, amount)
         res.status(200).json({
             success: true,
             message: 'Cập nhật và xử lý nạp tiền thành công',
@@ -122,7 +123,7 @@ const handleDepositPayOsSuccess = async (req, res) => {
             await generateCookie(token, res);
         }
 
-        res.redirect(`${process.env.FRONT_END_URL}/deposit-success`);
+        res.redirect(`${process.env.FRONT_END_URL}/technician/deposit`);
     } catch (error) {
         console.error('Error in PayOS success handler:', error);
         try {
@@ -140,9 +141,10 @@ const handleDepositPayOsSuccess = async (req, res) => {
 }
 
 const handleDepositPayOsCancel = async (req, res) => {
-    const { userId } = req.query;
+    const { amount,userId } = req.query;
     try {
         if (userId) {
+            await paymentService.handleCancelDeposit(amount, userId);
             const user = await userService.findUserById(userId)
             if (user) {
                 const token = generateToken(user);
@@ -152,7 +154,7 @@ const handleDepositPayOsCancel = async (req, res) => {
     } catch (error) {
         console.error('Error in PayOS cancel handler:', error);
     } finally {
-        res.redirect(`${process.env.FRONT_END_URL}/deposit-cancel?error=Deposit was cancelled by the user.`);
+        res.redirect(`${process.env.FRONT_END_URL}/technician/deposit`);
     }
 };
 

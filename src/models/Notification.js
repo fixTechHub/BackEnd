@@ -23,7 +23,7 @@ const notificationSchema = new mongoose.Schema({
     referenceModel: { type: String, 
         required: function() 
         { return !!this.referenceId; }
-        , enum: ['User', 'Payment', 'Message','Booking','Contract','BookingPrice'] // Các model có thể tham chiếu }, referenceId: { type: mongoose.Schema.Types.ObjectId, refPath: 'referenceModel' // Tham chiếu động dựa trên trường referenceModel
+        , enum: ['User', 'Payment', 'Message','Booking','Contract','BookingPrice','BookingWarranty'] // Các model có thể tham chiếu }, referenceId: { type: mongoose.Schema.Types.ObjectId, refPath: 'referenceModel' // Tham chiếu động dựa trên trường referenceModel
      },
      url : {
         type: String,

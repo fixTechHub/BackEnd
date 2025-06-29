@@ -7,7 +7,11 @@ const initializeSocket = (server) => {
   console.log(`--- Socket.IO configured to allow origin: ${process.env.FRONT_END_URL} ---`);
   const io = new Server(server, {
     cors: {
-      origin: process.env.FRONT_END_URL,
+      origin: [
+        process.env.FRONT_END_URL, // http://localhost:5174
+        'http://localhost:5174', // Explicitly include
+        'https://b8d9-2001-ee0-4b7b-3bd0-2d89-bdfa-7310-9e33.ngrok-free.app', // Allow all ngrok URLs
+      ],
       methods: ["GET", "POST"],
       credentials: true
     } 
