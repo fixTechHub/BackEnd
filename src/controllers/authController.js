@@ -65,7 +65,7 @@ exports.finalizeRegistration = async (req, res) => {
             role: roleDoc._id,
             emailVerified: false,
             phoneVerified: false,
-            status: role === 'CUSTOMER' ? 'ACTIVE' : 'PENDING',
+            status: 'PENDING',
             verificationCode,
             verificationCodeExpires
         });
@@ -86,15 +86,18 @@ exports.finalizeRegistration = async (req, res) => {
             }
         }
 
-        // --- Create Token and Set Cookie ---
+        // --- Tạo token đăng nhập tạm thời để người dùng có thể xác thực ngay ---
         const token = generateToken(newUser);
         generateCookie(token, res);
 
         // --- Return Response ---
+        // Không tự động đăng nhập sau khi đăng ký.
+        // Nếu cần xác thực (ví dụ email), frontend sẽ xử lý bằng cách yêu cầu người dùng đăng nhập.
         res.status(201).json({
             message: "Đăng ký thành công!",
             user: newUser,
-            token
+            requiresVerification: !isEmail ? false : true, // Nếu là email thì sẽ cần xác thực
+            registrationToken: verificationCode // Trả về mã (hoặc token) để frontend sử dụng nếu cần
         });
 
     } catch (error) {
@@ -481,6 +484,12 @@ exports.verifyEmail = async (req, res) => {
         }
 
         user.emailVerified = true;
+
+        // Nếu role là CUSTOMER, sau khi xác thực email thì kích hoạt tài khoản
+        if (user.role && user.role.name === 'CUSTOMER') {
+            user.status = 'ACTIVE';
+        }
+
         user.verificationCode = undefined;
         user.verificationCodeExpires = undefined;
         await user.save();
