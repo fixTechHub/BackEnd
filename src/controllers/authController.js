@@ -295,9 +295,23 @@ const checkVerificationStatus = async (user) => {
                     message: 'Vui lòng hoàn thành hồ sơ kỹ thuật viên'
                 };
             }
+
+            // Kiểm tra các trường bắt buộc
+            const hasSpecialties = Array.isArray(technician.specialtiesCategories) && technician.specialtiesCategories.length > 0;
+            const hasCertificates = Array.isArray(technician.certificate) && technician.certificate.length > 0;
+            const hasIdentification = technician.identification && technician.identification.trim() !== '';
+            const hasFrontIdImage = technician.frontIdImage && technician.frontIdImage.trim() !== '';
+            const hasBackIdImage = technician.backIdImage && technician.backIdImage.trim() !== '';
+
+            if (!hasSpecialties || !hasCertificates || !hasIdentification || !hasFrontIdImage || !hasBackIdImage) {
+                return {
+                    step: 'COMPLETE_PROFILE',
+                    redirectTo: '/technician/complete-profile',
+                    message: 'Vui lòng hoàn thành hồ sơ kỹ thuật viên'
+                };
+            }
         } catch (error) {
             console.error('Error checking technician profile:', error);
-            // Fallback: assume technician needs to complete profile
             return {
                 step: 'COMPLETE_PROFILE',
                 redirectTo: '/technician/complete-profile',
@@ -387,10 +401,6 @@ exports.register = async (req, res) => {
         // Kiểm tra trạng thái xác thực sau khi tạo user
         const verificationStatus = await checkVerificationStatus(populatedUser);
 
-        // Return response
-        return res.status(201).json({
-            message: `Mã xác thực đã được gửi đến ${isEmail ? 'email' : 'số điện thoại'} của bạn`,
-            user: populatedUser, // Không cần populate role nữa
             verificationType: isEmail ? 'email' : 'phone',
             verificationStatus: verificationStatus
         });

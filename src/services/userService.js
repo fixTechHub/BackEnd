@@ -155,6 +155,17 @@ exports.deleteAccount = async (userId) => {
             throw new Error('Không thể xóa tài khoản khi có feedback chưa được xử lý');
         }
 
+        // Nếu là technician, chỉ cho phép xóa khi hồ sơ đã được duyệt (APPROVED)
+        if (user.role?.name === 'TECHNICIAN') {
+            const technician = await Technician.findOne({ userId: userId });
+            if (!technician) {
+                throw new Error('Không tìm thấy hồ sơ kỹ thuật viên');
+            }
+            if (technician.status !== 'APPROVED') {
+                throw new Error('Không thể xóa tài khoản khi hồ sơ kỹ thuật viên chưa được phê duyệt hoặc đã bị từ chối');
+            }
+        }
+
         // Soft delete - đặt trạng thái PENDING_DELETION với thời gian chờ 30 ngày
         user.status = 'PENDING_DELETION';
         user.pendingDeletionAt = new Date();
@@ -280,8 +291,9 @@ exports.restoreAccount = async (userId) => {
         if (user.role?.name === 'TECHNICIAN') {
             const technician = await Technician.findOne({ userId: userId });
             if (technician) {
-                technician.status = 'ACTIVE';
+                technician.status = technician.status === 'PENDING_DELETION' ? 'APPROVED' : technician.status;
                 technician.pendingDeletionAt = null;
+                technician.deletedAt = null;
                 await technician.save();
             }
         }

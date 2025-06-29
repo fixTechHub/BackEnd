@@ -25,8 +25,14 @@ const technicianSchema = new mongoose.Schema({
     backIdImage: { type: String },
     status: {
         type: String,
-        enum: ['PENDING', 'APPROVED', 'REJECTED'],
+        enum: ['PENDING', 'APPROVED', 'REJECTED', 'INACTIVE', 'PENDING_DELETION', 'DELETED'],
         default: 'PENDING'
+    },
+    pendingDeletionAt: {
+        type: Date
+    },
+    deletedAt: {
+        type: Date
     },
     ratingAverage: {
         type: Number,

@@ -51,6 +51,11 @@ exports.googleAuth = async (access_token) => {
                     user.status = 'ACTIVE';
                     await user.save();
                     wasReactivated = true;
+
+                    if (user.role?.name === 'TECHNICIAN') {
+                        const Technician = require('../models/Technician');
+                        await Technician.updateOne({ userId: user._id }, { $set: { status: 'APPROVED' } });
+                    }
                 }
                 
                 // Kiểm tra và khôi phục tài khoản đang chờ xóa
@@ -60,6 +65,11 @@ exports.googleAuth = async (access_token) => {
                     user.deletionScheduledAt = undefined;
                     await user.save();
                     wasReactivated = true;
+
+                    if (user.role?.name === 'TECHNICIAN') {
+                        const Technician = require('../models/Technician');
+                        await Technician.updateOne({ userId: user._id }, { $set: { status: 'APPROVED' } });
+                    }
                 }
             } else {
             // Tìm role PENDING
@@ -130,6 +140,11 @@ exports.normalLogin = async (email, password) => {
             user.status = 'ACTIVE';
             await user.save();
             wasReactivated = true;
+
+            if (user.role?.name === 'TECHNICIAN') {
+                const Technician = require('../models/Technician');
+                await Technician.updateOne({ userId: user._id }, { $set: { status: 'APPROVED' } });
+            }
         }
         
         // Kiểm tra và khôi phục tài khoản đang chờ xóa
@@ -139,6 +154,11 @@ exports.normalLogin = async (email, password) => {
             user.deletionScheduledAt = undefined;
             await user.save();
             wasReactivated = true;
+
+            if (user.role?.name === 'TECHNICIAN') {
+                const Technician = require('../models/Technician');
+                await Technician.updateOne({ userId: user._id }, { $set: { status: 'APPROVED' } });
+            }
         }
         
         // Đảm bảo user thường không có googleId
