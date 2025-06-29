@@ -55,7 +55,7 @@ const sendMessage = async (messageData) => {
   io.to(`user:${notification.userId}`).emit('receiveNotification', notification);
 
   // Emit events to update chat UI
-  io.to(`user:${newMessage.fromUser}`).emit('receiveMessage', newMessage);
+  io.to(`user:${newMessage.fromUser._id}`).emit('receiveMessage', newMessage);
   io.to(`user:${newMessage.toUser}`).emit('receiveMessage', newMessage);
 
   return newMessage;

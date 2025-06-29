@@ -241,6 +241,8 @@ const updateBookingPriceAddCoupon = async (bookingPriceId, couponCode, discountV
             if (booking) {
                 booking.paymentStatus = 'PAID';
                 booking.status = 'DONE';
+                booking.isChatAllowed = false
+                booking.isVideoCallAllowed = false
                 await booking.save({ session });
 
                 const receiptData = {
