@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 const Booking = require('../models/Booking');
-const Notification = require('../models/Notification');
 const technicianService = require('./technicianService');
 const BookingPrice = require('../models/BookingPrice');
 const BookingStatusLog = require('../models/BookingStatusLog');

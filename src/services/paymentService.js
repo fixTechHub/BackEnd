@@ -4,7 +4,7 @@ const BookingPrice = require('../models/BookingPrice');
 const receiptService = require('./receiptService');
 const mongoose = require('mongoose');
 const commissionService = require('./commissionService');
-const {generateOrderCode } = require('../utils/generateCode')
+const { generateOrderCode } = require('../utils/generateCode')
 const Technician = require('../models/Technician');
 const DepositLog = require('../models/DepositLog');
 const payOs = new PayOs(
@@ -13,27 +13,33 @@ const payOs = new PayOs(
   process.env.PAYOS_CHECKSUM_KEY
 );
 
-const createPayOsPayment = async ( bookingPriceId) => {
-    try {
-        // PayOS requires a unique integer for orderCode.
-        const orderCode = await generateOrderCode();
-        const bookingPrice = await BookingPrice.findById(bookingPriceId)
-        const paymentData = {
-            orderCode: orderCode,
-            amount: bookingPrice.finalPrice,
-            // amount: 3000,
-            description: `Thanh toan don hang `,
-            returnUrl: `${process.env.BACK_END_URL}/payments/success?orderCode=${orderCode}&bookingPriceId=${bookingPriceId}`,
-            cancelUrl: `${process.env.BACK_END_URL}/payments/cancel?bookingPriceId=${bookingPriceId}` 
-        };
+const createPayOsPayment = async (bookingPriceId) => {
+  try {
+    // PayOS requires a unique integer for orderCode.
+    const orderCode = await generateOrderCode();
+    const bookingPrice = await BookingPrice.findById(bookingPriceId);
 
-        const paymentLink = await payOs.createPaymentLink(paymentData);
-        return paymentLink.checkoutUrl;
+    if (!bookingPrice || !bookingPrice.finalPrice) {
+      throw new Error('Thông tin đơn giá không hợp lệ');
+    };
 
-    } catch (error) {
-        console.error('Error creating PayOS payment link:', error);
-        throw new Error('Failed to create payment link');
-    }
+    const paymentData = {
+      orderCode: orderCode,
+      amount: bookingPrice.finalPrice,
+      // amount: 3000,
+      description: `Thanh toan don hang `,
+      returnUrl: `${process.env.BACK_END_URL}/payments/success?orderCode=${orderCode}&bookingPriceId=${bookingPriceId}`,
+      cancelUrl: `${process.env.BACK_END_URL}/payments/cancel?bookingPriceId=${bookingPriceId}`,
+      items: []
+    };
+
+    const paymentLink = await payOs.createPaymentLink(paymentData);
+    return paymentLink.checkoutUrl;
+
+  } catch (error) {
+    console.error('Error creating PayOS payment link:', error);
+    throw new Error('Failed to create payment link');
+  }
 }
 
 const handleSuccessfulPayment = async (orderCode, bookingPriceId) => {
@@ -92,6 +98,53 @@ const handleSuccessfulPayment = async (orderCode, bookingPriceId) => {
         session.endSession();
         throw error;
     }
+    if (!bookingPriceId) {
+      throw new Error('thiếu id giá đơn');
+    }
+    const bookingPrice = await BookingPrice.findById(bookingPriceId).session(session)
+    if (!bookingPrice) {
+      throw new Error('Không tìm thấy giá đơn');
+    }
+
+    const booking = await bookingService.getBookingById(bookingPrice.bookingId)
+    if (!booking) {
+      throw new Error('Không tìm thấy đơn');
+    }
+
+    booking.paymentStatus = 'PAID';
+    booking.status = 'DONE';
+    await booking.save({ session });
+
+    const receiptData = {
+      bookingId: booking._id,
+      customerId: booking.customerId,
+      technicianId: bookingPrice.technicianId,
+      paymentGatewayTransactionId: orderCode,
+      totalAmount: bookingPrice.finalPrice + bookingPrice.discountValue,
+      serviceAmount: bookingPrice.finalPrice,
+      discountAmount: bookingPrice.discountValue,
+      paidAmount: bookingPrice.finalPrice,
+      paymentMethod: 'BANK',
+      paymentStatus: 'PAID',
+    };
+    await receiptService.createReceipt(receiptData, session);
+
+    // Credit commission from technician's balance
+    await commissionService.creditCommission(
+      bookingPrice.technicianId,
+      bookingPrice.finalPrice,
+      session
+    );
+
+    await session.commitTransaction();
+    session.endSession();
+
+    return { success: true };
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    throw error;
+  }
 };
 
 const createPayOsDeposit = async (userId, amount) => {
@@ -106,17 +159,14 @@ const createPayOsDeposit = async (userId, amount) => {
             cancelUrl: `${process.env.BACK_END_URL}/payments/deposit/cancel?userId=${userId}&amount=${amount}` 
         };
 
-        const paymentLink = await payOs.createPaymentLink(paymentData);
-        return paymentLink.checkoutUrl;
+    const paymentLink = await payOs.createPaymentLink(paymentData);
+    return paymentLink.checkoutUrl;
 
-    } catch (error) {
-        console.error('Error creating PayOS payment link:', error);
-        throw new Error('Failed to create payment link');
-    }
+  } catch (error) {
+    console.error('Error creating PayOS payment link:', error);
+    throw new Error('Failed to create payment link');
+  }
 }
-
-
-
 
 const handleSuccessfulDeposit = async (amount, userId) => {
   const session = await mongoose.startSession();

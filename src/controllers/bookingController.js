@@ -1,13 +1,14 @@
 const bookingService = require('../services/bookingService');
 const { addressToPoint } = require('../services/geocodingService');
 const User = require('../models/User');
-const {getIo} = require('../sockets/socketManager')
+const { getIo } = require('../sockets/socketManager');
+
 const createBookingRequest = async (req, res) => {
     const io = getIo()
     try {
-        const customerId = req.user.userId; 
+        const customerId = req.user.userId;
         // console.log('--- CUSTOMER ID ---', customerId);
-        
+
         const { serviceId, description, schedule, address } = req.body;
         // console.log('Booking Text Data:', { customerId, serviceId, description, schedule, address });
 
@@ -41,7 +42,6 @@ const createBookingRequest = async (req, res) => {
         };
         // console.log('--- Booking Data ---', bookingData);
 
-
         const result = await bookingService.createRequestAndNotify(bookingData, io);
         // console.log('Booking Request Result:', result);
 
@@ -56,7 +56,6 @@ const createBookingRequest = async (req, res) => {
         res.status(400).json({ success: false, message: error.message });
     }
 };
-
 
 const getBookingById = async (req, res) => {
     try {
@@ -83,7 +82,7 @@ const cancelBooking = async (req, res) => {
     try {
         const { bookingId } = req.params;
         const { reason } = req.body;
-        const userId = req.user.userId;        
+        const userId = req.user.userId;
         const role = req.user.role;
         // console.log('--- ROLE ---', role);
 

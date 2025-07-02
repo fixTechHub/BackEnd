@@ -38,8 +38,17 @@ const bookingSchema = new mongoose.Schema({
     description: String,
     images: [String],
     schedule: {
-        type: Date,
-        required: true
+        startTime: {
+            type: Date,
+            require: true
+        },
+        endTime: {
+            type: Date,
+            require: true
+        },
+        expectedEndTime: {
+            type: Date
+        }
     },
     customerConfirmedDone: {
         type: Boolean,

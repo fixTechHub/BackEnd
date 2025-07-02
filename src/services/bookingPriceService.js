@@ -7,7 +7,9 @@ const CouponUsage = require('../models/CouponUsage');
 const paymentService = require('./paymentService');
 const receiptService = require('./receiptService');
 const technicianService = require('./technicianService');
+const notificationService = require('./notificationService');
 const commissionService = require('./commissionService');
+const BookingPriceLog = require('../models/BookingPriceLog');
 
 const getAllQuotations = async (bookingId) => {
     try {
@@ -59,7 +61,7 @@ const getQuotationDetail = async (quotationId) => {
     }
 };
 
-const acceptQuotation = async (quotationId, customerId) => {
+const acceptQuotation = async (quotationId, customerId, io) => {
     const session = await mongoose.startSession();
     session.startTransaction();
 
@@ -69,8 +71,12 @@ const acceptQuotation = async (quotationId, customerId) => {
         }
 
         const quotation = await BookingPrice.findById(quotationId)
-            .populate('bookingId');
+            .populate('bookingId')
+            .populate('technicianId');
         console.log('--- ACCEPT QUOTATION LOG', quotation);
+
+        const items = await BookingItem.find({ bookingPriceId: quotationId });
+        console.log('--- ACCEPT QUOTATION ITEMS', items);
 
         if (!quotation) {
             throw new Error('Không tìm thấy báo giá');
@@ -93,6 +99,9 @@ const acceptQuotation = async (quotationId, customerId) => {
         quotation.bookingId.isVideoCallAllowed = true;
         await quotation.bookingId.save({ session });
 
+        quotation.technicianId.availability = 'ONJOB';
+        await quotation.technicianId.save({ session });
+
         await BookingPrice.updateMany(
             {
                 bookingId: quotation.bookingId._id,
@@ -103,6 +112,31 @@ const acceptQuotation = async (quotationId, customerId) => {
             },
             { session }
         );
+
+        await BookingPriceLog.create([{
+            bookingId: quotation.bookingId._id,
+            technicianId: quotation.technicianId._id,
+            priceVersion: 1,
+            data: items,
+            status: 'ACCEPTED',
+            note: 'Báo giá đã được chấp nhận',
+            createdAt: new Date()
+        }], { session });
+
+        // 3. Tạo và gửi thông báo đơn đã được xác nhận cho các thợ 
+        const notifData = {
+            userId: quotation.technicianId.userId,
+            title: 'Đơn đã được khách hàng xác nhận',
+            content: 'Đơn của bạn đã được khách hàng chấp nhận. Hãy liên lạc với khách để bắt đầu sửa chữa nhé.',
+            referenceModel: 'Booking',
+            referenceId: quotation.bookingId._id,
+            url: `technician/send-quotation?bookingId=${quotation.bookingId._id}`,
+            type: 'NEW_REQUEST'
+        };
+        console.log('--- THONG BAO CHO THO ---', notifData);
+
+        const notify = await notificationService.createNotification(notifData);
+        io.to(`user:${notify.userId}`).emit('receiveNotification', notify);
 
         await session.commitTransaction();
         session.endSession();
@@ -144,7 +178,7 @@ const getAcceptedQuotation = async (bookingId, technicianId) => {
         await session.commitTransaction();
         session.endSession();
         console.log(bookingPrice);
-        
+
         return bookingPrice
     } catch (error) {
         await session.abortTransaction();
@@ -186,7 +220,7 @@ const updateBookingPriceAddCoupon = async (bookingPriceId, couponCode, discountV
         }
         const update = {};
         let bookingPriceDoc = await getBookingPriceById(bookingPriceId)
-        
+
         if (!bookingPriceDoc) {
             throw new Error('Không tìm thấy báo giá để cập nhật');
         }
@@ -204,7 +238,7 @@ const updateBookingPriceAddCoupon = async (bookingPriceId, couponCode, discountV
             if (bookingPriceDoc.bookingId) {
                 const bookingDoc = await bookingService.getBookingById(bookingPriceDoc.bookingId)
                 console.log(bookingDoc);
-                
+
                 if (bookingDoc && bookingDoc.customerId) {
                     userId = bookingDoc.customerId;
                 }
@@ -233,7 +267,7 @@ const updateBookingPriceAddCoupon = async (bookingPriceId, couponCode, discountV
 
         let paymentUrl = null;
         if (paymentMethod === 'PAYOS') {
-            paymentUrl = await paymentService.createPayOsPayment( bookingPriceId);
+            paymentUrl = await paymentService.createPayOsPayment(bookingPriceId);
         } else if (paymentMethod === 'CASH') {
             // Handle cash payment:
             // 1. Update booking status and create receipt

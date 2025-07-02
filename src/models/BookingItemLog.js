@@ -6,10 +6,6 @@ const bookingItemLogSchema = new mongoose.Schema({
         ref: 'BookingItem',
         required: true
     },
-    version: {
-        type: Number,
-        required: true
-    },
     action: {
         type: String,
         enum: ['CREATED', 'UPDATED', 'DELETED'],

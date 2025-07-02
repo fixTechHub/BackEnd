@@ -40,6 +40,7 @@ const bookingPriceSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    extraReason: String,
     technicianEarning: Number,
     commissionAmount: Number,
     holdingAmount: Number

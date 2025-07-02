@@ -35,11 +35,12 @@ const sendMessage = async (messageData) => {
   const io = getIo();
   // Create and save message
   const newMessage = await createMessage(messageData);
-  await newMessage.populate('fromUser')
+  // await newMessage.populate('fromUser')
   // Create notification for recipient
   const notificationData = {
     userId: newMessage.toUser,
-    title: `Tin nhắn mới từ ${newMessage.fromUser.fullName}`,
+    // title: `Tin nhắn mới từ ${newMessage.fromUser.fullName}`,
+    title: 'Tin nhắn mới từ',
     content: newMessage.content.length > 50 
       ? `${newMessage.content.substring(0, 47)}...` 
       : newMessage.content, 

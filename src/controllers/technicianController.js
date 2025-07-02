@@ -7,7 +7,7 @@ const notificationService = require('../services/notificationService')
 const sendQuotation = async (req, res) => {
   try {
     const userId = req.user.userId;
-    console.log('USERID', userId);
+    // console.log('USSER ID', req.user);
     
     const { bookingId, laborPrice, items, warrantiesDuration } = req.body;
     const bookingPriceData = {

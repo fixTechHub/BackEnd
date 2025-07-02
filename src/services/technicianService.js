@@ -525,10 +525,7 @@ const requestWithdraw = async (technicianId, amount, paymentMethod) => {
   };
 };
 
-
-
 const getTechnicianById = async (technicianId) => {
-
   try {
     if (!mongoose.Types.ObjectId.isValid(technicianId)) {
       throw new Error('ID Kỹ thuật viên không hợp lệ');
@@ -544,6 +541,7 @@ const getTechnicianById = async (technicianId) => {
     throw error;
   }
 }
+
 const getTechnicianDepositLogs = async (userId, limit, skip) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(userId)) {
