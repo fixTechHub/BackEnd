@@ -35,17 +35,19 @@ const sendMessage = async (messageData) => {
   const io = getIo();
   // Create and save message
   const newMessage = await createMessage(messageData);
-  await newMessage.populate('fromUser')
+ 
+  
   // Create notification for recipient
   const notificationData = {
     userId: newMessage.toUser,
-    title: `Tin nhắn mới từ ${newMessage.fromUser.fullName}`,
+    title: `Tin nhắn mới `,
     content: newMessage.content.length > 50 
       ? `${newMessage.content.substring(0, 47)}...` 
       : newMessage.content, 
     type: 'MESSAGE',
     referenceId: newMessage._id,
-    referenceModel: 'Message', 
+    referenceModel: 'Message',
+    url: messageData.url || null
   };
   
   // Create notification first, then emit socket notification
@@ -55,7 +57,7 @@ const sendMessage = async (messageData) => {
   io.to(`user:${notification.userId}`).emit('receiveNotification', notification);
 
   // Emit events to update chat UI
-  io.to(`user:${newMessage.fromUser._id}`).emit('receiveMessage', newMessage);
+  io.to(`user:${newMessage.fromUser}`).emit('receiveMessage', newMessage);
   io.to(`user:${newMessage.toUser}`).emit('receiveMessage', newMessage);
 
   return newMessage;

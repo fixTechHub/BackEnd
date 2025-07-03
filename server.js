@@ -18,18 +18,12 @@ setIo(io);
 
 // Connect to MongoDB
 
-const startServer = async () => {
-  try {
-    await connectDB();
-    contractCronService.startCronJobs(); // Start the cron jobs after MongoDB connection
-    bookingWarrantyCronService.startCronJobs()
-    server.listen(PORT, () => {
-      console.log(`API Gateway running at http://localhost:${PORT}`);
-    });
-  } catch (error) {
-    console.error('Failed to start server:', error.message);
-    process.exit(1);
-  }
-};
 
-startServer();
+connectDB();
+// contractCronService.startCronJobs(); // Start the cron jobs after MongoDB connection
+// bookingWarrantyCronService.startCronJobs()
+server.listen(PORT, () => {
+  console.log(`API Gateway running at http://localhost:${PORT}`);
+});
+
+
