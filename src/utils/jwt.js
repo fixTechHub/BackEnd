@@ -32,9 +32,13 @@ const decodeToken = (token) => {
  * @param {string} expiresIn – Expiration string, default '7d'.
  */
 const generateRefreshToken = (user, expiresIn = '7d') => {
+    const secret = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET;
+    if(!secret){
+        throw new Error('Missing JWT_REFRESH_SECRET or JWT_SECRET environment variable');
+    }
     return jwt.sign(
         { userId: user._id },
-        process.env.JWT_REFRESH_SECRET,
+        secret,
         { expiresIn }
     );
 };
