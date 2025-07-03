@@ -88,7 +88,8 @@ exports.finalizeRegistration = async (req, res) => {
 
         // --- Tạo token đăng nhập tạm thời để người dùng có thể xác thực ngay ---
         const token = generateToken(newUser);
-        generateCookie(token, res);
+        const refreshToken = generateRefreshToken(newUser);
+        generateCookie(token, res, refreshToken);
 
         // --- Return Response ---
         // Không tự động đăng nhập sau khi đăng ký.
@@ -150,8 +151,9 @@ exports.googleAuthController = async (req, res) => {
 
             const { user, token, technician, wasReactivated } = await authService.googleAuth(access_token);
 
-            // Set auth cookie
-            generateCookie(token, res);
+            // Generate refresh token & set cookies
+            const refreshTokenController = generateRefreshToken(user);
+            generateCookie(token, res, refreshTokenController);
 
             // Populate role before sending to client
             await user.populate('role');
@@ -516,7 +518,9 @@ exports.verifyEmail = async (req, res) => {
 
         // Generate new token
         const newToken = generateToken(user);
-        generateCookie(newToken, res);
+        // Keep existing refreshToken cookie if any
+        const existingRefresh = req.cookies.refreshToken;
+        generateCookie(newToken, res, existingRefresh);
 
         // Check verification status
         const verificationStatus = await checkVerificationStatus(user);
@@ -614,7 +618,8 @@ exports.verifyOTP = async (req, res) => {
 
         // Generate new token
         const newToken = generateToken(populatedUser);
-        generateCookie(newToken, res);
+        const existingRefresh = req.cookies.refreshToken;
+        generateCookie(newToken, res, existingRefresh);
 
         // Kiểm tra trạng thái xác thực sau khi xác thực OTP
         const verificationStatus = await checkVerificationStatus(populatedUser);
@@ -695,8 +700,9 @@ exports.refreshToken = async (req, res) => {
             return res.status(401).json({ message: 'Không tìm thấy refresh token' });
         }
 
-        // Verify refresh token
-        const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+        // Verify refresh token (fallback to JWT_SECRET if refresh secret undefined)
+        const secret = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET;
+        const decoded = jwt.verify(refreshToken, secret);
 
         // Tìm user
         const user = await User.findById(decoded.userId);
