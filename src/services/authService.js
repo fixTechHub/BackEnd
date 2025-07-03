@@ -33,6 +33,11 @@ exports.googleAuth = async (access_token) => {
             const payload = await response.json();
         const { sub: googleId, email, name: fullName, picture: avatar } = payload;
 
+        // Ensure we have the user's email – Google account may not return it if permissions were denied
+        if (!email) {
+            throw new HttpError(400, "Tài khoản Google của bạn không cung cấp địa chỉ email. Vui lòng đảm bảo tài khoản có địa chỉ email và cấp quyền truy cập email.");
+        }
+
         let user = await userService.findUserByEmail(email);
         let wasReactivated = false;
 
@@ -81,7 +86,7 @@ exports.googleAuth = async (access_token) => {
             // Tạo user mới với role PENDING
                 user = await userService.createNewUser({
                 fullName,
-                email,
+                emailOrPhone: email,
                     googleId,
                 avatar,
                     status: 'ACTIVE',

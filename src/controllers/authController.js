@@ -8,7 +8,7 @@ const { createUserSchema } = require('../validations/userValidation');
 const { createTechnicianSchema } = require('../validations/technicianValidation');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-const { generateToken } = require('../utils/jwt');
+const { generateToken, generateRefreshToken } = require('../utils/jwt');
 const { sendVerificationEmail } = require('../utils/mail');
 const { sendVerificationSMS } = require('../utils/sms');
 const bcrypt = require('bcryptjs');
@@ -168,8 +168,13 @@ exports.googleAuthController = async (req, res) => {
 
 exports.logout = async (req, res) => {
     try {
-        // Clear the auth cookie
+        // Clear auth cookies
         res.clearCookie('token', {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict'
+        });
+        res.clearCookie('refreshToken', {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'strict'
@@ -191,8 +196,9 @@ exports.login = async (req, res) => {
         const { email, password } = req.body;
         const result = await authService.normalLogin(email, password);
 
-        // Set auth cookie
-        generateCookie(result.token, res);
+        // Generate refresh token & set cookies
+        const refreshToken = generateRefreshToken(result.user);
+        generateCookie(result.token, res, refreshToken);
         await result.user.populate('role');
 
         // Kiểm tra trạng thái xác thực
@@ -219,8 +225,9 @@ exports.googleLogin = async (req, res) => {
 
         const result = await authService.googleAuth(access_token);
 
-        // Set auth cookie
-        generateCookie(result.token, res);
+        // Generate refresh token & set cookies
+        const refreshToken = generateRefreshToken(result.user);
+        generateCookie(result.token, res, refreshToken);
         await result.user.populate('role');
 
         // console.log('--- GOOLE AUTHENTICATION ---', result.user);
