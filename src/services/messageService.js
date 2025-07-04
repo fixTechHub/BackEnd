@@ -21,7 +21,8 @@ const createMessage = async (messageData) => {
   }
 
   const message = new Message({
-    bookingId: messageData.bookingId,
+    bookingId: messageData.bookingId || null,
+    bookingWarrantyId: messageData.bookingWarrantyId || null,
     fromUser: messageData.fromUser,
     toUser: messageData.toUser,
     content: contentToSave,
@@ -34,41 +35,72 @@ const createMessage = async (messageData) => {
 const sendMessage = async (messageData) => {
   const io = getIo();
   // Create and save message
-  const newMessage = await createMessage(messageData);
- 
-  
-  // Create notification for recipient
-  const notificationData = {
-    userId: newMessage.toUser,
-    title: `Tin nhắn mới `,
-    content: newMessage.content.length > 50 
-      ? `${newMessage.content.substring(0, 47)}...` 
-      : newMessage.content, 
-    type: 'MESSAGE',
-    referenceId: newMessage._id,
-    referenceModel: 'Message',
-    url: messageData.url || null
-  };
-  
-  // Create notification first, then emit socket notification
-  const notification = await notificationService.createNotification(notificationData);
-  
-  // Emit socket notification after successful creation
-  io.to(`user:${notification.userId}`).emit('receiveNotification', notification);
+  try {
+    const newMessage = await createMessage(messageData);
 
-  // Emit events to update chat UI
-  io.to(`user:${newMessage.fromUser}`).emit('receiveMessage', newMessage);
-  io.to(`user:${newMessage.toUser}`).emit('receiveMessage', newMessage);
 
-  return newMessage;
+    // Create notification for recipient
+    const notificationData = {
+      userId: newMessage.toUser,
+      title: `Tin nhắn mới `,
+      content: newMessage.content.length > 50
+        ? `${newMessage.content.substring(0, 47)}...`
+        : newMessage.content,
+      type: 'MESSAGE',
+      referenceId: newMessage._id,
+      referenceModel: 'Message',
+      url: messageData.url || null
+    };
+
+    // Create notification first, then emit socket notification
+    const notification = await notificationService.createNotification(notificationData);
+
+    // Emit socket notification after successful creation
+    io.to(`user:${notification.userId}`).emit('receiveNotification', notification);
+
+    // Emit events to update chat UI
+    // io.to(`user:${newMessage.fromUser}`).emit('receiveMessage', newMessage);
+    // io.to(`user:${newMessage.toUser}`).emit('receiveMessage', newMessage);
+    let fromRoom, toRoom;
+
+    if (newMessage.bookingWarrantyId) {
+      fromRoom = `warranty:${newMessage.bookingWarrantyId}:user:${newMessage.fromUser}`;
+      toRoom = `warranty:${newMessage.bookingWarrantyId}:user:${newMessage.toUser}`;
+    } else {
+      fromRoom = `booking:${newMessage.bookingId}:user:${newMessage.fromUser}`;
+      toRoom = `booking:${newMessage.bookingId}:user:${newMessage.toUser}`;
+    }
+
+    io.to(fromRoom).emit('receiveMessage', newMessage);
+    io.to(toRoom).emit('receiveMessage', newMessage);
+
+    return newMessage;
+  } catch (error) {
+    console.log('Error send message', error.message);
+    throw error
+  }
 };
 
-const getMessagesByBookingId = async (bookingId) => {
-  return await Message.find({ bookingId: bookingId });
-};  
+const getMessagesByBookingOrWarrantyId = async (bookingId, bookingWarrantyId) => {
+  try {
+    if (!bookingId && !bookingWarrantyId) {
+      throw new Error('At least bookingId or bookingWarrantyId is required');
+    }
 
+    const query = {};
+    if (bookingWarrantyId) {
+      query.bookingWarrantyId = bookingWarrantyId;
+    } else {
+      query.bookingId = bookingId;
+    }
+    return await Message.find(query);
+  } catch (error) {
+    console.log('Error get Message', error.message);
+    throw error
+  }
+};
 module.exports = exports = {
   createMessage,
   sendMessage,
-  getMessagesByBookingId,
+  getMessagesByBookingOrWarrantyId,
 };

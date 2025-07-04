@@ -8,6 +8,7 @@ const paymentService = require('./paymentService');
 const receiptService = require('./receiptService');
 const technicianService = require('./technicianService');
 const commissionService = require('./commissionService');
+const Technician = require('../models/Technician');
 
 const getAllQuotations = async (bookingId) => {
     try {
@@ -252,7 +253,9 @@ const updateBookingPriceAddCoupon = async (bookingPriceId, couponCode, discountV
                     booking.warrantyExpiresAt.getDate() + updatedBookingPrice.warrantiesDuration
                 );
                 await booking.save({ session });
-
+                const technician = await Technician.findById(updatedBookingPrice.technicianId)
+                technician.availability= 'FREE'
+                await technician.save({session})
                 const receiptData = {
                     bookingId: booking._id,
                     customerId: booking.customerId,
