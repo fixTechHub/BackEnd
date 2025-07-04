@@ -23,5 +23,4 @@ router.post('/complete-profile', authenticateToken, handleMulter.fields([{ name:
 router.post('/upload/certificate', authenticateToken, handleMulter.single('certificate'), processAndUploadToS3('certificates'), technicianController.uploadCertificate);
 router.post('/upload/cccd', authenticateToken, handleMulter.fields([{ name: 'frontIdImage', maxCount: 1 }, { name: 'backIdImage', maxCount: 1 }]), processAndUploadToS3('cccd'), technicianController.uploadCCCDImages);
 
-
 module.exports = router;

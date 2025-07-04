@@ -7,7 +7,7 @@ const createBookingRequest = async (req, res) => {
     try {
         const customerId = req.user.userId; 
         // console.log('--- CUSTOMER ID ---', customerId);
-        
+        const io = getIo()
         const { serviceId, description, schedule, address } = req.body;
         // console.log('Booking Text Data:', { customerId, serviceId, description, schedule, address });
 

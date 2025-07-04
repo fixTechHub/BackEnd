@@ -6,6 +6,8 @@ const { initializeSocket } = require('./src/sockets/socket');
 const { setIo } = require('./src/sockets/socketManager');
 const contractCronService = require('./src/cronjobs/contractCronJob');
 const bookingWarrantyCronService = require('./src/cronjobs/warrantyCronJob')
+require('./src/cronjobs/ex'); // Register cron schedule
+
 const PORT = process.env.PORT || 3000;
 
 // Create an HTTP server from the Express app
