@@ -289,6 +289,15 @@ exports.verifyDeactivateAccount = async (req, res) => {
         user.otpExpires = null;
         await user.save();
 
+        // Nếu là technician, cập nhật trạng thái INACTIVE
+        if (user.role?.name === 'TECHNICIAN') {
+            const technician = await require('../models/Technician').findOne({ userId: userId });
+            if (technician) {
+                technician.status = 'INACTIVE';
+                await technician.save();
+            }
+        }
+
         res.status(200).json({
             success: true,
             message: 'Tài khoản đã được vô hiệu hóa thành công. Bạn có thể đăng nhập lại bất cứ lúc nào để kích hoạt lại tài khoản.'
@@ -375,6 +384,15 @@ exports.deactivateAccount = async (req, res) => {
             user.status = 'INACTIVE_USER';
             await user.save();
 
+            // Nếu là technician, cập nhật trạng thái INACTIVE
+            if (user.role?.name === 'TECHNICIAN') {
+                const technician = await require('../models/Technician').findOne({ userId });
+                if (technician) {
+                    technician.status = 'INACTIVE';
+                    await technician.save();
+                }
+            }
+
             return res.status(200).json({
                 success: true,
                 message: 'Tài khoản đã được vô hiệu hóa thành công. Bạn có thể đăng nhập lại bất cứ lúc nào để kích hoạt lại tài khoản.'
@@ -401,6 +419,15 @@ exports.deactivateAccount = async (req, res) => {
         // Vô hiệu hóa tài khoản với trạng thái INACTIVE_USER
         user.status = 'INACTIVE_USER';
         await user.save();
+
+        // Nếu là technician, cập nhật trạng thái INACTIVE
+        if (user.role?.name === 'TECHNICIAN') {
+            const technician = await require('../models/Technician').findOne({ userId });
+            if (technician) {
+                technician.status = 'INACTIVE';
+                await technician.save();
+            }
+        }
 
         res.status(200).json({
             success: true,

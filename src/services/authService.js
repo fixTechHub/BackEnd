@@ -33,6 +33,11 @@ exports.googleAuth = async (access_token) => {
             const payload = await response.json();
         const { sub: googleId, email, name: fullName, picture: avatar } = payload;
 
+        // Ensure we have the user's email – Google account may not return it if permissions were denied
+        if (!email) {
+            throw new HttpError(400, "Tài khoản Google của bạn không cung cấp địa chỉ email. Vui lòng đảm bảo tài khoản có địa chỉ email và cấp quyền truy cập email.");
+        }
+
         let user = await userService.findUserByEmail(email);
         let wasReactivated = false;
 
@@ -51,6 +56,11 @@ exports.googleAuth = async (access_token) => {
                     user.status = 'ACTIVE';
                     await user.save();
                     wasReactivated = true;
+
+                    if (user.role?.name === 'TECHNICIAN') {
+                        const Technician = require('../models/Technician');
+                        await Technician.updateOne({ userId: user._id }, { $set: { status: 'APPROVED' } });
+                    }
                 }
                 
                 // Kiểm tra và khôi phục tài khoản đang chờ xóa
@@ -60,6 +70,11 @@ exports.googleAuth = async (access_token) => {
                     user.deletionScheduledAt = undefined;
                     await user.save();
                     wasReactivated = true;
+
+                    if (user.role?.name === 'TECHNICIAN') {
+                        const Technician = require('../models/Technician');
+                        await Technician.updateOne({ userId: user._id }, { $set: { status: 'APPROVED' } });
+                    }
                 }
             } else {
             // Tìm role PENDING
@@ -71,7 +86,7 @@ exports.googleAuth = async (access_token) => {
             // Tạo user mới với role PENDING
                 user = await userService.createNewUser({
                 fullName,
-                email,
+                emailOrPhone: email,
                     googleId,
                 avatar,
                     status: 'ACTIVE',
@@ -130,6 +145,11 @@ exports.normalLogin = async (email, password) => {
             user.status = 'ACTIVE';
             await user.save();
             wasReactivated = true;
+
+            if (user.role?.name === 'TECHNICIAN') {
+                const Technician = require('../models/Technician');
+                await Technician.updateOne({ userId: user._id }, { $set: { status: 'APPROVED' } });
+            }
         }
         
         // Kiểm tra và khôi phục tài khoản đang chờ xóa
@@ -139,6 +159,11 @@ exports.normalLogin = async (email, password) => {
             user.deletionScheduledAt = undefined;
             await user.save();
             wasReactivated = true;
+
+            if (user.role?.name === 'TECHNICIAN') {
+                const Technician = require('../models/Technician');
+                await Technician.updateOne({ userId: user._id }, { $set: { status: 'APPROVED' } });
+            }
         }
         
         // Đảm bảo user thường không có googleId

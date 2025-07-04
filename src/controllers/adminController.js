@@ -81,6 +81,15 @@ exports.deactivateUserAccount = async (req, res) => {
         user.status = 'INACTIVE_ADMIN';
         await user.save();
 
+        // Nếu là technician thì đặt trạng thái INACTIVE
+        if (user.role?.name === 'TECHNICIAN') {
+            const technician = await require('../models/Technician').findOne({ userId });
+            if (technician) {
+                technician.status = 'INACTIVE';
+                await technician.save();
+            }
+        }
+
         res.status(200).json({
             success: true,
             message: 'Tài khoản người dùng đã được vô hiệu hóa thành công.'
@@ -110,6 +119,15 @@ exports.activateUserAccount = async (req, res) => {
         // Kích hoạt lại tài khoản
         user.status = 'ACTIVE';
         await user.save();
+
+        // Nếu là technician thì đặt lại trạng thái APPROVED
+        if (user.role?.name === 'TECHNICIAN') {
+            const technician = await require('../models/Technician').findOne({ userId });
+            if (technician) {
+                technician.status = 'APPROVED';
+                await technician.save();
+            }
+        }
 
         res.status(200).json({
             success: true,
