@@ -136,9 +136,25 @@ const confirmJobDone = async (req, res) => {
     }
 };
 
+const getUserBookingHistory = async (req,res) => {
+    try {
+        const userId = req.user.userId
+        const role = req.user.role
+        const { limit = 20, skip = 0 } = req.query;
+        const bookings = await bookingService.getUserBookingHistory(userId,role,limit,skip)
+        res.status(200).json({bookings});
+    } catch (error) {
+        console.error('Lỗi khi xác nhận hoàn thành:', error);
+        res.json({
+            error: error.message || 'Không thể xác nhận hoàn thành'
+        });
+    }
+}
+
 module.exports = {
     createBookingRequest,
     getBookingById,
     cancelBooking,
-    confirmJobDone
+    confirmJobDone,
+    getUserBookingHistory
 };

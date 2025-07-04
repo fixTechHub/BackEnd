@@ -10,10 +10,13 @@ const Booking = require('../models/Booking')
 class BookingWarrantyCronService {
     constructor() {
         this.isRunning = false;
+        this.cronScheduled = false
+        this.startCronJobs()
     }
 
     // Start all cron jobs
     startCronJobs() {
+        if (this.cronScheduled) return;
         console.log('Starting booking warranty expiration cron jobs...');
 
         // Run every day at 8:00 AM to check for expired warranties
@@ -21,7 +24,7 @@ class BookingWarrantyCronService {
             this.checkExpiredBookings();
             this.checkExpireWarrantyRequest()
         });
-
+        this.cronScheduled = true;
         console.log('Booking warranty expiration cron jobs started successfully');
     }
 
@@ -77,7 +80,6 @@ class BookingWarrantyCronService {
 
                         // Update balance and totalEarning manually
                         technician.balance = technician.balance + refundAmount;
-                        technician.totalEarning = technician.totalEarning + refundAmount;
 
                         // Save the updated document with session
                         await technician.save({ session });

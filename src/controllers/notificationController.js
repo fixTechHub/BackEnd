@@ -42,3 +42,14 @@ exports.getAllUserNotifications = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+exports.sendNotification = async (req,res) => {
+  try {
+    const [ notifyData] = req.body
+    const notification = await notificationService.createAndSend(notifyData)
+    res.status(200).json(notification);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+    
+  }
+}

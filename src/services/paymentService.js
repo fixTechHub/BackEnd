@@ -60,8 +60,19 @@ const handleSuccessfulPayment = async (orderCode, bookingPriceId) => {
         booking.status = 'DONE';
         booking.isChatAllowed = false
         booking.isVideoCallAllowed = false
+        booking.warrantyExpiresAt = new Date();
+        booking.warrantyExpiresAt.setDate(
+            booking.warrantyExpiresAt.getDate() + bookingPrice.warrantiesDuration
+        );
         await booking.save({ session });
 
+        const receiptTotalAmount = bookingPrice.finalPrice + bookingPrice.discountValue;
+        bookingPrice.holdingAmount = receiptTotalAmount * 0.2;
+        bookingPrice.commissionAmount = receiptTotalAmount * 0.1;
+        await bookingPrice.save({ session });
+        const technician = await Technician.findById(bookingPrice.technicianId)
+        technician.availability = 'FREE'
+        await technician.save({session})
         const receiptData = {
             bookingId: booking._id,
             customerId: booking.customerId,

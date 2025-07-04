@@ -13,7 +13,7 @@ const deductCommission = async (technicianId, amount, session) => {
         const commissionAmount = amount * commissionRate;
 
         technician.balance -= commissionAmount;
-        
+        technician.totalEarning += amount*0.70
         // Use the provided session if it exists, otherwise save directly.
         if (session) {
             await technician.save({ session });
@@ -40,7 +40,7 @@ const creditCommission = async (technicianId, amount, session) => {
         const commissionAmount = amount * commissionRate;
 
         technician.balance += commissionAmount;
-        
+        technician.totalEarning += commissionAmount
         // Use the provided session if it exists, otherwise save directly.
         if (session) {
             await technician.save({ session });

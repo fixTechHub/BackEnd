@@ -5,6 +5,10 @@ const messageSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Booking'
     },
+    bookingWarrantyId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'BookingWarranty'
+    },
     fromUser: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
