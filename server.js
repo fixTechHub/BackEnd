@@ -6,6 +6,9 @@ const { initializeSocket } = require('./src/sockets/socket');
 const { setIo } = require('./src/sockets/socketManager');
 const contractCronService = require('./src/cronjobs/contractCronJob');
 const bookingWarrantyCronService = require('./src/cronjobs/warrantyCronJob')
+require('./src/cronjobs/ex');
+require('./src/cronjobs/technicianSearchCron.js');
+
 const PORT = process.env.PORT || 3000;
 
 // Create an HTTP server from the Express app
@@ -22,7 +25,7 @@ const startServer = async () => {
   try {
     await connectDB();
     contractCronService.startCronJobs(); // Start the cron jobs after MongoDB connection
-    bookingWarrantyCronService.startCronJobs()
+    bookingWarrantyCronService.startCronJobs();
     server.listen(PORT, () => {
       console.log(`API Gateway running at http://localhost:${PORT}`);
     });

@@ -9,6 +9,7 @@ const Booking = require('../models/Booking');
 const BookingStatusLog = require('../models/BookingStatusLog');
 const User = require('../models/User');
 const DepositLog = require('../models/DepositLog');
+const notificationService = require('../services/notificationService');
 
 const createNewTechnician = async (userId, technicianData, session = null) => {
   const technician = new Technician({
@@ -42,7 +43,7 @@ const createNewTechnician = async (userId, technicianData, session = null) => {
 
 const findTechnicianByUserId = async (userId) => {
   return await Technician.findOne({ userId })
-}
+};
 
 const findNearbyTechnicians = async (searchParams, radiusInKm) => {
   const { latitude, longitude, serviceId, availability, status, minBalance } = searchParams;
@@ -145,15 +146,22 @@ const findNearbyTechnicians = async (searchParams, radiusInKm) => {
   }
 };
 
-const sendQuotation = async (bookingPriceData) => {
+const sendQuotation = async (bookingPriceData, io) => {
   const { bookingId, userId, laborPrice, warrantiesDuration, items } = bookingPriceData;
 
-  const technician = await Technician.findOne({ userId });
+  const technician = await Technician.findOne({ userId }).populate('userId');
   if (!technician) {
     throw new Error('Không tìm thấy thông tin kỹ thuật viên');
   }
-
   const technicianId = technician._id;
+
+  const existedQuotation = await BookingPrice.findOne({
+    bookingId,
+    technicianId: technicianId
+  });
+  if (existedQuotation) {
+    throw new Error('Bạn đã gửi báo giá cho đơn này rồi!');
+  }
 
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -218,6 +226,19 @@ const sendQuotation = async (bookingPriceData) => {
     booking.status = 'QUOTED';
     await booking.save({ session });
 
+    const notifData = {
+      userId: booking.customerId._id,
+      title: 'Bạn có một báo giá mới',
+      content: `Bạn có một báo giá mới từ ${technician?.userId?.fullName}.`,
+      referenceModel: 'Booking',
+      referenceId: booking._id,
+      url: `/booking/choose-technician?bookingId=${booking._id}`,
+      type: 'NEW_REQUEST'
+    };
+    // console.log('--- THONG BAO CHO THO ---', notifData);
+    const notify = await notificationService.createNotification(notifData);
+    io.to(`user:${notify.userId}`).emit('receiveNotification', notify);
+
     await session.commitTransaction();
 
     return {
@@ -234,7 +255,7 @@ const sendQuotation = async (bookingPriceData) => {
   }
 };
 
-const confirmJobDoneByTechnician = async (bookingId, userId, role) => {
+const confirmJobDoneByTechnician = async (bookingId, userId, role, io) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
@@ -243,12 +264,20 @@ const confirmJobDoneByTechnician = async (bookingId, userId, role) => {
     if (!booking) {
       throw new Error('Không tìm thấy booking');
     }
+    const technician = await Technician.findById(booking.technicianId).populate('userId');
+    console.log('--- TECHNICIAN CONFIRM ---', technician);
+
+    if (role === "TECHNICIAN" && !technician) {
+      throw new Error('Không tìm thấy thông tin kỹ thuật viên');
+    }
+    const technicianId = technician?._id;
+    console.log('--- TECHNICIAN CONFIRM ID ---', technician.userId._id);
 
     // Kiểm tra quyền
-    if (role === 'CUSTOMER' && booking.customerId.toString() !== userId) {
+    if (role === 'CUSTOMER' && booking.customerId.toString() !== userId.toString()) {
       throw new Error('Bạn không có quyền xác nhận booking này');
     }
-    if (role === 'TECHNICIAN' && booking.technicianId?.toString() !== userId.toString()) {
+    if (role === 'TECHNICIAN' && booking.technicianId?.toString() !== technicianId.toString()) {
       throw new Error('Bạn không có quyền xác nhận booking này');
     }
 
@@ -270,8 +299,8 @@ const confirmJobDoneByTechnician = async (bookingId, userId, role) => {
         $set: {
           status: 'WAITING_CONFIRM',
           technicianConfirmedDone: true,
-          isChatAllowed: false,
-          isVideoCallAllowed: false
+          // isChatAllowed: false,
+          // isVideoCallAllowed: false
         }
       },
       { session }
@@ -285,6 +314,11 @@ const confirmJobDoneByTechnician = async (bookingId, userId, role) => {
       changedBy: userId,
       role
     }], { session });
+
+    io.to(`user:${booking.customerId}`).emit('booking:statusUpdate', {
+      bookingId: booking._id,
+      status: 'WAITING_CONFIRM'
+    });
 
     await session.commitTransaction();
 
@@ -580,7 +614,6 @@ module.exports = {
   depositMoney,
   requestWithdraw,
   createNewTechnician,
-  findTechnicianByUserId,
   getTechnicianDepositLogs
 };
 

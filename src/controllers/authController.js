@@ -8,7 +8,7 @@ const { createUserSchema } = require('../validations/userValidation');
 const { createTechnicianSchema } = require('../validations/technicianValidation');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-const { generateToken } = require('../utils/jwt');
+const { generateToken, generateRefreshToken } = require('../utils/jwt');
 const { sendVerificationEmail } = require('../utils/mail');
 const { sendVerificationSMS } = require('../utils/sms');
 const bcrypt = require('bcryptjs');
@@ -88,7 +88,8 @@ exports.finalizeRegistration = async (req, res) => {
 
         // --- Tạo token đăng nhập tạm thời để người dùng có thể xác thực ngay ---
         const token = generateToken(newUser);
-        generateCookie(token, res);
+        const refreshToken = generateRefreshToken(newUser);
+        generateCookie(token, res, refreshToken);
 
         // --- Return Response ---
         // Không tự động đăng nhập sau khi đăng ký.
@@ -150,8 +151,9 @@ exports.googleAuthController = async (req, res) => {
 
             const { user, token, technician, wasReactivated } = await authService.googleAuth(access_token);
 
-            // Set auth cookie
-            generateCookie(token, res);
+            // Generate refresh token & set cookies
+            const refreshTokenController = generateRefreshToken(user);
+            generateCookie(token, res, refreshTokenController);
 
             // Populate role before sending to client
             await user.populate('role');
@@ -168,8 +170,13 @@ exports.googleAuthController = async (req, res) => {
 
 exports.logout = async (req, res) => {
     try {
-        // Clear the auth cookie
+        // Clear auth cookies
         res.clearCookie('token', {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict'
+        });
+        res.clearCookie('refreshToken', {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'strict'
@@ -191,8 +198,9 @@ exports.login = async (req, res) => {
         const { email, password } = req.body;
         const result = await authService.normalLogin(email, password);
 
-        // Set auth cookie
-        generateCookie(result.token, res);
+        // Generate refresh token & set cookies
+        const refreshToken = generateRefreshToken(result.user);
+        generateCookie(result.token, res, refreshToken);
         await result.user.populate('role');
 
         // Kiểm tra trạng thái xác thực
@@ -219,8 +227,9 @@ exports.googleLogin = async (req, res) => {
 
         const result = await authService.googleAuth(access_token);
 
-        // Set auth cookie
-        generateCookie(result.token, res);
+        // Generate refresh token & set cookies
+        const refreshToken = generateRefreshToken(result.user);
+        generateCookie(result.token, res, refreshToken);
         await result.user.populate('role');
 
         // console.log('--- GOOLE AUTHENTICATION ---', result.user);
@@ -295,9 +304,23 @@ const checkVerificationStatus = async (user) => {
                     message: 'Vui lòng hoàn thành hồ sơ kỹ thuật viên'
                 };
             }
+
+            // Kiểm tra các trường bắt buộc
+            const hasSpecialties = Array.isArray(technician.specialtiesCategories) && technician.specialtiesCategories.length > 0;
+            const hasCertificates = Array.isArray(technician.certificate) && technician.certificate.length > 0;
+            const hasIdentification = technician.identification && technician.identification.trim() !== '';
+            const hasFrontIdImage = technician.frontIdImage && technician.frontIdImage.trim() !== '';
+            const hasBackIdImage = technician.backIdImage && technician.backIdImage.trim() !== '';
+
+            if (!hasSpecialties || !hasCertificates || !hasIdentification || !hasFrontIdImage || !hasBackIdImage) {
+                return {
+                    step: 'COMPLETE_PROFILE',
+                    redirectTo: '/technician/complete-profile',
+                    message: 'Vui lòng hoàn thành hồ sơ kỹ thuật viên'
+                };
+            }
         } catch (error) {
             console.error('Error checking technician profile:', error);
-            // Fallback: assume technician needs to complete profile
             return {
                 step: 'COMPLETE_PROFILE',
                 redirectTo: '/technician/complete-profile',
@@ -387,10 +410,6 @@ exports.register = async (req, res) => {
         // Kiểm tra trạng thái xác thực sau khi tạo user
         const verificationStatus = await checkVerificationStatus(populatedUser);
 
-        // Return response
-        return res.status(201).json({
-            message: `Mã xác thực đã được gửi đến ${isEmail ? 'email' : 'số điện thoại'} của bạn`,
-            user: populatedUser, // Không cần populate role nữa
             verificationType: isEmail ? 'email' : 'phone',
             verificationStatus: verificationStatus
         });
@@ -499,7 +518,9 @@ exports.verifyEmail = async (req, res) => {
 
         // Generate new token
         const newToken = generateToken(user);
-        generateCookie(newToken, res);
+        // Keep existing refreshToken cookie if any
+        const existingRefresh = req.cookies.refreshToken;
+        generateCookie(newToken, res, existingRefresh);
 
         // Check verification status
         const verificationStatus = await checkVerificationStatus(user);
@@ -597,7 +618,8 @@ exports.verifyOTP = async (req, res) => {
 
         // Generate new token
         const newToken = generateToken(populatedUser);
-        generateCookie(newToken, res);
+        const existingRefresh = req.cookies.refreshToken;
+        generateCookie(newToken, res, existingRefresh);
 
         // Kiểm tra trạng thái xác thực sau khi xác thực OTP
         const verificationStatus = await checkVerificationStatus(populatedUser);
@@ -678,8 +700,9 @@ exports.refreshToken = async (req, res) => {
             return res.status(401).json({ message: 'Không tìm thấy refresh token' });
         }
 
-        // Verify refresh token
-        const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+        // Verify refresh token (fallback to JWT_SECRET if refresh secret undefined)
+        const secret = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET;
+        const decoded = jwt.verify(refreshToken, secret);
 
         // Tìm user
         const user = await User.findById(decoded.userId);

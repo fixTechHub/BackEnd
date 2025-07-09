@@ -6,13 +6,30 @@ exports.generateCode = () => {
     return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
-exports.generateCookie = async (token, res) => {
-    res.cookie("token", token, {
+/**
+ * Set auth cookies (access & optionally refresh).
+ * @param {string} accessToken Access JWT
+ * @param {object} res Express response
+ * @param {string} [refreshToken] Optional refresh JWT
+ */
+exports.generateCookie = (accessToken, res, refreshToken) => {
+    // Access token – 15 phút
+    res.cookie("token", accessToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production', // Only secure in production
+        secure: process.env.NODE_ENV === 'production',
         sameSite: "Strict",
-        maxAge: 24 * 60 * 60 * 1000,
+        maxAge: 15 * 60 * 1000,
     });
+
+    // Refresh token – 7 ngày
+    if (refreshToken) {
+        res.cookie("refreshToken", refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: "Strict",
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+    }
 };
 
 exports.generateUserCode = async () => {

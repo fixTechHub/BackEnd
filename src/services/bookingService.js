@@ -3,7 +3,72 @@ const Booking = require('../models/Booking');
 const technicianService = require('./technicianService');
 const BookingPrice = require('../models/BookingPrice');
 const BookingStatusLog = require('../models/BookingStatusLog');
-const notificationService = require('../services/notificationService')
+const notificationService = require('../services/notificationService');
+const BookingTechnicianSearch = require('../models/BookingTechnicianSearch');
+const Technician = require('../models/Technician');
+const BookingItem = require('../models/BookingItem');
+
+const MAX_TECHNICIANS = 10;
+const SEARCH_RADII = [5, 10, 15, 30];
+
+const findTechniciansWithExpandingRadiusAndSave = async (searchParams, bookingId, io) => {
+    let foundTechnicians = [];
+    let foundTechnicianIds = new Set();
+
+    // Lấy trạng thái tìm kiếm hiện tại
+    let searchState = await BookingTechnicianSearch.findOne({ bookingId });
+    if (searchState) {
+        foundTechnicianIds = new Set(searchState.foundTechnicianIds.map(id => String(id)));
+    } else {
+        searchState = new BookingTechnicianSearch({ bookingId, foundTechnicianIds: [] });
+    }
+
+    for (const radius of SEARCH_RADII) {
+        const result = await technicianService.findNearbyTechnicians(searchParams, radius);
+        if (result && result.data && result.data.length > 0) {
+            for (const tech of result.data) {
+                if (!foundTechnicianIds.has(String(tech.userId))) {
+                    foundTechnicians.push(tech);
+                    foundTechnicianIds.add(String(tech.userId));
+                }
+            }
+        }
+        if (foundTechnicians.length >= MAX_TECHNICIANS) break;
+    }
+
+    // Lưu lại trạng thái
+    searchState.foundTechnicianIds = Array.from(foundTechnicianIds);
+    searchState.lastSearchAt = new Date();
+    if (foundTechnicians.length >= MAX_TECHNICIANS) searchState.completed = true;
+    await searchState.save();
+
+    // Gửi thông báo cho các thợ mới tìm được
+    if (io && bookingId && foundTechnicians.length > 0) {
+        const notificationPromises = foundTechnicians.map(async tech => {
+            const notifData = {
+                userId: tech.userId,
+                title: 'Yêu cầu công việc mới gần bạn',
+                content: `Có một yêu cầu mới cách bạn khoảng ${(tech.distance / 1000).toFixed(1)} km. Nhấn để xem và báo giá.`,
+                referenceModel: 'Booking',
+                referenceId: bookingId,
+                url: `/technician/send-quotation?bookingId=${bookingId}`,
+                type: 'NEW_REQUEST'
+            };
+            const notify = await notificationService.createNotification(notifData);
+            io.to(`user:${notify.userId}`).emit('receiveNotification', notify);
+        });
+        await Promise.all(notificationPromises);
+    }
+
+    return {
+        data: foundTechnicians,
+        total: foundTechnicians.length,
+        message: foundTechnicians.length < MAX_TECHNICIANS
+            ? 'Đã tìm được một số thợ, hệ thống sẽ tiếp tục tìm thêm nếu cần.'
+            : 'Đã tìm đủ thợ phù hợp.'
+    };
+};
+
 const createRequestAndNotify = async (bookingData, io) => {
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -21,7 +86,7 @@ const createRequestAndNotify = async (bookingData, io) => {
         console.log('--- ĐẶT LỊCH MỚI ---', newBooking);
 
         await newBooking.save({ session });
-        console.log('--- ĐẶT LỊCH MỚI ---', newBooking);
+        // console.log('--- ĐẶT LỊCH MỚI SAU SAVE ---', newBooking);
 
         const { location, serviceId } = bookingData;
         const searchParams = {
@@ -30,44 +95,16 @@ const createRequestAndNotify = async (bookingData, io) => {
             serviceId: serviceId,
             availability: 'FREE',
             status: 'APPROVED',
-            minBalance: 100000
+            minBalance: 200000
         };
 
-        const nearbyTechnicians = await technicianService.findNearbyTechnicians(searchParams, 10);
-        console.log('--- KẾT QUẢ TÌM THỢ ---', nearbyTechnicians);
-
-        if (!nearbyTechnicians || !nearbyTechnicians.data || nearbyTechnicians.total === 0) {
-            console.log('Không tìm thấy thợ nào phù hợp');
-            await session.commitTransaction();
-            return {
-                booking: newBooking,
-                technicians: { data: [], total: 0 },
-                message: 'Hiện tại chưa tìm thấy thợ nào phù hợp. Vui lòng thử lại sau.'
-            };
-        }
-
-        // 3. Tạo và gửi thông báo cho các thợ đã tìm thấy
-        const notificationPromises = nearbyTechnicians.data.map(async tech => {
-            const notifData = {
-                userId: tech.userId,
-                title: 'Yêu cầu công việc mới gần bạn',
-                content: `Có một yêu cầu mới cách bạn khoảng ${(tech.distance / 1000).toFixed(1)} km. Nhấn để xem và báo giá.`,
-                referenceModel: 'Booking',
-                referenceId: newBooking._id,
-                url: `technician/send-quotation?bookingId=${newBooking._id}`,
-                type: 'NEW_REQUEST'
-            };
-            console.log('--- THONG BAO CHO THO ---', notifData);
-            const notify = await notificationService.createNotification(notifData);
-            io.to(`user:${notify.userId}`).emit('receiveNotification', notify);
-        });
-
-        await Promise.all(notificationPromises);
+        // Tìm thợ lần đầu và lưu trạng thái
+        const foundTechs = await findTechniciansWithExpandingRadiusAndSave(searchParams, newBooking._id, io);
 
         await session.commitTransaction();
         session.endSession();
 
-        return { booking: newBooking, technicians: nearbyTechnicians };
+        return { booking: newBooking, technicians: foundTechs };
     } catch (error) {
         await session.abortTransaction();
         session.endSession();
@@ -75,7 +112,7 @@ const createRequestAndNotify = async (bookingData, io) => {
     }
 };
 
-const   getBookingById = async (bookingId) => {
+const getBookingById = async (bookingId) => {
     try {
         if (!mongoose.Types.ObjectId.isValid(bookingId)) {
             throw new Error('ID đặt lịch không hợp lệ');
@@ -88,10 +125,16 @@ const   getBookingById = async (bookingId) => {
             })
             .populate({
                 path: 'technicianId',
-                populate: {
-                    path: 'userId',
-                    select: 'fullName email phone avatar'
-                }
+                populate: [
+                    {
+                        path: 'userId',
+                        select: 'fullName email phone avatar'
+                    },
+                    {
+                        path: 'specialtiesCategories',
+                        select: 'categoryName'
+                    }
+                ]
             })
             .populate({
                 path: 'serviceId',
@@ -109,7 +152,7 @@ const   getBookingById = async (bookingId) => {
     }
 };
 
-const cancelBooking = async (bookingId, userId, role, reason) => {
+const cancelBooking = async (bookingId, userId, role, reason, io) => {
     const session = await mongoose.startSession();
     session.startTransaction();
 
@@ -119,24 +162,37 @@ const cancelBooking = async (bookingId, userId, role, reason) => {
         if (!booking) {
             throw new Error('Không tìm thấy booking');
         }
+        console.log('--- BOOKING ---', booking);
+
+
+        const technician = await Technician.findById(booking.technicianId).populate('userId');
+        console.log('--- TECHNICIAN ---', technician);
+
+
+        if (role === "TECHNICIAN" && !technician) {
+            throw new Error('Không tìm thấy thông tin kỹ thuật viên');
+        }
+        const technicianId = technician?._id;
+        console.log('--- TECHNICIAN ID ---', technician?.userId?._id);
+
 
         // Kiểm tra quyền hủy
         if (role === 'CUSTOMER' && booking.customerId.toString() !== userId) {
             throw new Error('Bạn không có quyền hủy booking này');
         }
-        if (role === 'TECHNICIAN' && booking.technicianId?.toString() !== userId) {
+        if (role === 'TECHNICIAN' && booking.technicianId?.toString() !== technicianId.toString()) {
             throw new Error('Bạn không có quyền hủy booking này');
         }
 
         // Kiểm tra trạng thái hiện tại
         if (booking.status === 'CANCELLED') {
-            throw new Error('Booking đã bị hủy trước đó');
+            throw new Error('Đơn này đã bị hủy trước đó');
         }
         if (booking.status === 'DONE') {
-            throw new Error('Không thể hủy booking đã hoàn thành');
+            throw new Error('Không thể hủy đơn đã hoàn thành');
         }
         if (booking.status === 'WAITING_CONFIRM') {
-            throw new Error('Không thể hủy booking đã hoàn thành');
+            throw new Error('Không thể hủy đơn khi thợ đã xác nhận hoàn thành');
         }
 
         // Cập nhật trạng thái booking
@@ -173,6 +229,53 @@ const cancelBooking = async (bookingId, userId, role, reason) => {
             );
         }
 
+        if (booking.status === 'IN_PROGRESS' && booking.technicianId) {
+            await Technician.findByIdAndUpdate(
+                booking.technicianId,
+                { $set: { availability: 'FREE' } },
+                { session }
+            );
+        }
+
+        io.to(`user:${booking.customerId}`).emit('booking:statusUpdate', {
+            bookingId: booking._id.toString(),
+            status: 'CANCELLED'
+        });
+        if (technician && technician.userId) {
+            io.to(`user:${technician.userId._id}`).emit('booking:statusUpdate', {
+                bookingId: booking._id.toString(),
+                status: 'CANCELLED'
+            });
+        }
+
+        if (role === 'CUSTOMER') {
+            const notifData = {
+                userId: booking.customerId._id,
+                title: 'Đơn đã bị hủy',
+                content: `Đơn này đã bị hủy vì lí do ${reason}`,
+                referenceModel: 'Booking',
+                referenceId: bookingId,
+                url: '/',
+                type: 'NEW_REQUEST'
+            };
+            const notify = await notificationService.createNotification(notifData);
+            io.to(`user:${notify.userId}`).emit('receiveNotification', notify);
+        }
+
+        if (role === 'TECHNICIAN') {
+            const notifData = {
+                userId: booking.technicianId._id,
+                title: 'Đơn đã bị hủy',
+                content: `Đơn này đã bị hủy vì lí do ${reason}`,
+                referenceModel: 'Booking',
+                referenceId: bookingId,
+                url: '/',
+                type: 'NEW_REQUEST'
+            };
+            const notify = await notificationService.createNotification(notifData);
+            io.to(`user:${notify.userId}`).emit('receiveNotification', notify);
+        }
+
         await session.commitTransaction();
 
         // Lấy lại booking sau khi cập nhật
@@ -183,6 +286,65 @@ const cancelBooking = async (bookingId, userId, role, reason) => {
         throw error;
     } finally {
         session.endSession();
+    }
+};
+
+const getDetailBookingById = async (bookingId) => {
+    try {
+        if (!mongoose.Types.ObjectId.isValid(bookingId)) {
+            throw new Error('ID đặt lịch không hợp lệ');
+        }
+
+        const booking = await Booking.findById(bookingId)
+            .populate({
+                path: 'customerId',
+                select: 'fullName email phone avatar'
+            })
+            .populate({
+                path: 'technicianId',
+                populate: [
+                    {
+                        path: 'userId',
+                        select: 'fullName email phone avatar'
+                    },
+                    {
+                        path: 'specialtiesCategories',
+                        select: 'categoryName'
+                    }
+                ]
+            })
+            .populate({ path: 'serviceId' })
+            .populate('cancelledBy');
+
+        if (!booking) {
+            throw new Error('Không tìm thấy đặt lịch');
+        }
+
+        let bookingPrice = null;
+        let bookingItems = [];
+
+        if (booking.status === 'IN_PROGRESS') {
+            bookingPrice = await BookingPrice.findOne({ bookingId: bookingId, status: 'ACCEPTED' })
+                .populate('commissionConfigId')
+
+            if (!bookingPrice) {
+                throw new Error('Không tìm thấy booking price');
+            }
+
+            bookingItems = await BookingItem.find({ bookingPriceId: bookingPrice._id, isApprovedByCustomer: true });
+
+            if (!bookingItems) {
+                throw new Error('Không tìm thấy booking price');
+            }
+        }
+
+        return {
+            booking,
+            bookingPrice,
+            bookingItems
+        };
+    } catch (error) {
+        throw error;
     }
 };
 
@@ -198,9 +360,6 @@ const confirmJobDone = async (bookingId, userId, role) => {
 
         // Kiểm tra quyền
         if (role === 'CUSTOMER' && booking.customerId.toString() !== userId) {
-            throw new Error('Bạn không có quyền xác nhận booking này');
-        }
-        if (role === 'TECHNICIAN' && booking.technicianId?.toString() !== userId) {
             throw new Error('Bạn không có quyền xác nhận booking này');
         }
 
@@ -251,9 +410,111 @@ const confirmJobDone = async (bookingId, userId, role) => {
     }
 };
 
+// Thợ gửi báo giá (quote)
+const technicianSendQuote = async (bookingId, technicianId, quoteData) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+        const booking = await Booking.findById(bookingId).session(session);
+        if (!booking) throw new Error('Không tìm thấy booking');
+        if (!booking.technicianId || booking.technicianId.toString() !== technicianId) {
+            throw new Error('Bạn không có quyền gửi báo giá cho booking này');
+        }
+        if (booking.status !== 'PENDING' && booking.status !== 'IN_PROGRESS') {
+            throw new Error('Không thể gửi báo giá ở trạng thái hiện tại');
+        }
+        // Cập nhật báo giá
+        booking.quote = {
+            ...booking.quote,
+            ...quoteData,
+            status: 'PENDING',
+            quotedAt: new Date(),
+        };
+        booking.status = 'IN_PROGRESS';
+        await booking.save({ session });
+        await session.commitTransaction();
+        return booking;
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
+};
+
+// Khách đồng ý báo giá
+const customerAcceptQuote = async (bookingId, customerId) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+        const booking = await Booking.findById(bookingId).session(session);
+        if (!booking) throw new Error('Không tìm thấy booking');
+        if (booking.customerId.toString() !== customerId) {
+            throw new Error('Bạn không có quyền duyệt báo giá cho booking này');
+        }
+        if (!booking.quote || booking.quote.status !== 'PENDING') {
+            throw new Error('Không có báo giá chờ duyệt');
+        }
+        booking.quote.status = 'ACCEPTED';
+        booking.status = 'WAITING_CONFIRM';
+        // Tính finalPrice (laborPrice + parts)
+        let partsTotal = 0;
+        if (Array.isArray(booking.quote.items)) {
+            partsTotal = booking.quote.items.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0);
+        }
+        booking.finalPrice = (booking.quote.laborPrice || 0) + partsTotal;
+        // TODO: Tính commissionAmount, technicianEarning nếu cần
+        await booking.save({ session });
+        await session.commitTransaction();
+        return booking;
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
+};
+
+// Khách từ chối báo giá
+const customerRejectQuote = async (bookingId, customerId) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+        const booking = await Booking.findById(bookingId).session(session);
+        if (!booking) throw new Error('Không tìm thấy booking');
+        if (booking.customerId.toString() !== customerId) {
+            throw new Error('Bạn không có quyền từ chối báo giá cho booking này');
+        }
+        if (!booking.quote || booking.quote.status !== 'PENDING') {
+            throw new Error('Không có báo giá chờ duyệt');
+        }
+        booking.quote.status = 'REJECTED';
+        // Trừ inspectionFee vào finalPrice
+        // Lấy inspectionFee từ technician
+        const technician = await Technician.findById(booking.technicianId);
+        const inspectionFee = technician?.rates?.inspectionFee || 0;
+        booking.finalPrice = inspectionFee;
+        booking.status = 'DONE'; // Hoặc trạng thái phù hợp (có thể là CANCELLED tuỳ business)
+        booking.paymentStatus = 'PENDING';
+        await booking.save({ session });
+        await session.commitTransaction();
+        return booking;
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
+};
+
 module.exports = {
     createRequestAndNotify,
     getBookingById,
     cancelBooking,
-    confirmJobDone
+    confirmJobDone,
+    findTechniciansWithExpandingRadiusAndSave,
+    getDetailBookingById,
+    technicianSendQuote,
+    customerAcceptQuote,
+    customerRejectQuote
 };

@@ -25,8 +25,14 @@ const technicianSchema = new mongoose.Schema({
     backIdImage: { type: String },
     status: {
         type: String,
-        enum: ['PENDING', 'APPROVED', 'REJECTED'],
+        enum: ['PENDING', 'APPROVED', 'REJECTED', 'INACTIVE', 'PENDING_DELETION', 'DELETED'],
         default: 'PENDING'
+    },
+    pendingDeletionAt: {
+        type: Date
+    },
+    deletedAt: {
+        type: Date
     },
     ratingAverage: {
         type: Number,
@@ -80,6 +86,23 @@ const technicianSchema = new mongoose.Schema({
     totalWithdrawn: {
         type: Number,
         default: 0
+    },
+    rates: { // Đơn giá do thợ tự cấu hình
+        inspectionFee: {
+            type: Number,
+            required: true
+        },
+        // Tiền công theo các bậc phức tạp
+        laborTiers: {
+            // "Giá công từ" sẽ được lấy từ đây
+            tier1: { type: Number }, // Sửa chữa đơn giản
+            tier2: { type: Number }, // Sửa chữa trung bình
+            tier3: { type: Number }  // Sửa chữa phức tạp
+        }
+    },
+    pricesLastUpdatedAt: {
+        type: Date,
+        default: null
     }
 }, {
     timestamps: true

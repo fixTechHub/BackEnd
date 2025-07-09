@@ -9,7 +9,7 @@ const createBookingRequest = async (req, res) => {
         const customerId = req.user.userId;
         // console.log('--- CUSTOMER ID ---', customerId);
 
-        const { serviceId, description, schedule, address } = req.body;
+        const { serviceId, description, startTime, endTime, address } = req.body;
         // console.log('Booking Text Data:', { customerId, serviceId, description, schedule, address });
 
         // Chuyển đổi địa chỉ string sang GeoJSON Point bằng Mapbox
@@ -29,8 +29,18 @@ const createBookingRequest = async (req, res) => {
         }
         console.log('--- LOCATION ---', location);
 
+        const schedule = {
+            startTime,
+            endTime
+        }
+        console.log('--- SCHEDULE ---', schedule);
+
+        if (!schedule?.startTime || !schedule?.endTime) {
+            return res.status(400).json({ success: false, message: 'Vui lòng chọn thời gian bắt đầu và kết thúc.' });
+        }
+
         const imageUrls = req.s3FileUrls || [];
-        // console.log('Uploaded Image URLs:', imageUrls);
+        console.log('Uploaded Image URLs:', imageUrls);
 
         const bookingData = {
             customerId,
@@ -84,6 +94,7 @@ const cancelBooking = async (req, res) => {
         const { reason } = req.body;
         const userId = req.user.userId;
         const role = req.user.role;
+        const io = getIo()
         // console.log('--- ROLE ---', role);
 
         if (!reason) {
@@ -96,7 +107,8 @@ const cancelBooking = async (req, res) => {
             bookingId,
             userId,
             role,
-            reason
+            reason,
+            io
         );
 
         res.status(200).json({
@@ -135,9 +147,71 @@ const confirmJobDone = async (req, res) => {
     }
 };
 
+const getDetailBookingById = async (req, res) => {
+    try {
+        const bookingId = req.params.bookingId;
+
+        const booking = await bookingService.getDetailBookingById(bookingId);
+
+        res.status(200).json({
+            success: true,
+            message: 'Lấy thông tin đặt lịch chi tiết thành công!',
+            data: booking
+        });
+    } catch (error) {
+        console.error('Create Booking Request Error:', error);
+        res.status(400).json({
+            success: false,
+            message: 'Lấy thông tin đặt lịch thất bại.',
+            error: error.message
+        });
+    }
+};
+
+// Thợ gửi báo giá (quote)
+const technicianSendQuote = async (req, res) => {
+    try {
+        const { bookingId } = req.params;
+        const technicianId = req.user.userId;
+        const quoteData = req.body;
+        const booking = await bookingService.technicianSendQuote(bookingId, technicianId, quoteData);
+        res.status(200).json({ success: true, message: 'Gửi báo giá thành công', data: booking });
+    } catch (error) {
+        res.status(400).json({ success: false, message: error.message });
+    }
+};
+
+// Khách đồng ý báo giá
+const customerAcceptQuote = async (req, res) => {
+    try {
+        const { bookingId } = req.params;
+        const customerId = req.user.userId;
+        const booking = await bookingService.customerAcceptQuote(bookingId, customerId);
+        res.status(200).json({ success: true, message: 'Đồng ý báo giá thành công', data: booking });
+    } catch (error) {
+        res.status(400).json({ success: false, message: error.message });
+    }
+};
+
+// Khách từ chối báo giá
+const customerRejectQuote = async (req, res) => {
+    try {
+        const { bookingId } = req.params;
+        const customerId = req.user.userId;
+        const booking = await bookingService.customerRejectQuote(bookingId, customerId);
+        res.status(200).json({ success: true, message: 'Từ chối báo giá thành công', data: booking });
+    } catch (error) {
+        res.status(400).json({ success: false, message: error.message });
+    }
+};
+
 module.exports = {
     createBookingRequest,
     getBookingById,
     cancelBooking,
-    confirmJobDone
+    confirmJobDone,
+    getDetailBookingById,
+    technicianSendQuote,
+    customerAcceptQuote,
+    customerRejectQuote
 };

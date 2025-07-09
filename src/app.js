@@ -26,7 +26,8 @@ app.use(
     })
 );
 
-app.use(actionLogger);
+// app.use(actionLogger);
+
 // Routes (Định tuyến)
 app.use('/api', routes);
 

@@ -2,14 +2,17 @@ const technicianService = require('../services/technicianService');
 const User = require('../models/User');
 const Technician = require('../models/Technician');
 const { deleteFileFromS3, uploadFileToS3 } = require('../services/s3Service');
-const contractService = require('../services/contractService')
-const notificationService = require('../services/notificationService')
+const contractService = require('../services/contractService');
+const bookingService = require('../services/bookingService');
+const notificationService = require('../services/notificationService');
+const { getIo } = require('../sockets/socketManager');
+
 const sendQuotation = async (req, res) => {
   try {
     const userId = req.user.userId;
     // console.log('USSER ID', req.user);
-    
     const { bookingId, laborPrice, items, warrantiesDuration } = req.body;
+
     const bookingPriceData = {
       bookingId,
       userId,
@@ -18,7 +21,20 @@ const sendQuotation = async (req, res) => {
       items
     };
 
-    const result = await technicianService.sendQuotation(bookingPriceData);
+    const io = getIo();
+
+    const result = await technicianService.sendQuotation(bookingPriceData, io);
+
+    const booking = await bookingService.getBookingById(bookingId);
+
+    io.to(`user:${booking.customerId._id}`).emit('booking:quotation', {
+      bookingId,
+      technicianId: userId,
+      quotation: result.bookingPrice,
+      items: result.bookingItems
+    });
+    console.log('Emit booking:quotation to user:', booking.customerId._id);
+
     res.status(200).json(result);
   } catch (error) {
     console.error('Error sending quotation:', error);
@@ -31,11 +47,13 @@ const confirmJobDoneByTechnician = async (req, res) => {
     const { bookingId } = req.params;
     const userId = req.user.userId;
     const role = req.user.role;
+    const io = getIo();
 
     const booking = await technicianService.confirmJobDoneByTechnician(
       bookingId,
       userId,
-      role
+      role,
+      io
     );
 
     res.status(200).json({
@@ -91,7 +109,7 @@ const registerAsTechnician = async (req, res, next) => {
   try {
     const technician = await technicianService.registerAsTechnician(req.body);
     const result = await contractService.generateContractOnRegistration(technician._id, session);
-    
+
     res.status(201).json({
       message: 'Technician registration submitted. Waiting for admin approval.',
       technician,
@@ -100,7 +118,6 @@ const registerAsTechnician = async (req, res, next) => {
     next(error);
   }
 };
-
 
 const viewJobDetails = async (req, res) => {
   try {

@@ -6,16 +6,23 @@ const couponService = require('./couponService');
 const CouponUsage = require('../models/CouponUsage');
 const paymentService = require('./paymentService');
 const receiptService = require('./receiptService');
-const technicianService = require('./technicianService');
 const notificationService = require('./notificationService');
 const commissionService = require('./commissionService');
 const BookingPriceLog = require('../models/BookingPriceLog');
+const Booking = require('../models/Booking');
 
 const getAllQuotations = async (bookingId) => {
     try {
         if (!mongoose.Types.ObjectId.isValid(bookingId)) {
             throw new Error('ID đặt lịch không hợp lệ');
         }
+
+        const booking = await Booking.findById(bookingId);
+        if (booking.status === 'CANCELLED') {
+            throw new Error('Bạn không thể truy cập vào trang này vì đơn này đã bị hủy');
+        }
+        console.log('--- BOOKING STATUS ---', booking);
+
 
         const quotations = await BookingPrice.find({ bookingId })
             .populate({
@@ -123,6 +130,15 @@ const acceptQuotation = async (quotationId, customerId, io) => {
             createdAt: new Date()
         }], { session });
 
+        // Update isApprovedByCustomer for all items if any
+        if (items && items.length > 0) {
+            await BookingItem.updateMany(
+                { bookingPriceId: quotationId },
+                { $set: { isApprovedByCustomer: true } },
+                { session }
+            );
+        }
+
         // 3. Tạo và gửi thông báo đơn đã được xác nhận cho các thợ 
         const notifData = {
             userId: quotation.technicianId.userId,
@@ -130,7 +146,7 @@ const acceptQuotation = async (quotationId, customerId, io) => {
             content: 'Đơn của bạn đã được khách hàng chấp nhận. Hãy liên lạc với khách để bắt đầu sửa chữa nhé.',
             referenceModel: 'Booking',
             referenceId: quotation.bookingId._id,
-            url: `technician/send-quotation?bookingId=${quotation.bookingId._id}`,
+            url: `/booking/booking-processing?bookingId=${quotation.bookingId._id}`,
             type: 'NEW_REQUEST'
         };
         console.log('--- THONG BAO CHO THO ---', notifData);
