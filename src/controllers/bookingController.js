@@ -147,27 +147,6 @@ const confirmJobDone = async (req, res) => {
     }
 };
 
-const getDetailBookingById = async (req, res) => {
-    try {
-        const bookingId = req.params.bookingId;
-
-        const booking = await bookingService.getDetailBookingById(bookingId);
-
-        res.status(200).json({
-            success: true,
-            message: 'Lấy thông tin đặt lịch chi tiết thành công!',
-            data: booking
-        });
-    } catch (error) {
-        console.error('Create Booking Request Error:', error);
-        res.status(400).json({
-            success: false,
-            message: 'Lấy thông tin đặt lịch thất bại.',
-            error: error.message
-        });
-    }
-};
-
 // Thợ gửi báo giá (quote)
 const technicianSendQuote = async (req, res) => {
     try {
@@ -205,13 +184,33 @@ const customerRejectQuote = async (req, res) => {
     }
 };
 
+const getTopBookedServices = async (req, res) => {
+    try {
+        const limit = 6;
+
+        const topServices = await bookingService.getTopBookedServices(limit);
+
+        res.status(200).json({
+            success: true,
+            message: `Lấy ${limit} dịch vụ hàng đầu thành công.`,
+            data: topServices
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message || "Đã có lỗi xảy ra ở server."
+        });
+    }
+};
+
 module.exports = {
     createBookingRequest,
     getBookingById,
     cancelBooking,
     confirmJobDone,
-    getDetailBookingById,
     technicianSendQuote,
     customerAcceptQuote,
-    customerRejectQuote
+    customerRejectQuote,
+    getTopBookedServices
 };

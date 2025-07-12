@@ -1,12 +1,10 @@
 const mongoose = require('mongoose');
 const Booking = require('../models/Booking');
 const technicianService = require('./technicianService');
-const BookingPrice = require('../models/BookingPrice');
 const BookingStatusLog = require('../models/BookingStatusLog');
 const notificationService = require('../services/notificationService');
 const BookingTechnicianSearch = require('../models/BookingTechnicianSearch');
 const Technician = require('../models/Technician');
-const BookingItem = require('../models/BookingItem');
 
 const MAX_TECHNICIANS = 10;
 const SEARCH_RADII = [5, 10, 15, 30];
@@ -42,23 +40,23 @@ const findTechniciansWithExpandingRadiusAndSave = async (searchParams, bookingId
     if (foundTechnicians.length >= MAX_TECHNICIANS) searchState.completed = true;
     await searchState.save();
 
-    // Gửi thông báo cho các thợ mới tìm được
-    if (io && bookingId && foundTechnicians.length > 0) {
-        const notificationPromises = foundTechnicians.map(async tech => {
-            const notifData = {
-                userId: tech.userId,
-                title: 'Yêu cầu công việc mới gần bạn',
-                content: `Có một yêu cầu mới cách bạn khoảng ${(tech.distance / 1000).toFixed(1)} km. Nhấn để xem và báo giá.`,
-                referenceModel: 'Booking',
-                referenceId: bookingId,
-                url: `/technician/send-quotation?bookingId=${bookingId}`,
-                type: 'NEW_REQUEST'
-            };
-            const notify = await notificationService.createNotification(notifData);
-            io.to(`user:${notify.userId}`).emit('receiveNotification', notify);
-        });
-        await Promise.all(notificationPromises);
-    }
+    // // Gửi thông báo cho các thợ mới tìm được
+    // if (io && bookingId && foundTechnicians.length > 0) {
+    //     const notificationPromises = foundTechnicians.map(async tech => {
+    //         const notifData = {
+    //             userId: tech.userId,
+    //             title: 'Yêu cầu công việc mới gần bạn',
+    //             content: `Có một yêu cầu mới cách bạn khoảng ${(tech.distance / 1000).toFixed(1)} km. Nhấn để xem và báo giá.`,
+    //             referenceModel: 'Booking',
+    //             referenceId: bookingId,
+    //             url: `/technician/send-quotation?bookingId=${bookingId}`,
+    //             type: 'NEW_REQUEST'
+    //         };
+    //         const notify = await notificationService.createNotification(notifData);
+    //         io.to(`user:${notify.userId}`).emit('receiveNotification', notify);
+    //     });
+    //     await Promise.all(notificationPromises);
+    // }
 
     return {
         data: foundTechnicians,
@@ -220,15 +218,6 @@ const cancelBooking = async (bookingId, userId, role, reason, io) => {
             note: reason
         }], { session });
 
-        // Nếu booking đang có báo giá, cập nhật trạng thái báo giá
-        if (booking.status === 'QUOTED') {
-            await BookingPrice.updateMany(
-                { bookingId, status: 'PENDING' },
-                { status: 'REJECTED' },
-                { session }
-            );
-        }
-
         if (booking.status === 'IN_PROGRESS' && booking.technicianId) {
             await Technician.findByIdAndUpdate(
                 booking.technicianId,
@@ -289,64 +278,45 @@ const cancelBooking = async (bookingId, userId, role, reason, io) => {
     }
 };
 
-const getDetailBookingById = async (bookingId) => {
-    try {
-        if (!mongoose.Types.ObjectId.isValid(bookingId)) {
-            throw new Error('ID đặt lịch không hợp lệ');
-        }
+// const getDetailBookingById = async (bookingId) => {
+//     try {
+//         if (!mongoose.Types.ObjectId.isValid(bookingId)) {
+//             throw new Error('ID đặt lịch không hợp lệ');
+//         }
 
-        const booking = await Booking.findById(bookingId)
-            .populate({
-                path: 'customerId',
-                select: 'fullName email phone avatar'
-            })
-            .populate({
-                path: 'technicianId',
-                populate: [
-                    {
-                        path: 'userId',
-                        select: 'fullName email phone avatar'
-                    },
-                    {
-                        path: 'specialtiesCategories',
-                        select: 'categoryName'
-                    }
-                ]
-            })
-            .populate({ path: 'serviceId' })
-            .populate('cancelledBy');
+//         const booking = await Booking.findById(bookingId)
+//             .populate({
+//                 path: 'customerId',
+//                 select: 'fullName email phone avatar'
+//             })
+//             .populate({
+//                 path: 'technicianId',
+//                 populate: [
+//                     {
+//                         path: 'userId',
+//                         select: 'fullName email phone avatar'
+//                     },
+//                     {
+//                         path: 'specialtiesCategories',
+//                         select: 'categoryName'
+//                     }
+//                 ]
+//             })
+//             .populate({ path: 'serviceId' })
+//             .populate('cancelledBy');
 
-        if (!booking) {
-            throw new Error('Không tìm thấy đặt lịch');
-        }
+//         if (!booking) {
+//             throw new Error('Không tìm thấy đặt lịch');
+//         }
 
-        let bookingPrice = null;
-        let bookingItems = [];
+//         return {
+//             booking,
 
-        if (booking.status === 'IN_PROGRESS') {
-            bookingPrice = await BookingPrice.findOne({ bookingId: bookingId, status: 'ACCEPTED' })
-                .populate('commissionConfigId')
-
-            if (!bookingPrice) {
-                throw new Error('Không tìm thấy booking price');
-            }
-
-            bookingItems = await BookingItem.find({ bookingPriceId: bookingPrice._id, isApprovedByCustomer: true });
-
-            if (!bookingItems) {
-                throw new Error('Không tìm thấy booking price');
-            }
-        }
-
-        return {
-            booking,
-            bookingPrice,
-            bookingItems
-        };
-    } catch (error) {
-        throw error;
-    }
-};
+//         };
+//     } catch (error) {
+//         throw error;
+//     }
+// };
 
 const confirmJobDone = async (bookingId, userId, role) => {
     const session = await mongoose.startSession();
@@ -494,7 +464,7 @@ const customerRejectQuote = async (bookingId, customerId) => {
         const technician = await Technician.findById(booking.technicianId);
         const inspectionFee = technician?.rates?.inspectionFee || 0;
         booking.finalPrice = inspectionFee;
-        booking.status = 'DONE'; // Hoặc trạng thái phù hợp (có thể là CANCELLED tuỳ business)
+        booking.status = 'CANCELLED';
         booking.paymentStatus = 'PENDING';
         await booking.save({ session });
         await session.commitTransaction();
@@ -507,14 +477,61 @@ const customerRejectQuote = async (bookingId, customerId) => {
     }
 };
 
+const getTopBookedServices = async (limit) => {
+    try {
+        const topServices = await Booking.aggregate([
+            // 1. Chỉ lọc các booking đã "HOÀN THÀNH"
+            { $match: { status: 'DONE' } },
+
+            // 2. Nhóm theo mã dịch vụ và đếm số lượng
+            { $group: { _id: '$serviceId', bookingCount: { $sum: 1 } } },
+
+            // 3. Sắp xếp theo số lượt đặt giảm dần
+            { $sort: { bookingCount: -1 } },
+
+            // 4. Giới hạn số lượng kết quả
+            { $limit: limit },
+
+            // 5. Nối bảng để lấy thông tin chi tiết dịch vụ
+            {
+                $lookup: {
+                    from: 'services',
+                    localField: '_id',
+                    foreignField: '_id',
+                    as: 'serviceDetails'
+                }
+            },
+
+            // 6. Mở mảng kết quả
+            { $unwind: '$serviceDetails' },
+
+            // 7. Định dạng lại đầu ra
+            {
+                $project: {
+                    _id: 0,
+                    serviceId: '$_id',
+                    service: '$serviceDetails',
+                    bookingCount: '$bookingCount'
+                }
+            }
+        ]);
+
+        return topServices;
+    } catch (error) {
+        console.error("Error fetching top booked services:", error);
+        throw new Error("Không thể lấy dữ liệu thống kê dịch vụ.");
+    }
+};
+
 module.exports = {
     createRequestAndNotify,
     getBookingById,
     cancelBooking,
     confirmJobDone,
     findTechniciansWithExpandingRadiusAndSave,
-    getDetailBookingById,
+    // getDetailBookingById,
     technicianSendQuote,
     customerAcceptQuote,
-    customerRejectQuote
+    customerRejectQuote,
+    getTopBookedServices,
 };
