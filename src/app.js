@@ -18,7 +18,8 @@ app.use(
             'http://localhost:5173', // Explicitly include for safety
             'https://*.ngrok-free.app', // Allow all ngrok-free.app URLs
             'https://b8d9-2001-ee0-4b7b-3bd0-2d89-bdfa-7310-9e33.ngrok-free.app', 
-            'https://fixtech.id.vn/'// Specific ngrok URL (optional)
+            'https://fixtech.id.vn/',
+            'https://fix-tech-git-develop-tris-projects-f8fdb778.vercel.app'// Specific ngrok URL (optional)
           ],
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
