@@ -34,7 +34,7 @@ const bookingWarrantySchema = new mongoose.Schema({
         enum: ['PENDING', 'CONFIRMED', 'RESOLVED', 'DENIED','EXPIRED'],
         default: 'PENDING'
     },
-    resolutionNote: String,
+    solutionNote: String,
     rejectionReason: String,
     isReviewedByAdmin: {
         type: Boolean,

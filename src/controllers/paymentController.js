@@ -82,7 +82,7 @@ const handlePayOsCancel = async (req, res) => {
                 const token = generateToken(user);
                 await generateCookie(token, res);
             }
-            res.redirect(`${process.env.FRONT_END_URL}/checkout?bookingId=${bookingPrice.bookingId}.`);
+            res.redirect(`${process.env.FRONT_END_URL}/checkout?bookingId=${bookingPrice.bookingId._id}`);
 
         }
 

@@ -8,6 +8,7 @@ const paymentService = require('./paymentService');
 const receiptService = require('./receiptService');
 const technicianService = require('./technicianService');
 const commissionService = require('./commissionService');
+const Technician = require('../models/Technician');
 
 const getAllQuotations = async (bookingId) => {
     try {
@@ -203,7 +204,7 @@ const updateBookingPriceAddCoupon = async (bookingPriceId, couponCode, discountV
             let userId = null;
             if (bookingPriceDoc.bookingId) {
                 const bookingDoc = await bookingService.getBookingById(bookingPriceDoc.bookingId)
-                console.log(bookingDoc);
+                // console.log(bookingDoc);
                 
                 if (bookingDoc && bookingDoc.customerId) {
                     userId = bookingDoc.customerId;
@@ -221,6 +222,8 @@ const updateBookingPriceAddCoupon = async (bookingPriceId, couponCode, discountV
             update.discountCode = null;
             update.discountValue = 0;
             update.finalPrice = finalPrice;
+            update.holdingAmount= finalPrice*0.2;
+            update.comissionAmount = finalPrice*0.1;
         }
         const updatedBookingPrice = await BookingPrice.findByIdAndUpdate(
             bookingPriceId,
@@ -243,8 +246,16 @@ const updateBookingPriceAddCoupon = async (bookingPriceId, couponCode, discountV
                 booking.status = 'DONE';
                 booking.isChatAllowed = false
                 booking.isVideoCallAllowed = false
+                booking.completedAt = new Date();
+                // Set warrantyExpiresAt based on warrantiesDuration (in days)
+                booking.warrantyExpiresAt = new Date();
+                booking.warrantyExpiresAt.setDate(
+                    booking.warrantyExpiresAt.getDate() + updatedBookingPrice.warrantiesDuration
+                );
                 await booking.save({ session });
-
+                const technician = await Technician.findById(updatedBookingPrice.technicianId)
+                technician.availability= 'FREE'
+                await technician.save({session})
                 const receiptData = {
                     bookingId: booking._id,
                     customerId: booking.customerId,
@@ -305,7 +316,11 @@ const getBookingPriceIdForUser = async (bookingPriceId) => {
             path: 'bookingId',
             populate: {
                 path: 'customerId',
-                model: 'User'
+                model: 'User',
+                populate: {
+                    path: 'role',
+                    model: 'Role'
+                }
             }
         });
         if (!bookingPrice) {

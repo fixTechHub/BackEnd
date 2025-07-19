@@ -6,9 +6,9 @@ const { handleMulter, processAndUploadToS3 } = require('../middlewares/uploadMid
 const { authenticateToken } = require('../middlewares/authMiddleware');
 const router = express.Router();
 
+router.get('/user',authenticateToken,bookingController.getUserBookingHistory)
 router.post('/create-new-booking-request', authenticateToken, handleMulter.array('images', 5), processAndUploadToS3('bookings'), bookingController.createBookingRequest);
 router.get('/:id', bookingController.getBookingById);
 router.post('/:bookingId/cancel', authenticateToken, bookingController.cancelBooking);
 router.post('/:bookingId/done', authenticateToken, bookingController.confirmJobDone);
-
 module.exports = router;

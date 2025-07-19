@@ -4,12 +4,13 @@ const { getIo } = require('../sockets/socketManager');
 /**
  * Create a new video call record
  */
-const createVideoCall = async ({ bookingId, sessionId, startedAt }) => {
+const createVideoCall = async ({ bookingId, sessionId, startedAt, warrantyId, }) => {
     const videoCall = new VideoCall({
         bookingId,
         sessionId,
         startedAt,
-        status: 'INITIATED'
+        status: 'INITIATED',
+        warrantyId
     });
     return await videoCall.save();
 };
@@ -57,7 +58,7 @@ const calculateAndUpdateDuration = async (sessionId) => {
  */
 const initiateVideoCall = async (callData) => {
     const io = getIo();
-    const { bookingId, from, to, signalData, name } = callData;
+    const { bookingId, from, to, signalData, name,warrantyId } = callData;
     
     // Generate a unique session ID for this call
     const sessionId = `call_${Date.now()}_${from}_${to}`;
@@ -66,7 +67,8 @@ const initiateVideoCall = async (callData) => {
     const videoCall = await createVideoCall({
         bookingId,
         sessionId,
-        startedAt: new Date()
+        startedAt: new Date(),
+        warrantyId,
     });
 
     // Emit socket events
@@ -74,7 +76,8 @@ const initiateVideoCall = async (callData) => {
         signal: signalData, 
         from, 
         name,
-        sessionId: videoCall.sessionId 
+        sessionId: videoCall.sessionId,
+        warrantyId
     });
 
     return videoCall;
