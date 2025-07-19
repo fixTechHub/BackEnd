@@ -4,14 +4,24 @@ const bookingService = require('../services/bookingService')
 const requestBookingWarranty = async (req, res) => {
     try {
         const formData = req.body
-        const images = req.s3Urls || [];
+        const images = req.s3FileUrls || [];
+        console.log('req.s3FileUrls:', req.s3FileUrls);
         const { bookingId, reportedIssue } = formData
+        // if (!reportedIssue || reportedIssue.trim() === '') {
+        //     return res.status(400).json({ error: 'Vui lòng nhập lý do bảo hành' });
+        // }
+        // if (!images || images.length === 0) {
+        //     return res.status(400).json({ error: 'Vui lòng tải lên hình ảnh' });
+        // }
         const bookingWarranty = await bookingWarrantyService.requestWarranty(bookingId, reportedIssue, images);
         const booking = await bookingService.getBookingById(bookingId)
-        if(booking.status!=='DONE'){
+        if (!booking) {
+            return res.status(404).json({ error: 'Không tìm thấy đặt lịch' });
+        }
+        if (booking.status !== 'DONE') {
             return res.status(400).json({ error: 'Ban chưa có quyền được phép yêu cầu bảo hành!' });
         }
-        
+
         res.status(201).json(bookingWarranty)
     } catch (error) {
         console.error('Lỗi khi yêu cầu bảo hành:', error);
@@ -24,8 +34,8 @@ const requestBookingWarranty = async (req, res) => {
 
 const getBookingWarrantyById = async (req, res) => {
     try {
-        const {bookingWarrantyId} = req.params
-        
+        const { bookingWarrantyId } = req.params
+
         const bookingWarranty = await bookingWarrantyService.getWarrantyById(bookingWarrantyId)
         res.status(201).json(bookingWarranty)
     } catch (error) {
@@ -46,14 +56,14 @@ const acceptWarranty = async (req, res) => {
             return res.status(400).json({ error: 'Thiếu bookingWarrantyId hoặc status' });
         }
 
-        const validStatuses = ['PENDING','CONFIRMED'];
+        const validStatuses = ['PENDING', 'CONFIRMED'];
         if (!validStatuses.includes(formData.status)) {
             return res.status(400).json({ error: 'Trạng thái không hợp lệ' });
         }
 
-    const {bookingWarranty} = await bookingWarrantyService.updateWarrantyById(bookingWarrantyId, formData);
-        
-       
+        const { bookingWarranty } = await bookingWarrantyService.updateWarrantyById(bookingWarrantyId, formData);
+
+
         res.status(200).json(bookingWarranty);
     } catch (error) {
         console.error('Lỗi khi cập nhật trạng thái bảo hành:', error);
@@ -63,8 +73,8 @@ const acceptWarranty = async (req, res) => {
 const denyWarranty = async (req, res) => {
     try {
         const { bookingWarrantyId } = req.params;
-        const { status, rejectionReason } = req.body;
-        const formData = { status, rejectionReason };
+        const { status, rejectedReason } = req.body;
+        const formData = { status, rejectedReason };
 
         if (!bookingWarrantyId || !formData.status) {
             return res.status(400).json({ error: 'Thiếu bookingWarrantyId hoặc status' });
@@ -75,7 +85,7 @@ const denyWarranty = async (req, res) => {
             return res.status(400).json({ error: 'Trạng thái không hợp lệ' });
         }
 
-        if (formData.status === 'DENIED' && !formData.rejectionReason) {
+        if (formData.status === 'DENIED' && !formData.rejectedReason) {
             return res.status(400).json({ error: 'Lý do từ chối là bắt buộc khi trạng thái là DENIED' });
         }
 
@@ -91,7 +101,7 @@ const denyWarranty = async (req, res) => {
     }
 };
 
-const confirmWarranty = async (req,res) => {
+const confirmWarranty = async (req, res) => {
     try {
         const { bookingWarrantyId } = req.params;
         const { status, solutionNote } = req.body;
@@ -99,7 +109,7 @@ const confirmWarranty = async (req,res) => {
         if (!bookingWarrantyId || !formData.status) {
             return res.status(400).json({ error: 'Thiếu bookingWarrantyId hoặc status' });
         }
-        const validStatuses = ['PENDING', 'CONFIRMED', 'RESOLVED','DONE'];
+        const validStatuses = ['PENDING', 'CONFIRMED', 'RESOLVED', 'DONE'];
         if (!validStatuses.includes(formData.status)) {
             return res.status(400).json({ error: 'Trạng thái không hợp lệ' });
         }
@@ -115,10 +125,43 @@ const confirmWarranty = async (req,res) => {
     }
 }
 
+const proposeWarrantySchedule = async (req, res) => {
+    try {
+        const bookingWarrantyId = req.params.bookingWarrantyId;
+        const proposedSchedule = req.body.proposedSchedule; // dạng ISO string hoặc timestamp
+        if (!proposedSchedule) {
+            return res.status(404).json({ error: 'Hãy chọn thời gian phù hợp' });
+        }
+        const result = await bookingWarrantyService.requestWarrantyDate(bookingWarrantyId, proposedSchedule);
+        res.status(200).json({  result });
+    } catch (error) {
+        console.error('Propose Schedule Error:', error);
+        res.status(400).json({  error: error.message });
+    }
+};
+
+const confirmWarrantySchedule = async (req, res) => {
+    try {
+        const bookingWarrantyId = req.params.bookingWarrantyId;
+        const { startTime, expectedEndTime } = req.body;
+        if (!expectedEndTime) {
+            return res.status(404).json({ error: 'Hãy chọn thời gian phù hợp' });
+        }
+        const result = await bookingWarrantyService.confirmWarrantySchedule(bookingWarrantyId,startTime, expectedEndTime);
+        res.status(200).json({ result });
+    } catch (error) {
+        console.error('Confirm Schedule Error:', error);
+        res.status(400).json({ error: error.message });
+    }
+};
+
+
 module.exports = {
     requestBookingWarranty,
     getBookingWarrantyById,
     acceptWarranty,
     denyWarranty,
-    confirmWarranty
+    confirmWarranty,
+    proposeWarrantySchedule,
+    confirmWarrantySchedule
 }; 

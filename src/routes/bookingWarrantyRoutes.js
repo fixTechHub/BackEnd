@@ -9,4 +9,6 @@ router.get('/:bookingWarrantyId',authenticateToken, bookingWarrantyController.ge
 router.patch('/accept/:bookingWarrantyId',authenticateToken,bookingWarrantyController.acceptWarranty)
 router.patch('/deny/:bookingWarrantyId',authenticateToken,bookingWarrantyController.denyWarranty)
 router.patch('/confirm/:bookingWarrantyId',authenticateToken,bookingWarrantyController.confirmWarranty)
+router.post('/propose-schedule/:bookingWarrantyId',authenticateToken, bookingWarrantyController.proposeWarrantySchedule)
+router.post('/confirm-schedule/:bookingWarrantyId',authenticateToken, bookingWarrantyController.confirmWarrantySchedule)
 module.exports = router;

@@ -11,13 +11,18 @@ const technicianScheduleSchema = new mongoose.Schema({
         enum: ['AVAILABLE', 'UNAVAILABLE'],
         required: true
     },
+    scheduleType: {
+        type: String,
+        enum: ['BOOKING','WARRANTY'],
+        default: 'BOOKING'
+    },
     startTime: {
         type: Date,
         required: true
     },
     endTime: {
         type: Date,
-        required: true
+        required: false
     },
     note: String
 }, {

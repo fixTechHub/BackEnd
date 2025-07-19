@@ -1,5 +1,7 @@
 const BookingWarranty = require('../models/BookingWarranty')
 const Booking = require('../models/Booking')
+const TechnicianSchedule = require('../models/TechnicianSchedule')
+
 const mongoose = require('mongoose');
 const messageService = require('./messageService')
 const { getIo } = require('../sockets/socketManager')
@@ -22,9 +24,17 @@ const requestWarranty = async (bookingId, reportedIssue, images) => {
         if (!mongoose.Types.ObjectId.isValid(bookingId)) {
             throw new Error('ID đặt lịch không hợp lệ');
         }
-        const booking = await Booking.findById(
-            bookingId
+        const booking = await Booking.findByIdAndUpdate(
+            bookingId,
+            {
+                $set: {
+                    isChatAllowed: true,
+                    isVideoCallAllowed: true,
+                },
+            },
+            { new: true }
         ).populate('technicianId');
+
         const requestDate = new Date();
         const expireAt = new Date(requestDate);
         expireAt.setDate(requestDate.getDate() + 1);
@@ -103,45 +113,32 @@ const getWarrantyById = async (bookingWarrantyId) => {
 }
 
 const updateWarrantyById = async (bookingWarrantyId, formData) => {
+    const session = await mongoose.startSession();
+    const io = getIo();
+    session.startTransaction();
     try {
-        const { status, rejectionReason, solutionNote } = formData;
-        const io = getIo();
+        const { status, rejectedReason, solutionNote } = formData;
         const existingWarranty = await BookingWarranty.findById(bookingWarrantyId)
             .populate({
                 path: 'technicianId',
                 populate: {
                     path: 'userId',
                 }
-            });
+            })
+            .populate('bookingId')
         if (!existingWarranty) {
             throw new Error('Không tìm thấy bảo hành');
         }
         const updateData = { status };
-       
+
         if (status === 'CONFIRMED') {
-            const booking = await Booking.findByIdAndUpdate(
-                existingWarranty.bookingId,
-                {
-                    $set: {
-                        isChatAllowed: true,
-                        isVideoCallAllowed: true,
-                    },
-                },
-                { new: true }
-            ).populate('technicianId');
-            const messageData = {
-                bookingId: booking._id,
-                bookingWarrantyId: existingWarranty._id,
-                fromUser: existingWarranty.technicianId.userId._id,
-                toUser: existingWarranty.customerId,
-                content: 'Bạn đang gặp sự cố gì có thể nói cho tôi biết!',
-                type: 'SUPPORT',
-            }
+
+
             updateData.isUnderWarranty = true;
             const notificationData = {
                 userId: existingWarranty.customerId,
                 title: `Đơn bảo hành`,
-                content: `Đơn bảo hành từ đơn ${booking.bookingCode} đã được chấp nhận.`,
+                content: `Đơn bảo hành từ đơn ${existingWarranty.bookingId.bookingCode} đã được chấp nhận.`,
                 type: 'NEW_REQUEST',
                 referenceId: existingWarranty._id,
                 referenceModel: 'BookingWarranty',
@@ -149,13 +146,22 @@ const updateWarrantyById = async (bookingWarrantyId, formData) => {
             };
             const notification = await notificationService.createNotification(notificationData);
             io.to(`user:${notification.userId}`).emit('receiveNotification', notification);
-            const newMessage = await messageService.createMessage(messageData)
-            io.to(`user:${newMessage.fromUser}`).emit('receiveMessage', newMessage);
-            io.to(`user:${newMessage.toUser}`).emit('receiveMessage', newMessage);
+
+
         }
 
-        if (rejectionReason) {
-            updateData.rejectionReason = rejectionReason;
+        if (rejectedReason) {
+            updateData.rejectedReason = rejectedReason;
+            const booking = await Booking.findByIdAndUpdate(
+                existingWarranty.bookingId._id,
+                {
+                    $set: {
+                        isChatAllowed: false,
+                        isVideoCallAllowed: false,
+                    },
+                },
+                { new: true }
+            )
             const adminRole = await Role.findOne({ name: 'ADMIN' });
             if (!adminRole) {
                 throw new Error('Admin role not found');
@@ -165,25 +171,28 @@ const updateWarrantyById = async (bookingWarrantyId, formData) => {
                 const adminNotificationData = {
                     userId: admin._id,
                     title: 'Bảo hành từ chối',
-                    content: `Thợ ${existingWarranty.technicianId.userId.fullName} đã không xử lý bảo hành đơn ${warranty.bookingId.bookingCode}.`,
+                    content: `Thợ ${existingWarranty.technicianId.userId.fullName} đã không xử lý bảo hành đơn ${existingWarranty.bookingId.bookingCode}.`,
                     referenceId: existingWarranty._id,
                     referenceModel: 'BookingWarranty',
                     type: 'NEW_REQUEST',
                     // url: 'warranty'
                 };
-                await notificationService.createAndSend(adminNotificationData, session);
+                const notificationAdmin = await notificationService.createNotification(adminNotificationData, session);
+                io.to(`user:${notificationAdmin.userId}`).emit('receiveNotification', notificationAdmin);
 
             }
             const notifyData = {
                 userId: existingWarranty.customerId,
                 title: 'Bảo hành từ chối',
-                content: `Thợ ${existingWarranty.technicianId.userId.fullName} đã không xử lý bảo hành đơn ${warranty.bookingId.bookingCode}.`,
+                content: `Thợ ${existingWarranty.technicianId.userId.fullName} đã không xử lý bảo hành đơn ${existingWarranty.bookingId.bookingCode}.`,
                 referenceId: existingWarranty._id,
                 referenceModel: 'BookingWarranty',
                 type: 'NEW_REQUEST',
                 // url: 'warranty'
             };
-            await notificationService.createAndSend(notifyData, session);
+            const notificationUser = await notificationService.createNotification(notifyData, session);
+            io.to(`user:${notificationUser.userId}`).emit('receiveNotification', notificationUser);
+
         }
         if (solutionNote) {
             updateData.solutionNote = solutionNote;
@@ -225,70 +234,147 @@ const updateWarrantyById = async (bookingWarrantyId, formData) => {
                 status: updatedWarranty.status // Add this line
             });
         }
+        await session.commitTransaction();
+        session.endSession();
         return updatedWarranty;
     } catch (error) {
         console.error('Error updating warranty status:', error.message);
+        await session.abortTransaction();
+        session.endSession();
         throw error;
     }
 };
 
-const requestWarrantyForDenialOrCancelation = async (bookingId, technicianId) => {
-    const io = getIo()
+
+
+const requestWarrantyDate = async (bookingWarrantyId, dateTime) => {
+    const io = getIo();
     const session = await mongoose.startSession();
+    session.startTransaction();
     try {
-        if (!mongoose.Types.ObjectId.isValid(bookingId)) {
-            throw new Error('ID đặt lịch không hợp lệ');
+        if (!mongoose.Types.ObjectId.isValid(bookingWarrantyId)) {
+            throw new Error('ID bảo hành không hợp lệ');
         }
-        if (!mongoose.Types.ObjectId.isValid(technicianId)) {
-            throw new Error('ID thợ không hợp lệ');
+
+        const warranty = await BookingWarranty.findById(bookingWarrantyId)
+            .populate({
+                path: 'technicianId',
+                populate: { path: 'userId' }
+            });
+
+        if (!warranty) {
+            throw new Error('Không tìm thấy yêu cầu bảo hành');
         }
-        const booking = await Booking.findById(
-            bookingId
-        ).populate({
-            path: 'technicianId',
-            populate: {
-                path: 'userId',
-            }
-        });
-        const rejectedWarranty = await BookingWarranty.findOne({
-            technicianId: booking.technicianId._id,
-            bookingId: bookingId,
-            status: 'DENIED'
-        });
-        const requestDate = new Date();
-        const expireAt = new Date(requestDate);
-        expireAt.setDate(requestDate.getDate() + 1);
-        const bookingWarranty = await createWarranty({
-            bookingId,
-            customerId: booking.customerId,
-            technicianId: technicianId,
-            requestDate: Date.now(),
-            reportedIssue: rejectedWarranty.reportedIssue || 'Khách hàng yêu cầu bảo hành',
-            isUnderWarranty: false,
-            status: 'PENDING',
-            expireAt: expireAt
-        }, session);
-        const technician = await technicianService.getTechnicianProfile(bookingWarranty.technicianId)
+
+        warranty.proposedSchedule = dateTime;
+        await warranty.save({ session });
+
+        // Gửi thông báo cho thợ
         const notifyData = {
-            userId: technician.userId._id,
-            title: 'Yêu cầu bảo hành từ admin ',
-            content: `1 Thợ đã không xử lý bảo hành đơn ${booking.bookingCode} và bạn nhận được đơn bảo hành này. Bạn sẽ nhận được thù lao cho đơn này nếu xác nhận!`,
-            referenceId: bookingWarranty._id,
+            userId: warranty.technicianId.userId._id,
+            title: 'Khách đề xuất lịch bảo hành',
+            content: `Khách hàng đã đề xuất lịch hẹn cho đơn bảo hành.`,
+            referenceId: warranty._id,
             referenceModel: 'BookingWarranty',
             type: 'NEW_REQUEST',
-            url: `/warranty?bookingWarrantyId=${bookingWarranty._id}`
+            url: `/warranty?bookingWarrantyId=${warranty._id}`
         };
-        const notification = await notificationService.createNotification(notifyData);
-        io.to(`user:${notification.userId}`).emit('receiveNotification', notification);
+        const notification = await notificationService.createNotification(notifyData, session);
+        io.to(`user:${notifyData.userId}`).emit('receiveNotification', notification);
+        const customerId = warranty.customerId.toString();
+        const technicianId = warranty.technicianId?.userId._id?.toString();
+        if (customerId) {
+            io.to(`user:${customerId}`).emit('warrantyUpdated', {
+                bookingWarrantyId,
+                status: warranty.status // Add this line 
+            });
+        }
+        if (technicianId) {
+            io.to(`user:${technicianId}`).emit('warrantyUpdated', {
+                bookingWarrantyId,
+                status: warranty.status // Add this line
+            });
+        }
+        await session.commitTransaction();
+        session.endSession();
+
+        return warranty;
     } catch (error) {
-        console.error('Error updating warranty status:', error.message);
+        await session.abortTransaction();
+        session.endSession();
+        console.error('Error requesting warranty date:', error.message);
         throw error;
     }
-}
+};
+
+const confirmWarrantySchedule = async (bookingWarrantyId,startTime, expectedEndTime) => {
+    const io = getIo();
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+        if (!mongoose.Types.ObjectId.isValid(bookingWarrantyId)) {
+            throw new Error('ID bảo hành không hợp lệ');
+        }
+
+        const warranty = await BookingWarranty.findById(bookingWarrantyId)
+            .populate({
+                path: 'customerId'
+            });
+
+        if (!warranty) {
+            throw new Error('Không tìm thấy yêu cầu bảo hành');
+        }
+        warranty.confirmedSchedule = { startTime, expectedEndTime };
+        await warranty.save({ session });
+        const technicianSchedule = new TechnicianSchedule({
+            technicianId: warranty.technicianId,
+            scheduleType: 'WARRANTY', // Set to 'WARRANTY' to indicate warranty schedule
+            startTime,
+            endTime: expectedEndTime,
+            note: `Lịch bảo hành cho yêu cầu ${warranty._id}`
+        });
+        await technicianSchedule.save({ session });
+        const notifyData = {
+            userId: warranty.customerId._id,
+            title: 'Thợ đã xác nhận lịch bảo hành',
+            content: `Thợ đã xác nhận lịch bảo hành cho đơn từ lịch đặt dịch vụ.`,
+            referenceId: warranty._id,
+            referenceModel: 'BookingWarranty',
+            type: 'NEW_REQUEST',
+            url: `/warranty?bookingWarrantyId=${warranty._id}`
+        };
+        const notification = await notificationService.createNotification(notifyData, session);
+        io.to(`user:${notifyData.userId}`).emit('receiveNotification', notification);
+        const customerId = warranty.customerId._id.toString();
+        const technicianId = warranty.technicianId.toString();
+        if (customerId) {
+            io.to(`user:${customerId}`).emit('warrantyUpdated', {
+                bookingWarrantyId,
+                status: warranty.status // Add this line 
+            });
+        }
+        if (technicianId) {
+            io.to(`user:${technicianId}`).emit('warrantyUpdated', {
+                bookingWarrantyId,
+                status: warranty.status // Add this line
+            });
+        }
+        await session.commitTransaction();
+        session.endSession();
+
+        return warranty;
+    } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+        console.error('Error confirming warranty schedule:', error.message);
+        throw error;
+    }
+};
 
 module.exports = {
     requestWarranty,
     getWarrantyById,
     updateWarrantyById,
-    requestWarrantyForDenialOrCancelation
+    requestWarrantyDate,
+    confirmWarrantySchedule
 };
