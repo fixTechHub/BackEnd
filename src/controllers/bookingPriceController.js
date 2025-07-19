@@ -1,7 +1,6 @@
 const bookingPriceService = require("../services/bookingPriceService");
 const couponService = require('../services/couponService')
 
-
 const getAllQuotations = async (req, res) => {
     try {
         const bookingId = req.params.bookingId;

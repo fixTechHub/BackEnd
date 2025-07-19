@@ -4,8 +4,9 @@ const bookingService = require('../services/bookingService')
 const requestBookingWarranty = async (req, res) => {
     try {
         const formData = req.body
+        const images = req.s3Urls || [];
         const { bookingId, reportedIssue } = formData
-        const bookingWarranty = await bookingWarrantyService.requestWarranty(bookingId, reportedIssue)
+        const bookingWarranty = await bookingWarrantyService.requestWarranty(bookingId, reportedIssue, images);
         const booking = await bookingService.getBookingById(bookingId)
         if(booking.status!=='DONE'){
             return res.status(400).json({ error: 'Ban chưa có quyền được phép yêu cầu bảo hành!' });
@@ -24,6 +25,7 @@ const requestBookingWarranty = async (req, res) => {
 const getBookingWarrantyById = async (req, res) => {
     try {
         const {bookingWarrantyId} = req.params
+        
         const bookingWarranty = await bookingWarrantyService.getWarrantyById(bookingWarrantyId)
         res.status(201).json(bookingWarranty)
     } catch (error) {
@@ -97,7 +99,7 @@ const confirmWarranty = async (req,res) => {
         if (!bookingWarrantyId || !formData.status) {
             return res.status(400).json({ error: 'Thiếu bookingWarrantyId hoặc status' });
         }
-        const validStatuses = ['PENDING', 'CONFIRMED', 'RESOLVED'];
+        const validStatuses = ['PENDING', 'CONFIRMED', 'RESOLVED','DONE'];
         if (!validStatuses.includes(formData.status)) {
             return res.status(400).json({ error: 'Trạng thái không hợp lệ' });
         }

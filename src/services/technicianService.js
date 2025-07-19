@@ -565,6 +565,19 @@ const getTechnicianDepositLogs = async (userId, limit, skip) => {
   }
 };
 
+const getAllTechnicians = async () => {
+  try {
+    const technicians = await Technician.find({ status: 'APPROVED' });
+    if(technicians===null){
+      console.log('Không tìm thấy thợ ở Đà Nẵng đang thực hiện');
+    }
+    return technicians
+  } catch (error) {
+    console.log(error.message);
+    throw error
+  }
+}
+
 module.exports = {
   registerAsTechnician,
   getTechnicianProfile,
@@ -583,6 +596,7 @@ module.exports = {
   requestWithdraw,
   createNewTechnician,
   findTechnicianByUserId,
-  getTechnicianDepositLogs
+  getTechnicianDepositLogs,
+  getAllTechnicians
 };
 

@@ -11,4 +11,5 @@ router.post('/create-new-booking-request', authenticateToken, handleMulter.array
 router.get('/:id', bookingController.getBookingById);
 router.post('/:bookingId/cancel', authenticateToken, bookingController.cancelBooking);
 router.post('/:bookingId/done', authenticateToken, bookingController.confirmJobDone);
+router.get('/accepted-booking/:bookingId',authenticateToken,bookingController.getAcceptedBooking)
 module.exports = router;
