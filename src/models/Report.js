@@ -4,12 +4,13 @@ const reportSchema = new mongoose.Schema({
   type: {
     type: String,
     enum: ['REPORT', 'VIOLATION'],
+    default: 'REPORT',
     required: true,
-    default: 'report',
+    index: true,
   },
-  reportedUserId: {
+  bookingId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    ref: 'Booking',
     required: true,
     index: true,
   },
@@ -17,33 +18,55 @@ const reportSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true,
-    index: true, 
+    index: true,
+  },
+  reportedUserId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    index: true,
+  },
+  title: {
+    type: String,
+    required: true,
+    trim: true,
+  },
+  tag: {
+    type: String,
+    enum: ['NO_SHOW', 'LATE', 'RUDE', 'ISSUE', 'OTHER'],
+    required: true,
   },
   description: {
     type: String,
     required: true,
   },
+  evidences: {
+    type: [String],
+    default: [],
+  },
   status: {
     type: String,
-    enum: ['PENDING', 'CONFIRMED', 'REJECTED', 'RESOLVED', 'CLOSED'],
-    default: 'pending',
-    index: true, 
-  },
-  penalty: {
-    type: String,
-    default: null,
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now,
+    enum: ['PENDING', 'AWAITING_RESPONSE', 'REJECTED', 'RESOLVED'],
+    default: 'PENDING',
     index: true,
   },
-  updatedAt: {
-    type: Date,
-    default: Date.now,
+  responseDeadline: Date,
+  responseLocked: {
+    type: Boolean,
+    default: false,
   },
+}, {
+  timestamps: true,
 });
 
-reportSchema.index({ type: 1, status: 1 }); 
+reportSchema.index({ bookingId: 1, status: 1 });
+reportSchema.index(
+  { bookingId: 1, reporterId: 1, reportedUserId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { status: { $in: ['PENDING', 'AWAITING_RESPONSE'] } },
+    name: 'uniq_active_report'
+  }
+);
 
 module.exports = mongoose.model('Report', reportSchema);
