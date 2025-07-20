@@ -8,21 +8,22 @@ const contractService = require('../services/contractService');
 class ContractCronService {
     constructor() {
         this.isRunning = false;
+        this.cronScheduled = false
+        this.startCronJobs()
     }
 
     // Start all cron jobs
     startCronJobs() {
-        console.log('Starting contract expiration cron jobs...');
-
+        if (this.cronScheduled) return;
         // Run every day at 9:00 AM to check for expired contracts
         cron.schedule('0 9 * * *', () => {
             this.checkExpiredContracts();
+            this.checkContractsExpiringIn7Days();
+
         });
 
         // Run every day at 10:00 AM to check for contracts expiring in 7 days
-        cron.schedule('0 10 * * *', () => {
-            this.checkContractsExpiringIn7Days();
-        });
+        this.cronScheduled = true;
 
         console.log('Contract expiration cron jobs started successfully');
     }
@@ -116,10 +117,10 @@ class ContractCronService {
 
     // Send expiration notification to technician
     async sendExpirationNotification(contract) {
-       
+
         const notificationData = {
             userId: contract.technicianId._id,
-            
+
             title: 'Hạn hợp đồng',
             content: `Hợp đồng ${contract.contractCode} hết hạn vào ${contract.expirationDate.toDateString()}.`,
             referenceId: contract._id,
@@ -140,7 +141,7 @@ class ContractCronService {
 
         const notificationData = {
             userId: contract.technicianId._id,
-            
+
             title: 'Hạn hợp đồng',
             content: `Hợp đồng ${contract.contractCode} sẽ hết hạn sau ${daysUntilExpiration} ngày.`,
             referenceId: contract._id,

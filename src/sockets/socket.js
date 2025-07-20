@@ -2,17 +2,17 @@ const { Server } = require('socket.io');
 
 const userSocketMap = new Map(); // Maps userId to socketId
 const activeCallsMap = new Map(); // Maps userId to their current call partner
-
 const initializeSocket = (server) => {
   console.log(`--- Socket.IO configured to allow origin: ${process.env.FRONT_END_URL} ---`);
   const io = new Server(server, {
     cors: {
       origin: [
         process.env.FRONT_END_URL, // http://localhost:5174
+        'https://d43a-2001-ee0-4b7b-3bd0-cd95-363e-be56-3de8.ngrok-free.app'
       ],
       methods: ["GET", "POST"],
       credentials: true
-    } 
+    }
   });
 
   io.on('connection', (socket) => {
@@ -38,7 +38,19 @@ const initializeSocket = (server) => {
     }
 
     socket.emit("me", socket.id);
-
+    socket.on('joinChatRoom', ({ type, bookingId, warrantyId }) => {
+      if (type === 'booking' && bookingId) {
+        const bookingRoom = `booking:${bookingId}:user:${socket.userId}`;
+        socket.join(bookingRoom);
+        console.log(`User ${socket.userId} joined room ${bookingRoom}`);
+      } else if (type === 'warranty' && warrantyId) {
+        const warrantyRoom = `warranty:${warrantyId}:user:${socket.userId}`;
+        socket.join(warrantyRoom);
+        console.log(`User ${socket.userId} joined room ${warrantyRoom}`);
+      } else {
+        console.log(`Invalid room join request from ${socket.userId}`);
+      }
+    });
     socket.on("disconnect", () => {
       console.log(`User disconnected: ${socket.id}`);
       if (socket.userId && activeCallsMap.has(socket.userId)) {
@@ -57,13 +69,45 @@ const initializeSocket = (server) => {
       }
     });
 
-    socket.on("callUser", ({ userToCall, signalData, from, name }) => {
+    socket.on("callUser", ({ userToCall, signalData, from, name, bookingId, warrantyId }) => {
       console.log(`Call initiated from ${from} to ${userToCall}`);
       const userToCallSocketId = userSocketMap.get(userToCall);
       if (userToCallSocketId) {
-        activeCallsMap.set(from, userToCall);
-        activeCallsMap.set(userToCall, from);
-        io.to(userToCallSocketId).emit("callUser", { signal: signalData, from, name });
+        const room = bookingId
+          ? `booking:${bookingId}:user:${userToCall}`
+          : `warranty:${warrantyId}:user:${userToCall}`;
+         
+        // Check if the recipient is in the specified room
+        const recipientSocket = io.sockets.sockets.get(userToCallSocketId);
+        if (
+          // recipientSocket && recipientSocket.rooms.has(room)
+          recipientSocket &&
+          recipientSocket.rooms.has(room) 
+      
+        ) {
+          if (activeCallsMap.has(from) || activeCallsMap.has(userToCall)) {
+            console.log(`Call rejected: One of the users (${from} or ${userToCall}) is already in a call`);
+            socket.emit("callFailed", { message: "User is already in a call." });
+            return;
+          }
+          activeCallsMap.set(from, userToCall);
+          activeCallsMap.set(userToCall, from);
+          io.to(userToCallSocketId).emit("callUser", {
+            signal: signalData,
+            from,
+            name,
+            sessionId: `call_${Date.now()}_${from}_${userToCall}`,
+            bookingId,
+            warrantyId
+          });
+          console.log(`Call signal sent to ${userToCall} in room ${room}`);
+        } else {
+          console.log(`User ${userToCall} is not in the room ${room}`);
+          socket.emit("callFailed", { message: `User is not in the ${bookingId ? 'booking' : 'warranty'} room.` });
+        }
+        // activeCallsMap.set(from, userToCall);
+        // activeCallsMap.set(userToCall, from);
+        // io.to(userToCallSocketId).emit("callUser", { signal: signalData, from, name });
         console.log(`Call signal sent to ${userToCall}`);
       } else {
         console.log(`User ${userToCall} is not online`);
@@ -116,6 +160,12 @@ const initializeSocket = (server) => {
 
     socket.on('ping', () => {
       socket.emit('pong');
+    });
+    socket.on('leaveRoom', ({ room }) => {
+      if (room) {
+        socket.leave(room);
+        console.log(`User ${socket.userId} left room ${room}`);
+      }
     });
   });
 

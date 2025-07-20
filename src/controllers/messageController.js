@@ -2,12 +2,11 @@ const messageService = require('../services/messageService');
 
 const getMessages = async (req, res) => {
   try {
-    const { bookingId } = req.query;
-    const messages = await messageService.getMessagesByBookingId(bookingId);
+    const { bookingId, bookingWarrantyId } = req.query;
+    const messages = await messageService.getMessagesByBookingOrWarrantyId(bookingId, bookingWarrantyId);
     res.json(messages);
   } catch (error) {
     console.error('Error getting MessagesMessages:', error);
-
     res.status(500).json({ message: 'Lỗi khi lấy tin nhắn:', error: error.message });
   }
 };

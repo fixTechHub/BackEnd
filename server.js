@@ -20,7 +20,6 @@ const io = initializeSocket(server);
 setIo(io);
 
 // Connect to MongoDB
-
 const startServer = async () => {
   try {
     await connectDB();

@@ -6,7 +6,7 @@ exports.createNotification = async (notificationData, session) => {
   if (notificationData.referenceId && !notificationData.referenceModel) {
     throw new Error('referenceModel is required when referenceId is provided');
   }
-  if (notificationData.referenceModel && !['User', 'Payment', 'Message', 'Booking', 'Contract', 'BookingPrice'].includes(notificationData.referenceModel)) {
+  if (notificationData.referenceModel && !['User', 'Payment', 'Message', 'Booking', 'Contract', 'BookingPrice','BookingWarranty'].includes(notificationData.referenceModel)) {
     throw new Error('Invalid referenceModel value');
   }
 

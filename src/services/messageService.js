@@ -21,7 +21,8 @@ const createMessage = async (messageData) => {
   }
 
   const message = new Message({
-    bookingId: messageData.bookingId,
+    bookingId: messageData.bookingId || null,
+    bookingWarrantyId: messageData.bookingWarrantyId || null,
     fromUser: messageData.fromUser,
     toUser: messageData.toUser,
     content: contentToSave,
@@ -62,12 +63,26 @@ const sendMessage = async (messageData) => {
   return newMessage;
 };
 
-const getMessagesByBookingId = async (bookingId) => {
-  return await Message.find({ bookingId: bookingId });
-};  
+const getMessagesByBookingOrWarrantyId = async (bookingId, bookingWarrantyId) => {
+  try {
+    if (!bookingId && !bookingWarrantyId) {
+      throw new Error('At least bookingId or bookingWarrantyId is required');
+    }
 
+    const query = {};
+    if (bookingWarrantyId) {
+      query.bookingWarrantyId = bookingWarrantyId;
+    } else {
+      query.bookingId = bookingId;
+    }
+    return await Message.find(query);
+  } catch (error) {
+    console.log('Error get Message', error.message);
+    throw error
+  }
+};
 module.exports = exports = {
   createMessage,
   sendMessage,
-  getMessagesByBookingId,
+  getMessagesByBookingOrWarrantyId,
 };

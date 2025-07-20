@@ -37,18 +37,71 @@ const createPayOsPayment = async (bookingPriceId) => {
 }
 
 const handleSuccessfulPayment = async (orderCode, bookingPriceId) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-  try {
-    if (!orderCode) {
-      throw new Error('Thiếu mã đơn');
-    }
-    if (!bookingPriceId) {
-      throw new Error('thiếu id giá đơn');
-    }
-    const bookingPrice = await BookingPrice.findById(bookingPriceId).session(session)
-    if (!bookingPrice) {
-      throw new Error('Không tìm thấy giá đơn');
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+        if (!orderCode) {
+            throw new Error('Thiếu mã đơn');
+        }
+        if (!bookingPriceId) {
+          throw new Error('thiếu id giá đơn');
+      }
+        const bookingPrice = await BookingPrice.findById(bookingPriceId).session(session)
+        if (!bookingPrice) {
+            throw new Error('Không tìm thấy giá đơn');
+        }
+
+        const booking = await bookingService.getBookingById(bookingPrice.bookingId)
+        if (!booking) {
+            throw new Error('Không tìm thấy đơn');
+        }
+
+        booking.paymentStatus = 'PAID';
+        booking.status = 'DONE';
+        booking.isChatAllowed = false
+        booking.isVideoCallAllowed = false
+        booking.warrantyExpiresAt = new Date();
+        booking.warrantyExpiresAt.setDate(
+            booking.warrantyExpiresAt.getDate() + bookingPrice.warrantiesDuration
+        );
+        await booking.save({ session });
+
+        const receiptTotalAmount = bookingPrice.finalPrice + bookingPrice.discountValue;
+        bookingPrice.holdingAmount = receiptTotalAmount * 0.2;
+        bookingPrice.commissionAmount = receiptTotalAmount * 0.1;
+        await bookingPrice.save({ session });
+        const technician = await Technician.findById(bookingPrice.technicianId)
+        technician.availability = 'FREE'
+        await technician.save({session})
+        const receiptData = {
+            bookingId: booking._id,
+            customerId: booking.customerId,
+            technicianId: bookingPrice.technicianId,
+            paymentGatewayTransactionId: orderCode,
+            totalAmount: bookingPrice.finalPrice + bookingPrice.discountValue,
+            serviceAmount: bookingPrice.finalPrice,
+            discountAmount: bookingPrice.discountValue,
+            paidAmount: bookingPrice.finalPrice,
+            paymentMethod: 'BANK',
+            paymentStatus: 'PAID',
+        };
+        await receiptService.createReceipt(receiptData, session);
+
+        // Credit commission from technician's balance
+        await commissionService.creditCommission(
+            bookingPrice.technicianId,
+            bookingPrice.finalPrice,
+            session
+        );
+
+        await session.commitTransaction();
+        session.endSession();
+        
+        return { success: true };
+    } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+        throw error;
     }
 
     const booking = await bookingService.getBookingById(bookingPrice.bookingId)

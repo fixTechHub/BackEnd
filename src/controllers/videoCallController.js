@@ -70,7 +70,7 @@ const updateVideoCallStatus = async (req, res) => {
 // New controller functions for handling video call events
 const initiateCall = async (req, res) => {
     try {
-        const { bookingId, to, signalData, name } = req.body;
+        const { bookingId, to, signalData,warrantyId, name } = req.body;
         const from = req.user.userId;
         
         const videoCall = await videoCallService.initiateVideoCall({
@@ -78,7 +78,8 @@ const initiateCall = async (req, res) => {
             from,
             to,
             signalData,
-            name
+            name,
+            warrantyId
         });
         
         res.status(201).json(videoCall);

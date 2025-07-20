@@ -605,6 +605,38 @@ const technicianConfirmBooking = async (bookingId, technicianId) => {
     }
 };
 
+const getUserBookingHistory = async (userId, role, limit, skip) => {
+    try {
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+            throw new Error('ID khách không hợp lệ');
+        }
+        let query = {};
+        if (role === 'CUSTOMER') {
+            query.customerId = userId;
+        } else if (role === 'TECHNICIAN') {
+            query.technicianId = userId;
+        } else {
+            throw new Error('Vai trò không hợp lệ');
+        }
+        const bookings = await Booking.find(query)
+            .populate({
+                path: 'technicianId',
+                populate: {
+                    path: 'userId'  // This means: inside technicianId, populate userId
+                }
+            })
+            .populate('customerId', 'fullName')
+            .populate('serviceId', 'serviceName')
+            .limit(Number(limit))
+            .skip(Number(skip))
+            .sort({ createdAt: -1 });
+        return bookings;
+    } catch (error) {
+        console.error('Lỗi khi lấy lịch sử đặt chỗ:', error.message);
+        throw error;
+    }
+}
+
 module.exports = {
     createRequestAndNotify,
     getBookingById,
@@ -618,4 +650,5 @@ module.exports = {
     getTopBookedServices,
     selectTechnicianForBooking,
     technicianConfirmBooking,
+    getUserBookingHistory
 };
