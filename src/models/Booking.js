@@ -38,9 +38,56 @@ const bookingSchema = new mongoose.Schema({
     description: String,
     images: [String],
     schedule: {
-        type: Date,
-        required: true
+        startTime: {
+            type: Date,
+        },
+        expectedEndTime: {
+            type: Date
+        }
     },
+    isUrgent: { // Trường mới để xác định yêu cầu khẩn cấp
+        type: Boolean,
+        default: false
+    },
+    quote: {
+        status: {
+            type: String,
+            enum: ['PENDING', 'ACCEPTED', 'REJECTED']
+        },
+        commissionConfigId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'CommissionConfig'
+        },
+        laborPrice: {
+            type: Number,
+            default: 0
+        },
+        items: [{
+            name: String,
+            price: Number,
+            quantity: Number,
+            note: String
+        }],
+        totalAmount: { type: Number }, // Tổng tiền thợ đề nghị, chưa giảm giá
+        warrantiesDuration: {
+            type: Number,
+            default: 30
+        },
+        justification: String, // Lý do nếu giá cao hơn ước tính
+        quotedAt: {
+            type: Date,
+            default: Date.now
+        },
+    },
+    discountCode: String,
+    discountValue: {
+        type: Number,
+        default: 0
+    },
+    technicianEarning: Number,
+    commissionAmount: Number,
+    holdingAmount: Number,
+    finalPrice: Number,
     customerConfirmedDone: {
         type: Boolean,
         default: false
@@ -51,7 +98,7 @@ const bookingSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['PENDING', 'QUOTED', 'IN_PROGRESS', 'WAITING_CONFIRM', 'DONE', 'CANCELLED'],
+        enum: ['PENDING', 'AWAITING_CONFIRM', 'IN_PROGRESS', 'AWAITING_DONE', 'DONE', 'CANCELLED'],
         default: 'PENDING'
     },
     isChatAllowed: {
@@ -68,12 +115,12 @@ const bookingSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
     },
+    cancellationReason: String,
     paymentStatus: {
         type: String,
         enum: ['PENDING', 'PAID', 'CANCELLED', 'FAILED', 'REFUNDED'],
         default: 'PENDING'
-    },
-    cancellationReason: String
+    }
 }, {
     timestamps: true
 });

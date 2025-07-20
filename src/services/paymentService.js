@@ -4,7 +4,7 @@ const BookingPrice = require('../models/BookingPrice');
 const receiptService = require('./receiptService');
 const mongoose = require('mongoose');
 const commissionService = require('./commissionService');
-const {generateOrderCode } = require('../utils/generateCode')
+const { generateOrderCode } = require('../utils/generateCode')
 const Technician = require('../models/Technician');
 const DepositLog = require('../models/DepositLog');
 const payOs = new PayOs(
@@ -13,27 +13,27 @@ const payOs = new PayOs(
   process.env.PAYOS_CHECKSUM_KEY
 );
 
-const createPayOsPayment = async ( bookingPriceId) => {
-    try {
-        // PayOS requires a unique integer for orderCode.
-        const orderCode = await generateOrderCode();
-        const bookingPrice = await BookingPrice.findById(bookingPriceId)
-        const paymentData = {
-            orderCode: orderCode,
-            amount: bookingPrice.finalPrice,
-            // amount: 3000,
-            description: `Thanh toan don hang `,
-            returnUrl: `${process.env.BACK_END_URL}/payments/success?orderCode=${orderCode}&bookingPriceId=${bookingPriceId}`,
-            cancelUrl: `${process.env.BACK_END_URL}/payments/cancel?bookingPriceId=${bookingPriceId}` 
-        };
+const createPayOsPayment = async (bookingPriceId) => {
+  try {
+    // PayOS requires a unique integer for orderCode.
+    const orderCode = await generateOrderCode();
+    const bookingPrice = await BookingPrice.findById(bookingPriceId)
+    const paymentData = {
+      orderCode: orderCode,
+      amount: bookingPrice.finalPrice,
+      // amount: 3000,
+      description: `Thanh toan don hang `,
+      returnUrl: `${process.env.BACK_END_URL}/payments/success?orderCode=${orderCode}&bookingPriceId=${bookingPriceId}`,
+      cancelUrl: `${process.env.BACK_END_URL}/payments/cancel?bookingPriceId=${bookingPriceId}`
+    };
 
-        const paymentLink = await payOs.createPaymentLink(paymentData);
-        return paymentLink.checkoutUrl;
+    const paymentLink = await payOs.createPaymentLink(paymentData);
+    return paymentLink.checkoutUrl;
 
-    } catch (error) {
-        console.error('Error creating PayOS payment link:', error);
-        throw new Error('Failed to create payment link');
-    }
+  } catch (error) {
+    console.error('Error creating PayOS payment link:', error);
+    throw new Error('Failed to create payment link');
+  }
 }
 
 const handleSuccessfulPayment = async (orderCode, bookingPriceId) => {
@@ -103,31 +103,70 @@ const handleSuccessfulPayment = async (orderCode, bookingPriceId) => {
         session.endSession();
         throw error;
     }
+
+    const booking = await bookingService.getBookingById(bookingPrice.bookingId)
+    if (!booking) {
+      throw new Error('Không tìm thấy đơn');
+    }
+
+    booking.paymentStatus = 'PAID';
+    booking.status = 'DONE';
+    booking.isChatAllowed = false
+    booking.isVideoCallAllowed = false
+    await booking.save({ session });
+
+    const receiptData = {
+      bookingId: booking._id,
+      customerId: booking.customerId,
+      technicianId: bookingPrice.technicianId,
+      paymentGatewayTransactionId: orderCode,
+      totalAmount: bookingPrice.finalPrice + bookingPrice.discountValue,
+      serviceAmount: bookingPrice.finalPrice,
+      discountAmount: bookingPrice.discountValue,
+      paidAmount: bookingPrice.finalPrice,
+      paymentMethod: 'BANK',
+      paymentStatus: 'PAID',
+    };
+    await receiptService.createReceipt(receiptData, session);
+
+    // Credit commission from technician's balance
+    await commissionService.creditCommission(
+      bookingPrice.technicianId,
+      bookingPrice.finalPrice,
+      session
+    );
+
+    await session.commitTransaction();
+    session.endSession();
+
+    return { success: true };
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    throw error;
+  }
 };
 
 const createPayOsDeposit = async (userId, amount) => {
-    try {
-        // PayOS requires a unique integer for orderCode.
-        const orderCode = await generateOrderCode();
-        const paymentData = {
-            orderCode: orderCode,
-            amount: amount,
-            description: `Nap tien vao tai khoan`,
-            returnUrl: `${process.env.BACK_END_URL}/payments/deposit/success?userId=${userId}&amount=${amount}`,
-            cancelUrl: `${process.env.BACK_END_URL}/payments/deposit/cancel?userId=${userId}&amount=${amount}` 
-        };
+  try {
+    // PayOS requires a unique integer for orderCode.
+    const orderCode = await generateOrderCode();
+    const paymentData = {
+      orderCode: orderCode,
+      amount: amount,
+      description: `Nap tien vao tai khoan`,
+      returnUrl: `${process.env.BACK_END_URL}/payments/deposit/success?userId=${userId}&amount=${amount}`,
+      cancelUrl: `${process.env.BACK_END_URL}/payments/deposit/cancel?userId=${userId}&amount=${amount}`
+    };
 
-        const paymentLink = await payOs.createPaymentLink(paymentData);
-        return paymentLink.checkoutUrl;
+    const paymentLink = await payOs.createPaymentLink(paymentData);
+    return paymentLink.checkoutUrl;
 
-    } catch (error) {
-        console.error('Error creating PayOS payment link:', error);
-        throw new Error('Failed to create payment link');
-    }
-}
-
-
-
+  } catch (error) {
+    console.error('Error creating PayOS payment link:', error);
+    throw new Error('Failed to create payment link');
+  }
+};
 
 const handleSuccessfulDeposit = async (amount, userId) => {
   const session = await mongoose.startSession();
@@ -178,7 +217,7 @@ const handleSuccessfulDeposit = async (amount, userId) => {
   }
 };
 
-const handleCancelDeposit = async (amount,userId) => {
+const handleCancelDeposit = async (amount, userId) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
@@ -218,9 +257,9 @@ const handleCancelDeposit = async (amount,userId) => {
 }
 
 module.exports = {
-    createPayOsPayment,
-    handleSuccessfulPayment,
-    createPayOsDeposit,
-    handleSuccessfulDeposit,
-    handleCancelDeposit
+  createPayOsPayment,
+  handleSuccessfulPayment,
+  createPayOsDeposit,
+  handleSuccessfulDeposit,
+  handleCancelDeposit
 };

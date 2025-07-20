@@ -2,13 +2,12 @@ const Certificate = require('../models/Certificate');
 const mongoose = require('mongoose');
 const Technician = require('../models/Technician');
 const Service = require('../models/Service');
-const BookingItem = require('../models/BookingItem');
-const BookingPrice = require('../models/BookingPrice');
 const CommissionConfig = require('../models/CommissionConfig');
 const Booking = require('../models/Booking');
 const BookingStatusLog = require('../models/BookingStatusLog');
 const User = require('../models/User');
 const DepositLog = require('../models/DepositLog');
+const notificationService = require('../services/notificationService');
 
 const createNewTechnician = async (userId, technicianData, session = null) => {
   const technician = new Technician({
@@ -42,11 +41,13 @@ const createNewTechnician = async (userId, technicianData, session = null) => {
 
 const findTechnicianByUserId = async (userId) => {
   return await Technician.findOne({ userId })
-}
+};
 
 const findNearbyTechnicians = async (searchParams, radiusInKm) => {
-  const { latitude, longitude, serviceId, availability, status, minBalance } = searchParams;
-  const service = await Service.findById(serviceId).select('categoryId').lean();
+  const { latitude, longitude, serviceId, availability, status, minBalance, scheduleDate } = searchParams;
+  // console.log('--- TECH FIND SERVICE LOG ---', searchParams);
+
+  const service = await Service.findById(serviceId).select('categoryId serviceType estimatedMarketPrice serviceName').lean();
   // console.log(service);
 
   if (!service) {
@@ -101,6 +102,52 @@ const findNearbyTechnicians = async (searchParams, radiusInKm) => {
         }
       },
       {
+        $lookup: {
+          from: 'technicianservices',
+          let: { technicianId: '$_id', serviceId: new mongoose.Types.ObjectId(serviceId) },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$technicianId', '$$technicianId'] },
+                    { $eq: ['$serviceId', '$$serviceId'] },
+                    { $eq: ['$isActive', true] }
+                  ]
+                }
+              }
+            }
+          ],
+          as: 'technicianService'
+        }
+      },
+      {
+        $lookup: {
+          from: 'technicianschedules',
+          let: { technicianId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$technicianId', '$$technicianId'] },
+                    { $eq: ['$scheduleType', 'AVAILABLE'] },
+                    // Kiểm tra xem có lịch trống trong ngày được chọn không
+                    scheduleDate ? {
+                      $and: [
+                        { $lte: ['$startTime', new Date(scheduleDate)] },
+                        { $gte: ['$endTime', new Date(scheduleDate)] }
+                      ]
+                    } : {}
+                  ]
+                }
+              }
+            }
+          ],
+          as: 'availableSchedules'
+        }
+      },
+      {
         $project: {
           userId: 1,
           currentLocation: 1,
@@ -116,7 +163,14 @@ const findNearbyTechnicians = async (searchParams, radiusInKm) => {
           distanceInKm: { $round: [{ $divide: ["$distance", 1000] }, 2] },
           // Thêm thông tin user
           userInfo: { $arrayElemAt: ["$userInfo", 0] },
-          // category: 1
+          category: 1,
+          servicePrice: { $arrayElemAt: ["$technicianService.price", 0] },
+          hasCustomPrice: { $gt: [{ $size: "$technicianService" }, 0] },
+          isAvailableOnSchedule: { $gt: [{ $size: "$availableSchedules" }, 0] },
+          rates: 1, // Lấy trực tiếp từ technician document
+          serviceType: service.serviceType,
+          estimatedMarketPrice: service.estimatedMarketPrice,
+
         }
       },
       {
@@ -129,10 +183,33 @@ const findNearbyTechnicians = async (searchParams, radiusInKm) => {
       }
     ]);
 
+    const techniciansWithPricing = technicians.map(technician => {
+      let fixedPrice = null;
+      let tier1Price = null;
+      let marketPriceRange = service.estimatedMarketPrice;
+
+      if (service.serviceType === 'FIXED') {
+        // Dịch vụ cố định - lấy giá từ TechnicianService
+        fixedPrice = technician.hasCustomPrice ? technician.servicePrice : null;
+      } else if (service.serviceType === 'COMPLEX') {
+        // Dịch vụ phức tạp - lấy giá tier 1
+        tier1Price = technician.rates?.laborTiers?.tier1 || null;
+      }
+
+      return {
+        ...technician,
+        fixedPrice,
+        tier1Price,
+        marketPriceRange,
+        serviceType: service.serviceType,
+        serviceName: service.serviceName
+      };
+    });
+
     return {
       success: true,
-      data: technicians,
-      total: technicians.length
+      data: techniciansWithPricing,
+      total: techniciansWithPricing.length
     };
 
   } catch (error) {
@@ -145,96 +222,7 @@ const findNearbyTechnicians = async (searchParams, radiusInKm) => {
   }
 };
 
-const sendQuotation = async (bookingPriceData) => {
-  const { bookingId, userId, laborPrice, warrantiesDuration, items } = bookingPriceData;
-
-  const technician = await Technician.findOne({ userId });
-  if (!technician) {
-    throw new Error('Không tìm thấy thông tin kỹ thuật viên');
-  }
-
-  const technicianId = technician._id;
-
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    const booking = await Booking.findById(bookingId).session(session);
-    if (!booking) {
-      throw new Error('Không tìm thấy đặt lịch');
-    }
-
-    // if (booking.status !== 'PENDING') {
-    //     throw new Error('Không thể tạo báo giá cho đặt lịch này');
-    // }
-
-    // Set exprire time
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-
-    // Get current commission applied
-    const activeConfig = await CommissionConfig.findOne({ isApplied: true }).session(session);
-    if (!activeConfig) {
-      throw new Error("Chưa có cấu hình hoa hồng nào được áp dụng!");
-    }
-
-    // Calulate the total of items
-    const totalItemPrice = (items && Array.isArray(items))
-      ? items.reduce((total, item) => total + (item.price * item.quantity), 0)
-      : 0;
-    const finalPrice = laborPrice + totalItemPrice;
-
-    const newBookingPrice = new BookingPrice({
-      bookingId,
-      technicianId,
-      laborPrice,
-      warrantiesDuration,
-      finalPrice,
-      commissionConfigId: activeConfig._id,
-      expiresAt: expiresAt
-    });
-    const savedBookingPrice = await newBookingPrice.save({ session });
-    console.log('--- NEW BOOKING PRICE ---', savedBookingPrice);
-
-    let savedBookingItems = [];
-    if (items && Array.isArray(items) && items.length > 0) {
-      const bookingItems = items.map(item => ({
-        bookingPriceId: savedBookingPrice._id,
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity,
-        note: item.note
-      }));
-      savedBookingItems = await BookingItem.insertMany(bookingItems, { session });
-    }
-
-    await BookingStatusLog.create([{
-      bookingId,
-      fromStatus: booking.status,
-      toStatus: 'QUOTED',
-      changedBy: technicianId,
-      role: 'TECHNICIAN'
-    }], { session });
-
-    booking.status = 'QUOTED';
-    await booking.save({ session });
-
-    await session.commitTransaction();
-
-    return {
-      message: 'Gửi báo giá thành công',
-      bookingPrice: savedBookingPrice,
-      bookingItems: savedBookingItems,
-      totalItems: totalItemPrice
-    };
-  } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    console.error("Lỗi trong quá trình gửi báo giá:", error);
-    throw new Error(`Lỗi gửi báo giá: ${error.message}`);
-  }
-};
-
-const confirmJobDoneByTechnician = async (bookingId, userId, role) => {
+const confirmJobDoneByTechnician = async (bookingId, userId, role, io) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
@@ -243,12 +231,20 @@ const confirmJobDoneByTechnician = async (bookingId, userId, role) => {
     if (!booking) {
       throw new Error('Không tìm thấy booking');
     }
+    const technician = await Technician.findById(booking.technicianId).populate('userId');
+    console.log('--- TECHNICIAN CONFIRM ---', technician);
+
+    if (role === "TECHNICIAN" && !technician) {
+      throw new Error('Không tìm thấy thông tin kỹ thuật viên');
+    }
+    const technicianId = technician?._id;
+    console.log('--- TECHNICIAN CONFIRM ID ---', technician.userId._id);
 
     // Kiểm tra quyền
-    if (role === 'CUSTOMER' && booking.customerId.toString() !== userId) {
+    if (role === 'CUSTOMER' && booking.customerId.toString() !== userId.toString()) {
       throw new Error('Bạn không có quyền xác nhận booking này');
     }
-    if (role === 'TECHNICIAN' && booking.technicianId?.toString() !== userId.toString()) {
+    if (role === 'TECHNICIAN' && booking.technicianId?.toString() !== technicianId.toString()) {
       throw new Error('Bạn không có quyền xác nhận booking này');
     }
 
@@ -270,8 +266,8 @@ const confirmJobDoneByTechnician = async (bookingId, userId, role) => {
         $set: {
           status: 'WAITING_CONFIRM',
           technicianConfirmedDone: true,
-          isChatAllowed: false,
-          isVideoCallAllowed: false
+          // isChatAllowed: false,
+          // isVideoCallAllowed: false
         }
       },
       { session }
@@ -285,6 +281,11 @@ const confirmJobDoneByTechnician = async (bookingId, userId, role) => {
       changedBy: userId,
       role
     }], { session });
+
+    io.to(`user:${booking.customerId}`).emit('booking:statusUpdate', {
+      bookingId: booking._id,
+      status: 'WAITING_CONFIRM'
+    });
 
     await session.commitTransaction();
 
@@ -391,35 +392,35 @@ const getListBookingForTechnician = async (technicianId) => {
 };
 
 
-const getEarningsAndCommissionList = async (technicianId) => {
+// const getEarningsAndCommissionList = async (technicianId) => {
 
-  const quotes = await BookingPrice.find(technicianId)
-    .sort({ createdAt: -1 })
-    .populate('commissionConfigId')
-    .populate({
-      path: 'bookingId',
-      populate: [
-        { path: 'customerId', select: 'fullName' },
-        { path: 'serviceId', select: 'serviceName' }
-      ]
-    })
+//   const quotes = await BookingPrice.find(technicianId)
+//     .sort({ createdAt: -1 })
+//     .populate('commissionConfigId')
+//     .populate({
+//       path: 'bookingId',
+//       populate: [
+//         { path: 'customerId', select: 'fullName' },
+//         { path: 'serviceId', select: 'serviceName' }
+//       ]
+//     })
 
-  const earningList = quotes.map(quote => ({
-    // bookingId: quote.bookingId._id,
-    bookingCode: quote.bookingId?.bookingCode,
-    bookingInfo: {
-      customerName: quote.bookingId?.customerId,
-      service: quote.bookingId?.serviceId,
-    },
-    finalPrice: quote.finalPrice || 0,
-    commissionAmount: quote.commissionAmount || 0,
-    holdingAmount: quote.holdingAmount || 0,
-    technicianEarning: quote.technicianEarning || 0,
+//   const earningList = quotes.map(quote => ({
+//     // bookingId: quote.bookingId._id,
+//     bookingCode: quote.bookingId?.bookingCode,
+//     bookingInfo: {
+//       customerName: quote.bookingId?.customerId,
+//       service: quote.bookingId?.serviceId,
+//     },
+//     finalPrice: quote.finalPrice || 0,
+//     commissionAmount: quote.commissionAmount || 0,
+//     holdingAmount: quote.holdingAmount || 0,
+//     technicianEarning: quote.technicianEarning || 0,
 
-  }));
+//   }));
 
-  return earningList;
-};
+//   return earningList;
+// };
 
 const getAvailability = async (technicianId) => {
   const technician = await Technician.findById(technicianId).select('availability');
@@ -525,10 +526,7 @@ const requestWithdraw = async (technicianId, amount, paymentMethod) => {
   };
 };
 
-
-
 const getTechnicianById = async (technicianId) => {
-
   try {
     if (!mongoose.Types.ObjectId.isValid(technicianId)) {
       throw new Error('ID Kỹ thuật viên không hợp lệ');
@@ -544,6 +542,7 @@ const getTechnicianById = async (technicianId) => {
     throw error;
   }
 }
+
 const getTechnicianDepositLogs = async (userId, limit, skip) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(userId)) {
@@ -570,11 +569,10 @@ module.exports = {
   getTechnicianProfile,
   getCertificatesByTechnicianId,
   getJobDetails,
-  getEarningsAndCommissionList,
+  // getEarningsAndCommissionList,
   getAvailability,
   updateTechnicianAvailability,
   findNearbyTechnicians,
-  sendQuotation,
   confirmJobDoneByTechnician,
   getTechnicianById,
   findTechnicianByUserId,
@@ -582,7 +580,6 @@ module.exports = {
   depositMoney,
   requestWithdraw,
   createNewTechnician,
-  findTechnicianByUserId,
   getTechnicianDepositLogs
 };
 

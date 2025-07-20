@@ -10,8 +10,22 @@ const serviceSchema = new mongoose.Schema({
         ref: 'Category',
         required: true
     },
+    serviceType: {
+        type: String,
+        enum: ['FIXED', 'COMPLEX'],
+        required: true
+    },
+    estimatedMarketPrice: {
+        min: { type: Number },
+        max: { type: Number }
+    },
     icon: String,
+    description: String,
     isActive: {
+        type: Boolean,
+        default: true
+    },
+    isDeleted: {
         type: Boolean,
         default: true
     }
