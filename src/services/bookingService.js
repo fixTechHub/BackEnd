@@ -130,14 +130,14 @@ const getBookingById = async (bookingId) => {
                 populate: [
                     {
                         path: 'userId',
-                        select: 'fullName email phone avatar'
+                        select: 'fullName email phone avatar address'
                     },
                     {
-                        path: 'specialtiesCategories',
-                        select: 'categoryName'
+                        path: 'specialtiesCategories'
                     }
                 ]
             })
+
             .populate({
                 path: 'serviceId',
             })
@@ -196,31 +196,60 @@ const cancelBooking = async (bookingId, userId, role, reason, io) => {
         if (booking.status === 'WAITING_CONFIRM') {
             throw new Error('Không thể hủy đơn khi thợ đã xác nhận hoàn thành');
         }
+// const cancelBooking = async (bookingId, userId, role, reason) => {
+//     const session = await mongoose.startSession();
+//     session.startTransaction();
 
-        // Cập nhật trạng thái booking
-        await Booking.findByIdAndUpdate(
-            bookingId,
-            {
-                $set: {
-                    status: 'CANCELLED',
-                    cancelledBy: userId,
-                    cancellationReason: reason,
-                    isChatAllowed: false,
-                    isVideoCallAllowed: false
-                }
-            },
-            { session }
-        );
+//     try {
+//         // Tìm booking
+//         const booking = await Booking.findById(bookingId);
+//         if (!booking) {
+//             throw new Error('Không tìm thấy booking');
+//         }
 
-        // Lưu log trạng thái
-        await BookingStatusLog.create([{
-            bookingId,
-            fromStatus: booking.status,
-            toStatus: 'CANCELLED',
-            changedBy: userId,
-            role,
-            note: reason
-        }], { session });
+//         // Kiểm tra quyền hủy
+//         if (role === 'CUSTOMER' && booking.customerId.toString() !== userId) {
+//             throw new Error('Bạn không có quyền hủy booking này');
+//         }
+//         if (role === 'TECHNICIAN' && booking.technicianId?.toString() !== userId) {
+//             throw new Error('Bạn không có quyền hủy booking này');
+//         }
+
+//         // Kiểm tra trạng thái hiện tại
+//         if (booking.status === 'CANCELLED') {
+//             throw new Error('Booking đã bị hủy trước đó');
+//         }
+//         if (booking.status === 'DONE') {
+//             throw new Error('Không thể hủy booking đã hoàn thành');
+//         }
+//         if (booking.status === 'WAITING_CONFIRM') {
+//             throw new Error('Không thể hủy booking đã hoàn thành');
+//         }
+
+//         // Cập nhật trạng thái booking
+//         await Booking.findByIdAndUpdate(
+//             bookingId,
+//             {
+//                 $set: {
+//                     status: 'CANCELLED',
+//                     cancelledBy: userId,
+//                     cancellationReason: reason,
+//                     isChatAllowed: false,
+//                     isVideoCallAllowed: false
+//                 }
+//             },
+//             { session }
+//         );
+
+//         // Lưu log trạng thái
+//         await BookingStatusLog.create([{
+//             bookingId,
+//             fromStatus: booking.status,
+//             toStatus: 'CANCELLED',
+//             changedBy: userId,
+//             role,
+//             note: reason
+//         }], { session });
 
         if (booking.status === 'IN_PROGRESS' && booking.technicianId) {
             await Technician.findByIdAndUpdate(
@@ -267,6 +296,16 @@ const cancelBooking = async (bookingId, userId, role, reason, io) => {
             };
             const notify = await notificationService.createNotification(notifData);
             io.to(`user:${notify.userId}`).emit('receiveNotification', notify);
+        }
+
+        await session.commitTransaction();
+        // Nếu booking đang có báo giá, cập nhật trạng thái báo giá
+        if (booking.status === 'QUOTED') {
+            await BookingPrice.updateMany(
+                { bookingId, status: 'PENDING' },
+                { status: 'REJECTED' },
+                { session }
+            );
         }
 
         await session.commitTransaction();

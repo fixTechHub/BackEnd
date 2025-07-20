@@ -106,12 +106,19 @@ const cancelBooking = async (req, res) => {
         const io = getIo();
         // console.log('--- ROLE ---', role);
         console.log('--- ROLE ---', req.user);
+// const cancelBooking = async (req, res) => {
+//     try {
+//         const { bookingId } = req.params;
+//         const { reason } = req.body;
+//         const userId = req.user.userId;        
+//         const role = req.user.role;
+//         // console.log('--- ROLE ---', role);
 
-        if (!reason) {
-            return res.status(400).json({
-                message: 'Vui lòng cung cấp lý do hủy booking'
-            });
-        }
+//         if (!reason) {
+//             return res.status(400).json({
+//                 message: 'Vui lòng cung cấp lý do hủy booking'
+//             });
+//         }
 
         const booking = await bookingService.cancelBooking(
             bookingId,
@@ -120,6 +127,12 @@ const cancelBooking = async (req, res) => {
             reason,
             io
         );
+//         const booking = await bookingService.cancelBooking(
+//             bookingId,
+//             userId,
+//             role,
+//             reason
+//         );
 
         res.status(200).json({
             message: 'Hủy booking thành công',
@@ -254,6 +267,7 @@ const getUserBookingHistory = async (req,res) => {
         });
     }
 }
+
 
 module.exports = {
     createBookingRequest,

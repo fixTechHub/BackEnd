@@ -1,4 +1,4 @@
-const bookingPriceService = require("../services/bookingPriceService");
+// const bookingPriceService = require("../services/bookingPriceService");
 const paymentService = require('../services/paymentService');
 const { generateToken } = require('../utils/jwt');
 const { generateCookie } = require('../utils/generateCode');

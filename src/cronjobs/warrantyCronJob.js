@@ -1,7 +1,6 @@
 const cron = require('node-cron');
 const mongoose = require('mongoose');
 const BookingWarranty = require('../models/BookingWarranty');
-const BookingPrice = require('../models/BookingPrice');
 const Technician = require('../models/Technician');
 const User = require('../models/User');
 const Role = require('../models/Role');

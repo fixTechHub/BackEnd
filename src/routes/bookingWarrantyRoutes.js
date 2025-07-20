@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const bookingWarrantyController = require('../controllers/bookingWarrantyController')
 const { authenticateToken } = require('../middlewares/authMiddleware');
+// router.post('/', authenticateToken, bookingWarrantyController.requestBookingWarranty);
 
 router.post('/', authenticateToken, bookingWarrantyController.requestBookingWarranty);
 router.get('/:bookingWarrantyId',authenticateToken, bookingWarrantyController.getBookingWarrantyById)
