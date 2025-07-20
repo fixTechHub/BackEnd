@@ -23,6 +23,8 @@ const findTechniciansWithExpandingRadiusAndSave = async (searchParams, bookingId
 
     for (const radius of SEARCH_RADII) {
         const result = await technicianService.findNearbyTechnicians(searchParams, radius);
+        // console.log('--- TECHNICIAN FOUND ---', result);
+
         if (result && result.data && result.data.length > 0) {
             for (const tech of result.data) {
                 if (!foundTechnicianIds.has(String(tech.userId))) {
@@ -78,7 +80,8 @@ const createRequestAndNotify = async (bookingData, io) => {
             bookingCode,
             ...bookingData,
             status: 'PENDING',
-            technicianId: null
+            technicianId: null,
+            quote: null
         });
         // console.log('--- LOCATION POINT ---', newBooking.location.geojson.coordinates);
         console.log('--- ĐẶT LỊCH MỚI ---', newBooking);
@@ -98,6 +101,7 @@ const createRequestAndNotify = async (bookingData, io) => {
 
         // Tìm thợ lần đầu và lưu trạng thái
         const foundTechs = await findTechniciansWithExpandingRadiusAndSave(searchParams, newBooking._id, io);
+        console.log('--- TECHNICIAN FOUND ---', foundTechs);
 
         await session.commitTransaction();
         session.endSession();
@@ -523,6 +527,84 @@ const getTopBookedServices = async (limit) => {
     }
 };
 
+const selectTechnicianForBooking = async (bookingId, technicianId, customerId, io) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+        const booking = await Booking.findById(bookingId).session(session);
+        const technician = await Technician.findById(technicianId).populate('userId');
+        console.log('--- TECHNICIAN ---', technician);
+
+        if (!booking) throw new Error('Không tìm thấy booking');
+        if (booking.customerId.toString() !== customerId) throw new Error('Bạn không có quyền chọn thợ cho booking này');
+        if (booking.status !== 'PENDING') throw new Error('Chỉ chọn thợ khi booking đang chờ xử lý');
+
+        booking.technicianId = technicianId;
+        booking.status = 'AWAITING_CONFIRM';
+        await booking.save({ session });
+
+        // Gửi thông báo cho thợ
+        const notifData = {
+            userId: technician?.userId?._id,
+            title: 'Bạn được chọn cho đơn mới',
+            content: `Khách hàng đã chọn bạn cho đơn ${booking.bookingCode}`,
+            referenceModel: 'Booking',
+            referenceId: bookingId,
+            url: `/booking/booking-processing?bookingId=${bookingId}`,
+            type: 'NEW_REQUEST'
+        };
+        const notify = await notificationService.createNotification(notifData);
+        io.to(`user:${notify.userId}`).emit('receiveNotification', notify);
+
+        await session.commitTransaction();
+        return { success: true, message: 'Đã gửi yêu cầu xác nhận đến kỹ thuật viên!' };
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
+};
+
+const technicianConfirmBooking = async (bookingId, technicianId) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+        const booking = await Booking.findById(bookingId).session(session);
+        const technician = await Technician.findOne({ userId: technicianId });
+        console.log('--- TEST TECHID ---', technician);
+        console.log('--- TEST BOOKING ---', booking);
+        
+        if (!booking) throw new Error('Không tìm thấy booking');
+        if (!booking.technicianId || booking.technicianId.toString() !== technician._id.toString()) throw new Error('Bạn không có quyền xác nhận booking này');
+        if (booking.status !== 'AWAITING_CONFIRM') throw new Error('Trạng thái booking không hợp lệ');
+
+        // booking.status = 'IN_PROGRESS';
+        booking.isChatAllowed = true;
+        booking.isVideoCallAllowed = true;
+        await booking.save({ session });
+
+        // Gửi thông báo cho khách
+        await notificationService.createNotification({
+            userId: booking.customerId,
+            title: 'Kỹ thuật viên đã xác nhận',
+            content: `Kỹ thuật viên đã xác nhận đơn ${booking.bookingCode}`,
+            referenceModel: 'Booking',
+            referenceId: bookingId,
+            url: `/booking/${bookingId}`,
+            type: 'NEW_REQUEST'
+        });
+
+        await session.commitTransaction();
+        return { success: true, message: 'Kỹ thuật viên đã xác nhận nhận đơn!' };
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
+};
+
 module.exports = {
     createRequestAndNotify,
     getBookingById,
@@ -534,4 +616,6 @@ module.exports = {
     customerAcceptQuote,
     customerRejectQuote,
     getTopBookedServices,
+    selectTechnicianForBooking,
+    technicianConfirmBooking,
 };

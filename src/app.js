@@ -16,9 +16,12 @@ app.use(
         origin: [
             process.env.FRONT_END_URL, // http://localhost:5173
             'http://localhost:5173', // Explicitly include for safety
+            'http://localhost:5174',
             'https://*.ngrok-free.app', // Allow all ngrok-free.app URLs
-            'https://b8d9-2001-ee0-4b7b-3bd0-2d89-bdfa-7310-9e33.ngrok-free.app', // Specific ngrok URL (optional)
-          ],
+            'https://b8d9-2001-ee0-4b7b-3bd0-2d89-bdfa-7310-9e33.ngrok-free.app',
+            'https://fixtech.id.vn',
+            'https://fix-tech-git-develop-tris-projects-f8fdb778.vercel.app'
+        ],
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
         allowedHeaders: ['Content-Type', 'Authorization'],

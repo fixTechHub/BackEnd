@@ -9,7 +9,7 @@ const createBookingRequest = async (req, res) => {
         const customerId = req.user.userId;
         // console.log('--- CUSTOMER ID ---', customerId);
 
-        const { serviceId, description, startTime, endTime, address } = req.body;
+        const { serviceId, description, startTime, endTime, address, type } = req.body;
         // console.log('Booking Text Data:', { customerId, serviceId, description, schedule, address });
 
         // Chuyển đổi địa chỉ string sang GeoJSON Point bằng Mapbox
@@ -29,15 +29,23 @@ const createBookingRequest = async (req, res) => {
         }
         console.log('--- LOCATION ---', location);
 
-        const schedule = {
-            startTime,
-            endTime
+        let schedule = {};
+        let isUrgent = false;
+
+        if (type === 'scheduled') {
+            if (!startTime || !endTime) {
+                return res.status(400).json({ success: false, message: 'Vui lòng chọn thời gian bắt đầu và kết thúc.' });
+            }
+            schedule.startTime = new Date(startTime);
+            schedule.expectedEndTime = new Date(endTime);
+            isUrgent = false;
+        } else {
+            const now = new Date();
+            schedule.startTime = now;
+            schedule.expectedEndTime = new Date(now.getTime() + 2 * 60 * 60 * 1000); // +2h
+            isUrgent = true;
         }
         console.log('--- SCHEDULE ---', schedule);
-
-        if (!schedule?.startTime || !schedule?.endTime) {
-            return res.status(400).json({ success: false, message: 'Vui lòng chọn thời gian bắt đầu và kết thúc.' });
-        }
 
         const imageUrls = req.s3FileUrls || [];
         console.log('Uploaded Image URLs:', imageUrls);
@@ -49,16 +57,17 @@ const createBookingRequest = async (req, res) => {
             description,
             schedule,
             images: imageUrls,
+            isUrgent
         };
         // console.log('--- Booking Data ---', bookingData);
 
         const result = await bookingService.createRequestAndNotify(bookingData, io);
-        // console.log('Booking Request Result:', result);
+        console.log('Booking Request Result:', result);
 
         res.status(201).json({
             success: true,
             message: 'Tạo yêu cầu thành công. Hệ thống đang tìm kiếm kỹ thuật viên phù hợp.',
-            data: result.booking,
+            booking: result.booking,
             technicians_found: result.technicians.data.length > 0 ? result.technicians.data : result.message
         });
     } catch (error) {
@@ -94,8 +103,9 @@ const cancelBooking = async (req, res) => {
         const { reason } = req.body;
         const userId = req.user.userId;
         const role = req.user.role;
-        const io = getIo()
+        const io = getIo();
         // console.log('--- ROLE ---', role);
+        console.log('--- ROLE ---', req.user);
 
         if (!reason) {
             return res.status(400).json({
@@ -204,6 +214,32 @@ const getTopBookedServices = async (req, res) => {
     }
 };
 
+const selectTechnician = async (req, res) => {
+    try {
+        const { bookingId } = req.params;
+        const { technicianId } = req.body;
+        const customerId = req.user.userId;
+        const io = getIo();
+
+        const result = await bookingService.selectTechnicianForBooking(bookingId, technicianId, customerId, io);
+        res.json(result);
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+};
+
+const technicianConfirm = async (req, res) => {
+    try {
+        const { bookingId } = req.params;
+        const technicianId = req.user.userId;        
+
+        const result = await bookingService.technicianConfirmBooking(bookingId, technicianId);
+        res.json(result);
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+};
+
 module.exports = {
     createBookingRequest,
     getBookingById,
@@ -212,5 +248,7 @@ module.exports = {
     technicianSendQuote,
     customerAcceptQuote,
     customerRejectQuote,
-    getTopBookedServices
+    getTopBookedServices,
+    selectTechnician,
+    technicianConfirm
 };

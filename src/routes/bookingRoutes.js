@@ -14,5 +14,7 @@ router.post('/:bookingId/done', authenticateToken, bookingController.confirmJobD
 router.post('/:bookingId/quote', authenticateToken, bookingController.technicianSendQuote);
 router.post('/:bookingId/quote/accept', authenticateToken, bookingController.customerAcceptQuote);
 router.post('/:bookingId/quote/reject', authenticateToken, bookingController.customerRejectQuote);
+router.post('/:bookingId/select-technician', authenticateToken, bookingController.selectTechnician);
+router.post('/:bookingId/technician-confirm', authenticateToken, bookingController.technicianConfirm);
 
 module.exports = router;
