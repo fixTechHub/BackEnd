@@ -1,6 +1,6 @@
 const PayOs = require('@payos/node');
 const bookingService = require('./bookingService');
-const BookingPrice = require('../models/BookingPrice');
+// const BookingPrice = require('../models/BookingPrice');
 const receiptService = require('./receiptService');
 const mongoose = require('mongoose');
 const commissionService = require('./commissionService');
@@ -103,48 +103,6 @@ const handleSuccessfulPayment = async (orderCode, bookingPriceId) => {
         session.endSession();
         throw error;
     }
-
-    const booking = await bookingService.getBookingById(bookingPrice.bookingId)
-    if (!booking) {
-      throw new Error('Không tìm thấy đơn');
-    }
-
-    booking.paymentStatus = 'PAID';
-    booking.status = 'DONE';
-    booking.isChatAllowed = false
-    booking.isVideoCallAllowed = false
-    await booking.save({ session });
-
-    const receiptData = {
-      bookingId: booking._id,
-      customerId: booking.customerId,
-      technicianId: bookingPrice.technicianId,
-      paymentGatewayTransactionId: orderCode,
-      totalAmount: bookingPrice.finalPrice + bookingPrice.discountValue,
-      serviceAmount: bookingPrice.finalPrice,
-      discountAmount: bookingPrice.discountValue,
-      paidAmount: bookingPrice.finalPrice,
-      paymentMethod: 'BANK',
-      paymentStatus: 'PAID',
-    };
-    await receiptService.createReceipt(receiptData, session);
-
-    // Credit commission from technician's balance
-    await commissionService.creditCommission(
-      bookingPrice.technicianId,
-      bookingPrice.finalPrice,
-      session
-    );
-
-    await session.commitTransaction();
-    session.endSession();
-
-    return { success: true };
-  } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    throw error;
-  }
 };
 
 const createPayOsDeposit = async (userId, amount) => {

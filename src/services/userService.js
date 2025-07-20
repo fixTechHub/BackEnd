@@ -53,7 +53,7 @@ exports.findRoleById = async (roleId) => {
 };
 
 exports.findUserById = async (userId) => {
-    return await User.findById(userId).populate('role', 'name');
+    return await User.findById(userId).populate('role'); // Không cần populate role nữa
 };
 
 exports.createNewUser = async (userData) => {

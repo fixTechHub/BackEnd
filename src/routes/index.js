@@ -8,8 +8,8 @@ router.use('/auth', require('./authRoutes'));
 router.use('/admin', require('./adminRoutes'));
 router.use('/users', require('./userRoutes'));
 router.use('/bookings', require('./bookingRoutes'));
-router.use('/booking-prices', require('./bookingPriceRoutes'));
 router.use('/warranties', require('./bookingWarrantyRoutes'));
+router.use('/certificates', require('./certificateRoutes'));
 router.use('/categories', require('./categoryRoutes'));
 router.use('/commissions-config', require('./commissionRoutes'));
 router.use('/contracts', require('./contractRoutes'));
@@ -23,16 +23,16 @@ router.use('/services', require('./serviceRoutes'));
 router.use('/technicians', require('./technicianRoutes'));
 router.use('/video-call', require('./videoCallRoutes'));
 router.use('/receipts', require('./receiptRoutes'));
-router.use('/booking-items', require('./bookingItemRoutes'));
+// router.use('/booking-items', require('./bookingItemRoutes'));
 router.use('/favorites', require('./favoriteTechnicianRoutes'));
 
 router.get('/test', async (req, res) => {
     try {
         const roles = await Role.find();
-        const b = await require('../models/BookingItem').find();
-        const b1 = await require('../models/BookingItemLog').find();
-        const b11 = await require('../models/BookingPrice').find();
-        const b12 = await require('../models/BookingPriceLog').find();
+        // const b = await require('../models/BookingItem').find();
+        // const b1 = await require('../models/BookingItemLog').find();
+        // const b11 = await require('../models/BookingPrice').find();
+        // const b12 = await require('../models/BookingPriceLog').find();
         const b13 = await require('../models/BookingStatusLog').find();
         const b14 = await require('../models/BookingWarranty').find();
         const b15 = await require('../models/Category').find();

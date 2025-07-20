@@ -3,7 +3,9 @@ const mongoose = require('mongoose');
 const commissionConfigSchema = new mongoose.Schema({
     commissionPercent: {
         type: Number,
-        required: true
+        required: true,
+        min: 0, 
+        max: 100 
     },
     holdingPercent: {
         type: Number,

@@ -18,4 +18,6 @@ router.get('/test', (req, res) => res.json('This is API Admin test page'));
 router.post('/users/:userId/deactivate', authenticateToken, adminController.deactivateUserAccount);
 router.post('/users/:userId/activate', authenticateToken, adminController.activateUserAccount);
 
+router.post('/withdraws/:logId/approve', adminController.approveWithdraw);
+
 module.exports = router;

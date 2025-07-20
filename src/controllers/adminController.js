@@ -1,4 +1,4 @@
-const adminService = require('../services/adminService');   
+const adminService = require('../services/adminService'); 
 const User = require('../models/User');
 const Booking = require('../models/Booking');
 const Receipt = require('../models/Receipt');
@@ -154,4 +154,14 @@ exports.approveTechnician = async (req, res) => {
     } catch (error) {
         res.status(error.statusCode || 500).json({ message: error.message });
     }
+};
+
+exports.approveWithdraw = async (req, res) => {
+  try {
+    const logId = req.params.logId;
+    const result = await adminService.approveWithdrawRequest(logId);
+    res.status(200).json(result);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
 };
