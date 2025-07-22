@@ -255,16 +255,16 @@ const confirmJobDoneByTechnician = async (bookingId, userId, role, io) => {
     if (booking.status === 'PENDING') {
       throw new Error('Không thể hoàn thành booking khi chưa chọn thợ');
     }
-    if (booking.status === 'WAITING_CONFIRM') {
-      throw new Error('Bạn đã xác nhận hoàn thành rồi!!');
-    }
+    // if (booking.status === 'WAITING_CONFIRM') {
+    //   throw new Error('Bạn đã xác nhận hoàn thành rồi!!');
+    // }
 
     // Cập nhật trạng thái booking
     await Booking.findByIdAndUpdate(
       bookingId,
       {
         $set: {
-          status: 'WAITING_CONFIRM',
+          status: 'AWAITING_DONE',
           technicianConfirmedDone: true,
           // isChatAllowed: false,
           // isVideoCallAllowed: false
@@ -277,16 +277,19 @@ const confirmJobDoneByTechnician = async (bookingId, userId, role, io) => {
     await BookingStatusLog.create([{
       bookingId,
       fromStatus: booking.status,
-      toStatus: 'WAITING_CONFIRM',
+      toStatus: 'AWAITING_DONE',
       changedBy: userId,
       role
-    }], { session });
+    }], { session }); 
 
     io.to(`user:${booking.customerId}`).emit('booking:statusUpdate', {
       bookingId: booking._id,
-      status: 'WAITING_CONFIRM'
+      status: 'AWAITING_DONE'
     });
-
+    io.to(`user:${technician.userId._id.toString()}`).emit('booking:statusUpdate', {
+      bookingId: booking._id,
+      status: 'AWAITING_DONE'
+    });
     await session.commitTransaction();
 
     // Lấy lại booking sau khi cập nhật

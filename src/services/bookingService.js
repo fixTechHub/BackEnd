@@ -9,8 +9,8 @@ const commissionService = require('../services/commissionService')
 const receiptService = require('../services/receiptService');
 const Technician = require('../models/Technician');
 const TechnicianServiceModel = require('../models/TechnicianService');
-const notificationService = require('../services/notificationService');
 const BookingTechnicianSearch = require('../models/BookingTechnicianSearch');
+const { getIo } = require('../sockets/socketManager');
 
 const MAX_TECHNICIANS = 10;
 const SEARCH_RADII = [5, 10, 15, 30];
@@ -571,6 +571,7 @@ const selectTechnicianForBooking = async (bookingId, technicianId, customerId, i
 };
 
 const technicianConfirmBooking = async (bookingId, technicianId) => {
+      const io = getIo();
     const session = await mongoose.startSession();
     session.startTransaction();
     try {
@@ -583,7 +584,7 @@ const technicianConfirmBooking = async (bookingId, technicianId) => {
         if (!booking.technicianId || booking.technicianId.toString() !== technician._id.toString()) throw new Error('Bạn không có quyền xác nhận booking này');
         if (booking.status !== 'AWAITING_CONFIRM') throw new Error('Trạng thái booking không hợp lệ');
 
-        // booking.status = 'IN_PROGRESS';
+        booking.status = 'IN_PROGRESS';
         booking.isChatAllowed = true;
         booking.isVideoCallAllowed = true;
         await booking.save({ session });
@@ -598,7 +599,17 @@ const technicianConfirmBooking = async (bookingId, technicianId) => {
             url: `/booking/${bookingId}`,
             type: 'NEW_REQUEST'
         });
-
+        console.log(technician.userId);
+        console.log(booking.customerId);
+        
+        io.to(`user:${booking.customerId.toString()}`).emit('booking:statusUpdate', {
+            bookingId: booking._id,
+            status: 'IN_PROGRESS'
+          });
+          io.to(`user:${technician.userId.toString()}`).emit('booking:statusUpdate', {
+            bookingId: booking._id,
+            status: 'IN_PROGRESS'
+          });
         await session.commitTransaction();
         return { success: true, message: 'Kỹ thuật viên đã xác nhận nhận đơn!' };
     } catch (error) {
@@ -650,7 +661,9 @@ const getAcceptedBooking = async (bookingId) => {
 
         const booking = await Booking.findOne({
             _id: bookingId,
-            status: 'CONFIRMED',
+            status: 'AWAITING_DONE',
+            // status: 'CONFIRMED',
+
             technicianId: { $exists: true, $ne: null }
         })
             .populate({
@@ -749,6 +762,7 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
             technician.availability = 'FREE'
             await technician.save({ session })
             const technicianServiceModel = await TechnicianServiceModel.findOne({ serviceId: updatedBooking.serviceId })
+            // console.log(technicianServiceModel);
             
             const receiptData = {
                 bookingId: updatedBooking._id,

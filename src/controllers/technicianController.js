@@ -46,7 +46,9 @@ const confirmJobDoneByTechnician = async (req, res) => {
   try {
     const { bookingId } = req.params;
     const userId = req.user.userId;
-    const role = req.user.role;
+    // const role = req.user.role;
+    const role = 'TECHNICIAN'
+
     const io = getIo();
 
     const booking = await technicianService.confirmJobDoneByTechnician(

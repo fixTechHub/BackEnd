@@ -24,15 +24,9 @@ const requestWarranty = async (bookingId, reportedIssue, images) => {
         if (!mongoose.Types.ObjectId.isValid(bookingId)) {
             throw new Error('ID đặt lịch không hợp lệ');
         }
-        const booking = await Booking.findByIdAndUpdate(
-            bookingId,
-            {
-                $set: {
-                    isChatAllowed: true,
-                    isVideoCallAllowed: true,
-                },
-            },
-            { new: true }
+        const booking = await Booking.findById(
+            bookingId
+         
         ).populate('technicianId');
 
         const requestDate = new Date();
@@ -132,13 +126,22 @@ const updateWarrantyById = async (bookingWarrantyId, formData) => {
         const updateData = { status };
 
         if (status === 'CONFIRMED') {
-
+            const booking = await Booking.findByIdAndUpdate(
+                existingWarranty.bookingId._id,
+                {
+                    $set: {
+                        isChatAllowed: true,
+                        isVideoCallAllowed: true,
+                    },
+                },
+                { new: true }
+            ).populate('technicianId');
 
             updateData.isUnderWarranty = true;
             const notificationData = {
                 userId: existingWarranty.customerId,
                 title: `Đơn bảo hành`,
-                content: `Đơn bảo hành từ đơn ${existingWarranty.bookingId.bookingCode} đã được chấp nhận.`,
+                content: `Đơn bảo hành từ đơn ${booking.bookingCode} đã được chấp nhận.`,
                 type: 'NEW_REQUEST',
                 referenceId: existingWarranty._id,
                 referenceModel: 'BookingWarranty',
@@ -197,7 +200,7 @@ const updateWarrantyById = async (bookingWarrantyId, formData) => {
         if (solutionNote) {
             updateData.solutionNote = solutionNote;
             const booking = await Booking.findByIdAndUpdate(
-                existingWarranty.bookingId,
+                existingWarranty.bookingId._id,
                 {
                     $set: {
                         isChatAllowed: false,

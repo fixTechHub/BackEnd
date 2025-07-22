@@ -1,11 +1,11 @@
 const mongoose = require('mongoose');
 const Booking = require("../models/Booking");
-const BookingItem = require("../models/BookingItem");
-const BookingPrice = require("../models/BookingPrice");
+// const BookingItem = require("../models/BookingItem");
+// const BookingPrice = require("../models/BookingPrice");
 const notificationService = require("./notificationService");
 const Technician = require('../models/Technician');
-const BookingPriceLog = require('../models/BookingPriceLog');
-const BookingItemLog = require('../models/BookingItemLog');
+// const BookingPriceLog = require('../models/BookingPriceLog');
+// const BookingItemLog = require('../models/BookingItemLog');
 
 const proposeAdditionalItems = async (bookingId, userId, items, reason) => {
     const session = await mongoose.startSession();
