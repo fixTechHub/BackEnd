@@ -22,8 +22,10 @@ router.use('/reports', require('./reportRoutes'));
 router.use('/services', require('./serviceRoutes'));
 router.use('/technicians', require('./technicianRoutes'));
 router.use('/video-call', require('./videoCallRoutes'));
-router.use('/receipts', require('./receiptRoutes'))
+router.use('/receipts', require('./receiptRoutes'));
+router.use('/booking-items', require('./bookingItemRoutes'));
 router.use('/favorites', require('./favoriteTechnicianRoutes'));
+
 router.get('/test', async (req, res) => {
     try {
         const roles = await Role.find();
@@ -88,14 +90,6 @@ router.get('/test', async (req, res) => {
             users: b1qq,
         });
 
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-});
-router.get('/roles', async (req, res) => {
-    try {
-        const roles = await Role.find();
-        res.json(roles);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

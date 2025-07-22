@@ -1,5 +1,6 @@
 const bookingPriceService = require("../services/bookingPriceService");
-const couponService = require('../services/couponService')
+const couponService = require('../services/couponService');
+const { getIo } = require("../sockets/socketManager");
 
 const getAllQuotations = async (req, res) => {
     try {
@@ -52,8 +53,9 @@ const acceptQuotation = async (req, res) => {
     try {
         const quotationId = req.params.quotationId;
         const customerId = req.user.userId;
+        const io = getIo();
 
-        const acceptedQuotation = await bookingPriceService.acceptQuotation(quotationId, customerId);
+        const acceptedQuotation = await bookingPriceService.acceptQuotation(quotationId, customerId, io);
         // console.log('--- ACCEPTED QUOTATION ---');
 
         res.status(200).json({

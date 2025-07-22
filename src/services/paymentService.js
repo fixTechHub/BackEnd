@@ -123,10 +123,7 @@ const createPayOsDeposit = async (userId, amount) => {
     console.error('Error creating PayOS payment link:', error);
     throw new Error('Failed to create payment link');
   }
-}
-
-
-
+};
 
 const handleSuccessfulDeposit = async (amount, userId) => {
   const session = await mongoose.startSession();
