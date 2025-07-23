@@ -123,7 +123,8 @@ const bookingSchema = new mongoose.Schema({
     }
 }, {
     timestamps: true
-});
+}
+);
 
 bookingSchema.index({ 'location.geojson': '2dsphere' });
 

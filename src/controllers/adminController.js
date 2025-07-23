@@ -1,8 +1,9 @@
-const adminService = require('../services/adminService');   
+const adminService = require('../services/adminService');
 const User = require('../models/User');
 const Booking = require('../models/Booking');
 const Receipt = require('../models/Receipt');
 const Feedback = require('../models/Feedback');
+const technicianService = require('../services/technicianService');
 
 exports.deactivateUserAccount = async (req, res) => {
     try {
@@ -10,25 +11,25 @@ exports.deactivateUserAccount = async (req, res) => {
 
         const user = await User.findById(userId).populate('role');
         if (!user) {
-            return res.status(404).json({ 
+            return res.status(404).json({
                 success: false,
-                message: 'Không tìm thấy người dùng' 
+                message: 'Không tìm thấy người dùng'
             });
         }
 
         // Kiểm tra không cho phép vô hiệu hóa tài khoản admin khác
         if (user.role?.name === 'ADMIN') {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 success: false,
-                message: 'Không thể vô hiệu hóa tài khoản admin khác' 
+                message: 'Không thể vô hiệu hóa tài khoản admin khác'
             });
         }
 
         // Kiểm tra trạng thái tài khoản - phải đang hoạt động
         if (user.status !== 'ACTIVE') {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 success: false,
-                message: 'Chỉ có thể vô hiệu hóa tài khoản đang hoạt động' 
+                message: 'Chỉ có thể vô hiệu hóa tài khoản đang hoạt động'
             });
         }
 
@@ -41,9 +42,9 @@ exports.deactivateUserAccount = async (req, res) => {
         });
 
         if (activeBookings.length > 0) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 success: false,
-                message: 'Không thể vô hiệu hóa tài khoản khi có booking đang diễn ra. Vui lòng hủy booking trước.' 
+                message: 'Không thể vô hiệu hóa tài khoản khi có booking đang diễn ra. Vui lòng hủy booking trước.'
             });
         }
 
@@ -56,9 +57,9 @@ exports.deactivateUserAccount = async (req, res) => {
         });
 
         if (pendingReceipts.length > 0) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 success: false,
-                message: 'Không thể vô hiệu hóa tài khoản khi có giao dịch chưa hoàn thành' 
+                message: 'Không thể vô hiệu hóa tài khoản khi có giao dịch chưa hoàn thành'
             });
         }
 
@@ -71,9 +72,9 @@ exports.deactivateUserAccount = async (req, res) => {
         });
 
         if (pendingFeedbacks.length > 0) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 success: false,
-                message: 'Không thể vô hiệu hóa tài khoản khi có feedback chưa được xử lý' 
+                message: 'Không thể vô hiệu hóa tài khoản khi có feedback chưa được xử lý'
             });
         }
 
@@ -96,10 +97,10 @@ exports.deactivateUserAccount = async (req, res) => {
         });
     } catch (error) {
         console.error('Error in deactivateUserAccount:', error);
-        res.status(500).json({ 
+        res.status(500).json({
             success: false,
             message: 'Lỗi khi vô hiệu hóa tài khoản người dùng',
-            error: error.message 
+            error: error.message
         });
     }
 };
@@ -110,9 +111,9 @@ exports.activateUserAccount = async (req, res) => {
 
         const user = await User.findById(userId);
         if (!user) {
-            return res.status(404).json({ 
+            return res.status(404).json({
                 success: false,
-                message: 'Không tìm thấy người dùng' 
+                message: 'Không tìm thấy người dùng'
             });
         }
 
@@ -135,15 +136,15 @@ exports.activateUserAccount = async (req, res) => {
         });
     } catch (error) {
         console.error('Error in activateUserAccount:', error);
-        res.status(500).json({ 
+        res.status(500).json({
             success: false,
             message: 'Lỗi khi kích hoạt lại tài khoản người dùng',
-            error: error.message 
+            error: error.message
         });
     }
 };
 
-exports.approveTechnician = async (req, res) => {
+exports.sendContractTechnician = async (req, res) => {
     try {
         const { id } = req.params;
         const technician = await adminService.approveTechnician(id);
@@ -155,3 +156,15 @@ exports.approveTechnician = async (req, res) => {
         res.status(error.statusCode || 500).json({ message: error.message });
     }
 };
+
+exports.findTechnicians = async (req, res) => {
+    try {
+        const technicians = await technicianService.getAllTechnicians
+        if(technicians==null) {
+            res.status(404).json({message: 'Không tìm thấy Service'})
+        }
+        res.status(200).json({data: technicians})
+    } catch (error) {
+        res.status(error.statusCode || 500).json({ message: error.message });
+    }
+}

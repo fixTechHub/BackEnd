@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
-const BookingPrice = require('../models/BookingPrice');
-const BookingItem = require('../models/BookingItem');
+// const BookingPrice = require('../models/BookingPrice');
+// const BookingItem = require('../models/BookingItem');
 const bookingService = require('./bookingService');
 const couponService = require('./couponService');
 const CouponUsage = require('../models/CouponUsage');
@@ -8,7 +8,7 @@ const paymentService = require('./paymentService');
 const receiptService = require('./receiptService');
 const notificationService = require('./notificationService');
 const commissionService = require('./commissionService');
-const BookingPriceLog = require('../models/BookingPriceLog');
+// const BookingPriceLog = require('../models/BookingPriceLog');
 const Booking = require('../models/Booking');
 const Technician = require('../models/Technician');
 

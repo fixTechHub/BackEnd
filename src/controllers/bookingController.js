@@ -1,7 +1,8 @@
 const bookingService = require('../services/bookingService');
 const { addressToPoint } = require('../services/geocodingService');
 const User = require('../models/User');
-const { getIo } = require('../sockets/socketManager');
+const {getIo} = require('../sockets/socketManager')
+const couponService = require('../services/couponService')
 
 const createBookingRequest = async (req, res) => {
     const io = getIo()
@@ -243,7 +244,9 @@ const technicianConfirm = async (req, res) => {
 const getUserBookingHistory = async (req,res) => {
     try {
         const userId = req.user.userId
-        const role = req.user.role
+        // const role = req.user.role
+        const role = 'CUSTOMER'
+        
         const { limit = 20, skip = 0 } = req.query;
         const bookings = await bookingService.getUserBookingHistory(userId,role,limit,skip)
         res.status(200).json({bookings});
@@ -255,11 +258,38 @@ const getUserBookingHistory = async (req,res) => {
     }
 }
 
+const getAcceptedBooking = async (req,res) => {
+    try {
+        const user = req.user
+        const {bookingId} = req.params
+        const acceptedBooking = await bookingService.getAcceptedBooking(bookingId)
+        const userCoupons = await couponService.getUserCoupon(user.userId)
+        
+        
+        res.status(200).json({
+            success: true,
+            message: 'Lấy thông tin đặt lịch thành công',
+            data: {
+                acceptedBooking,
+                userCoupons
+            }
+        });
+
+    } catch (error) {
+        console.error('Get Accepted Booking Error:', error);
+        res.status(400).json({
+            success: false,
+            message: error.message || 'Lỗi khi lấy thông tin đặt lịch'
+        });
+    }
+}
+
 module.exports = {
     createBookingRequest,
     getBookingById,
     cancelBooking,
     confirmJobDone,
+    getAcceptedBooking,
     technicianSendQuote,
     customerAcceptQuote,
     customerRejectQuote,
