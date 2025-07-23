@@ -24,9 +24,15 @@ const requestWarranty = async (bookingId, reportedIssue, images) => {
         if (!mongoose.Types.ObjectId.isValid(bookingId)) {
             throw new Error('ID đặt lịch không hợp lệ');
         }
-        const booking = await Booking.findById(
-            bookingId
-         
+        const booking = await Booking.findByIdAndUpdate(
+            existingWarranty.bookingId._id,
+            {
+                $set: {
+                    isChatAllowed: true,
+                    isVideoCallAllowed: true,
+                },
+            },
+            { new: true }
         ).populate('technicianId');
 
         const requestDate = new Date();
@@ -155,16 +161,16 @@ const updateWarrantyById = async (bookingWarrantyId, formData) => {
 
         if (rejectedReason) {
             updateData.rejectedReason = rejectedReason;
-            const booking = await Booking.findByIdAndUpdate(
-                existingWarranty.bookingId._id,
-                {
-                    $set: {
-                        isChatAllowed: false,
-                        isVideoCallAllowed: false,
-                    },
-                },
-                { new: true }
-            )
+            // const booking = await Booking.findByIdAndUpdate(
+            //     existingWarranty.bookingId._id,
+            //     {
+            //         $set: {
+            //             isChatAllowed: false,
+            //             isVideoCallAllowed: false,
+            //         },
+            //     },
+            //     { new: true }
+            // )
             const adminRole = await Role.findOne({ name: 'ADMIN' });
             if (!adminRole) {
                 throw new Error('Admin role not found');
