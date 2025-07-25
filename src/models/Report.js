@@ -11,7 +11,13 @@ const reportSchema = new mongoose.Schema({
   bookingId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Booking',
-    required: true,
+    required: false,
+    index: true,
+  },
+  warrantyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'BookingWarranty',
+    required: false,
     index: true,
   },
   reporterId: {
@@ -59,13 +65,13 @@ const reportSchema = new mongoose.Schema({
   timestamps: true,
 });
 
-reportSchema.index({ bookingId: 1, status: 1 });
+reportSchema.index({ bookingId: 1, warrantyId: 1, status: 1 });
 reportSchema.index(
-  { bookingId: 1, reporterId: 1, reportedUserId: 1 },
+  { bookingId: 1, warrantyId: 1, reporterId: 1, reportedUserId: 1 },
   {
     unique: true,
     partialFilterExpression: { status: { $in: ['PENDING', 'AWAITING_RESPONSE'] } },
-    name: 'uniq_active_report'
+    name: 'uniq_active_report_booking_or_warranty'
   }
 );
 

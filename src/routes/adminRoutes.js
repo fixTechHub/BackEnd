@@ -9,8 +9,10 @@ const { authenticateToken } = require('../middlewares/authMiddleware');
 router.put(
     '/technicians/:id/approve', 
     authenticateToken, 
-    adminController.approveTechnician
+    adminController.sendContractTechnician
 );
+
+router.get('/technicians', authenticateToken, adminController.findTechnicians);
 
 router.get('/test', (req, res) => res.json('This is API Admin test page'));
 

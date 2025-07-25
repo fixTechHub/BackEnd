@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Report = require('../models/Report');
 const Booking = require('../models/Booking');
+const BookingWarranty = require('../models/BookingWarranty');
 
 /**
  * Create a new report by customer or technician
@@ -10,20 +11,32 @@ exports.createReport = async (payload) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    // Ensure booking exists
-    const booking = await Booking.findById(payload.bookingId).session(session);
-    if (!booking) {
-      throw new Error('Booking không tồn tại');
+    // Ensure booking or warranty exists
+    if (payload.bookingId) {
+      const booking = await Booking.findById(payload.bookingId).session(session);
+      if (!booking) {
+        throw new Error('Booking không tồn tại');
+      }
+    } else if (payload.warrantyId) {
+      const warranty = await BookingWarranty.findById(payload.warrantyId).session(session);
+      if (!warranty) {
+        throw new Error('Warranty không tồn tại');
+      }
+    } else {
+      throw new Error('Yêu cầu phải có bookingId hoặc warrantyId');
     }
 
     // Check duplicate active report
     const activeStatuses = ['PENDING', 'AWAITING_RESPONSE'];
-    const duplicate = await Report.findOne({
-      bookingId: payload.bookingId,
+    const duplicateQuery = {
       reporterId: payload.reporterId,
       reportedUserId: payload.reportedUserId,
       status: { $in: activeStatuses },
-    }).session(session);
+    };
+    if (payload.bookingId) duplicateQuery.bookingId = payload.bookingId;
+    if (payload.warrantyId) duplicateQuery.warrantyId = payload.warrantyId;
+
+    const duplicate = await Report.findOne(duplicateQuery).session(session);
 
     if (duplicate) {
       throw new Error('Bạn đã gửi báo cáo này và nó đang được xử lý');
@@ -44,7 +57,8 @@ exports.createReport = async (payload) => {
 
     // Build report data
     const reportData = {
-      bookingId: payload.bookingId,
+      bookingId: payload.bookingId || undefined,
+      warrantyId: payload.warrantyId || undefined,
       reporterId: payload.reporterId,
       reportedUserId: payload.reportedUserId,
       title: payload.title,

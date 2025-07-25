@@ -6,6 +6,7 @@ exports.createReport = async (req, res) => {
     const reporterId = req.user.userId;
     const {
       bookingId,
+      warrantyId,
       reportedUserId,
       title,
       tag,
@@ -15,6 +16,7 @@ exports.createReport = async (req, res) => {
 
     const report = await reportService.createReport({
       bookingId,
+      warrantyId,
       reporterId,
       reportedUserId,
       title,
