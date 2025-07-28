@@ -63,6 +63,7 @@ const reportSchema = new mongoose.Schema({
 }, {
   timestamps: true,
 });
+
 reportSchema.index({ bookingId: 1, warrantyId: 1, status: 1 });
 reportSchema.index(
   { bookingId: 1, warrantyId: 1, reporterId: 1, reportedUserId: 1 },
@@ -72,4 +73,6 @@ reportSchema.index(
     name: 'uniq_active_report_booking_or_warranty'
   }
 );
+
 module.exports = mongoose.model('Report', reportSchema);
+
