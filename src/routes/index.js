@@ -16,6 +16,7 @@ router.use('/contracts', require('./contractRoutes'));
 router.use('/coupons', require('./couponRoutes'));
 router.use('/feedbacks', require('./feedbackRoutes'));
 router.use('/messages', require('./messageRoutes'));
+router.use('/ai', require('./aiRoutes'))
 router.use('/notifications', require('./notificationRoutes'));
 router.use('/payments', require('./paymentRoutes'));
 router.use('/reports', require('./reportRoutes'));

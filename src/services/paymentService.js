@@ -63,7 +63,6 @@ const handleSuccessfulPayment = async (orderCode, bookingId) => {
 
     const receiptTotalAmount = booking.finalPrice + booking.discountValue;
     booking.holdingAmount = receiptTotalAmount * 0.2;
-    booking.commissionAmount = receiptTotalAmount * 0.1;
     await booking.save({ session });
 
     const technician = await Technician.findById(booking.technicianId)
@@ -82,7 +81,6 @@ const handleSuccessfulPayment = async (orderCode, bookingId) => {
       paymentMethod: 'BANK',
       paymentStatus: 'PAID',
       holdingAmount: receiptTotalAmount * 0.2,
-      commissionAmount: receiptTotalAmount * 0.1,
     };
     await receiptService.createReceipt(receiptData, session);
 

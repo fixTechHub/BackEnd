@@ -17,16 +17,14 @@ app.use(express.json());
 app.use('/api/warranty', require('../routes/bookingWarrantyRoutes'));
 
 describe('Booking Warranty Controller', () => {
+  const customerId = new mongoose.Types.ObjectId('68477c06b6efa9a3615217dd');
+  const technicianId = new mongoose.Types.ObjectId('68616d1d3f79b68e4dbe5ae1');
+  const bookingWarrantyId = new mongoose.Types.ObjectId('507f1f77bcf86cd799439011');
+  const bookingId = new mongoose.Types.ObjectId('6867874ea6a0e3715647b870');
+
   beforeEach(() => {
     jest.clearAllMocks();
-    // Mock authenticateToken to provide an existing user
-    authenticateToken.mockImplementation((requiredRole) => (req, res, next) => {
-      req.user = {
-        _id: new mongoose.Types.ObjectId('507f1f77bcf86cd799439012'),
-        role: { name: requiredRole || 'CUSTOMER' } // Default to CUSTOMER if no role specified
-      };
-      next();
-    });
+    // Mock file upload middleware
     handleMulter.array.mockImplementation(() => (req, res, next) => {
       req.s3FileUrls = ['url1', 'url2'];
       next();
@@ -35,19 +33,30 @@ describe('Booking Warranty Controller', () => {
   });
 
   describe('POST /api/warranty', () => {
+    beforeEach(() => {
+      // Mock authenticateToken for CUSTOMER
+      authenticateToken.mockImplementation(() => (req, res, next) => {
+        req.user = {
+          _id: customerId,
+          role: { name: 'CUSTOMER' }
+        };
+        next();
+      });
+    });
+
     it('should create a new booking warranty successfully', async () => {
       const mockWarranty = {
-        _id: new mongoose.Types.ObjectId('507f1f77bcf86cd799439011'),
-        bookingId: new mongoose.Types.ObjectId('507f191e810c19729de860ea'),
-        customerId: new mongoose.Types.ObjectId('507f1f77bcf86cd799439012'),
-        technicianId: new mongoose.Types.ObjectId('507f1f77bcf86cd799439013'),
+        _id: bookingWarrantyId,
+        bookingId: bookingId,
+        customerId: customerId,
+        technicianId: '686172da3f79b68e4dbe5bbb',
         reportedIssue: 'Test issue',
         images: ['url1', 'url2'],
         status: 'PENDING',
         isUnderWarranty: true
       };
       const mockBooking = {
-        _id: new mongoose.Types.ObjectId('507f191e810c19729de860ea'),
+        _id: bookingId,
         status: 'DONE'
       };
 
@@ -56,17 +65,17 @@ describe('Booking Warranty Controller', () => {
 
       const response = await request(app)
         .post('/api/warranty')
-        .send({ bookingId: '507f191e810c19729de860ea', reportedIssue: 'Test issue' });
+        .send({ bookingId: bookingId.toString(), reportedIssue: 'Test issue' });
 
       expect(response.status).toBe(201);
       expect(response.body).toEqual(expect.objectContaining({
-        _id: '507f1f77bcf86cd799439011',
-        bookingId: '507f191e810c19729de860ea',
+        _id: bookingWarrantyId.toString(),
+        bookingId: bookingId.toString(),
         reportedIssue: 'Test issue',
         status: 'PENDING'
       }));
       expect(bookingWarrantyService.requestWarranty).toHaveBeenCalledWith(
-        '507f191e810c19729de860ea',
+        bookingId.toString(),
         'Test issue',
         ['url1', 'url2']
       );
@@ -75,7 +84,7 @@ describe('Booking Warranty Controller', () => {
     it('should return 400 if reportedIssue is missing', async () => {
       const response = await request(app)
         .post('/api/warranty')
-        .send({ bookingId: '507f191e810c19729de860ea' });
+        .send({ bookingId: bookingId.toString() });
 
       expect(response.status).toBe(400);
       expect(response.body).toEqual({ error: 'Vui lòng nhập lý do bảo hành' });
@@ -89,7 +98,7 @@ describe('Booking Warranty Controller', () => {
 
       const response = await request(app)
         .post('/api/warranty')
-        .send({ bookingId: '507f191e810c19729de860ea', reportedIssue: 'Test issue' });
+        .send({ bookingId: bookingId.toString(), reportedIssue: 'Test issue' });
 
       expect(response.status).toBe(400);
       expect(response.body).toEqual({ error: 'Vui lòng tải lên hình ảnh' });
@@ -97,14 +106,14 @@ describe('Booking Warranty Controller', () => {
 
     it('should return 400 if booking status is not DONE', async () => {
       const mockBooking = {
-        _id: new mongoose.Types.ObjectId('507f191e810c19729de860ea'),
+        _id: bookingId,
         status: 'PENDING'
       };
       bookingService.getBookingById.mockResolvedValue(mockBooking);
 
       const response = await request(app)
         .post('/api/warranty')
-        .send({ bookingId: '507f191e810c19729de860ea', reportedIssue: 'Test issue' });
+        .send({ bookingId: bookingId.toString(), reportedIssue: 'Test issue' });
 
       expect(response.status).toBe(400);
       expect(response.body).toEqual({ error: 'Ban chưa có quyền được phép yêu cầu bảo hành!' });
@@ -123,25 +132,36 @@ describe('Booking Warranty Controller', () => {
   });
 
   describe('GET /api/warranty/:bookingWarrantyId', () => {
+    beforeEach(() => {
+      // Mock authenticateToken without specific role (accessible to both CUSTOMER and TECHNICIAN)
+      authenticateToken.mockImplementation(() => (req, res, next) => {
+        req.user = {
+          _id: customerId,
+          role: { name: 'CUSTOMER' }
+        };
+        next();
+      });
+    });
+
     it('should get booking warranty by ID successfully', async () => {
       const mockWarranty = {
-        _id: new mongoose.Types.ObjectId('507f1f77bcf86cd799439011'),
-        bookingId: new mongoose.Types.ObjectId('507f191e810c19729de860ea'),
+        _id: bookingWarrantyId,
+        bookingId: bookingId,
         reportedIssue: 'Test issue',
         status: 'PENDING'
       };
       bookingWarrantyService.getWarrantyById.mockResolvedValue(mockWarranty);
 
       const response = await request(app)
-        .get('/api/warranty/507f1f77bcf86cd799439011');
+        .get(`/api/warranty/${bookingWarrantyId}`);
 
       expect(response.status).toBe(201);
       expect(response.body).toEqual(expect.objectContaining({
-        _id: '507f1f77bcf86cd799439011',
-        bookingId: '507f191e810c19729de860ea',
+        _id: bookingWarrantyId.toString(),
+        bookingId: bookingId.toString(),
         reportedIssue: 'Test issue'
       }));
-      expect(bookingWarrantyService.getWarrantyById).toHaveBeenCalledWith('507f1f77bcf86cd799439011');
+      expect(bookingWarrantyService.getWarrantyById).toHaveBeenCalledWith(bookingWarrantyId.toString());
     });
 
     it('should return 500 if bookingWarrantyId is invalid', async () => {
@@ -156,31 +176,35 @@ describe('Booking Warranty Controller', () => {
   });
 
   describe('PATCH /api/warranty/accept/:bookingWarrantyId', () => {
-    it('should accept warranty successfully', async () => {
+    beforeEach(() => {
+      // Mock authenticateToken for TECHNICIAN
       authenticateToken.mockImplementation(() => (req, res, next) => {
         req.user = {
-          _id: new mongoose.Types.ObjectId('507f1f77bcf86cd799439013'),
+          _id: technicianId,
           role: { name: 'TECHNICIAN' }
         };
         next();
       });
+    });
+
+    it('should accept warranty successfully', async () => {
       const mockWarranty = {
-        _id: new mongoose.Types.ObjectId('507f1f77bcf86cd799439011'),
+        _id: bookingWarrantyId,
         status: 'CONFIRMED'
       };
       bookingWarrantyService.updateWarrantyById.mockResolvedValue(mockWarranty);
 
       const response = await request(app)
-        .patch('/api/warranty/accept/507f1f77bcf86cd799439011')
+        .patch(`/api/warranty/accept/${bookingWarrantyId}`)
         .send({ status: 'CONFIRMED' });
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual(expect.objectContaining({
-        _id: '507f1f77bcf86cd799439011',
+        _id: bookingWarrantyId.toString(),
         status: 'CONFIRMED'
       }));
       expect(bookingWarrantyService.updateWarrantyById).toHaveBeenCalledWith(
-        '507f1f77bcf86cd799439011',
+        bookingWarrantyId.toString(),
         { status: 'CONFIRMED' },
         expect.objectContaining({ role: { name: 'TECHNICIAN' } })
       );
@@ -188,7 +212,7 @@ describe('Booking Warranty Controller', () => {
 
     it('should return 400 for invalid status', async () => {
       const response = await request(app)
-        .patch('/api/warranty/accept/507f1f77bcf86cd799439011')
+        .patch(`/api/warranty/accept/${bookingWarrantyId}`)
         .send({ status: 'INVALID' });
 
       expect(response.status).toBe(400);
@@ -208,33 +232,37 @@ describe('Booking Warranty Controller', () => {
   });
 
   describe('PATCH /api/warranty/deny/:bookingWarrantyId', () => {
-    it('should deny warranty successfully', async () => {
+    beforeEach(() => {
+      // Mock authenticateToken for TECHNICIAN
       authenticateToken.mockImplementation(() => (req, res, next) => {
         req.user = {
-          _id: new mongoose.Types.ObjectId('507f1f77bcf86cd799439013'),
+          _id: technicianId,
           role: { name: 'TECHNICIAN' }
         };
         next();
       });
+    });
+
+    it('should deny warranty successfully', async () => {
       const mockWarranty = {
-        _id: new mongoose.Types.ObjectId('507f1f77bcf86cd799439011'),
+        _id: bookingWarrantyId,
         status: 'DENIED',
         rejectionReason: 'Test reason'
       };
       bookingWarrantyService.updateWarrantyById.mockResolvedValue(mockWarranty);
 
       const response = await request(app)
-        .patch('/api/warranty/deny/507f1f77bcf86cd799439011')
+        .patch(`/api/warranty/deny/${bookingWarrantyId}`)
         .send({ status: 'DENIED', rejectionReason: 'Test reason' });
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual(expect.objectContaining({
-        _id: '507f1f77bcf86cd799439011',
+        _id: bookingWarrantyId.toString(),
         status: 'DENIED',
         rejectionReason: 'Test reason'
       }));
       expect(bookingWarrantyService.updateWarrantyById).toHaveBeenCalledWith(
-        '507f1f77bcf86cd799439011',
+        bookingWarrantyId.toString(),
         { status: 'DENIED', rejectionReason: 'Test reason' },
         expect.objectContaining({ role: { name: 'TECHNICIAN' } })
       );
@@ -242,7 +270,7 @@ describe('Booking Warranty Controller', () => {
 
     it('should return 400 if rejectionReason is missing for DENIED status', async () => {
       const response = await request(app)
-        .patch('/api/warranty/deny/507f1f77bcf86cd799439011')
+        .patch(`/api/warranty/deny/${bookingWarrantyId}`)
         .send({ status: 'DENIED' });
 
       expect(response.status).toBe(400);
@@ -265,30 +293,30 @@ describe('Booking Warranty Controller', () => {
     it('should set RESOLVED status successfully for TECHNICIAN', async () => {
       authenticateToken.mockImplementation(() => (req, res, next) => {
         req.user = {
-          _id: new mongoose.Types.ObjectId('507f1f77bcf86cd799439013'),
+          _id: technicianId,
           role: { name: 'TECHNICIAN' }
         };
         next();
       });
       const mockWarranty = {
-        _id: new mongoose.Types.ObjectId('507f1f77bcf86cd799439011'),
+        _id: bookingWarrantyId,
         status: 'RESOLVED',
         solutionNote: 'Test solution'
       };
       bookingWarrantyService.updateWarrantyById.mockResolvedValue(mockWarranty);
 
       const response = await request(app)
-        .patch('/api/warranty/confirm/507f1f77bcf86cd799439011')
+        .patch(`/api/warranty/confirm/${bookingWarrantyId}`)
         .send({ status: 'RESOLVED', solutionNote: 'Test solution' });
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual(expect.objectContaining({
-        _id: '507f1f77bcf86cd799439011',
+        _id: bookingWarrantyId.toString(),
         status: 'RESOLVED',
         solutionNote: 'Test solution'
       }));
       expect(bookingWarrantyService.updateWarrantyById).toHaveBeenCalledWith(
-        '507f1f77bcf86cd799439011',
+        bookingWarrantyId.toString(),
         { status: 'RESOLVED', solutionNote: 'Test solution' },
         expect.objectContaining({ role: { name: 'TECHNICIAN' } })
       );
@@ -297,30 +325,30 @@ describe('Booking Warranty Controller', () => {
     it('should set DONE status successfully for CUSTOMER', async () => {
       authenticateToken.mockImplementation(() => (req, res, next) => {
         req.user = {
-          _id: new mongoose.Types.ObjectId('507f1f77bcf86cd799439012'),
+          _id: customerId,
           role: { name: 'CUSTOMER' }
         };
         next();
       });
       const mockWarranty = {
-        _id: new mongoose.Types.ObjectId('507f1f77bcf86cd799439011'),
+        _id: bookingWarrantyId,
         status: 'DONE',
         solutionNote: 'Test solution'
       };
       bookingWarrantyService.updateWarrantyById.mockResolvedValue(mockWarranty);
 
       const response = await request(app)
-        .patch('/api/warranty/confirm/507f1f77bcf86cd799439011')
+        .patch(`/api/warranty/confirm/${bookingWarrantyId}`)
         .send({ status: 'DONE', solutionNote: 'Test solution' });
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual(expect.objectContaining({
-        _id: '507f1f77bcf86cd799439011',
+        _id: bookingWarrantyId.toString(),
         status: 'DONE',
         solutionNote: 'Test solution'
       }));
       expect(bookingWarrantyService.updateWarrantyById).toHaveBeenCalledWith(
-        '507f1f77bcf86cd799439011',
+        bookingWarrantyId.toString(),
         { status: 'DONE', solutionNote: 'Test solution' },
         expect.objectContaining({ role: { name: 'CUSTOMER' } })
       );
@@ -329,7 +357,7 @@ describe('Booking Warranty Controller', () => {
     it('should return 500 if TECHNICIAN tries to set DONE status', async () => {
       authenticateToken.mockImplementation(() => (req, res, next) => {
         req.user = {
-          _id: new mongoose.Types.ObjectId('507f1f77bcf86cd799439013'),
+          _id: technicianId,
           role: { name: 'TECHNICIAN' }
         };
         next();
@@ -339,7 +367,7 @@ describe('Booking Warranty Controller', () => {
       );
 
       const response = await request(app)
-        .patch('/api/warranty/confirm/507f1f77bcf86cd799439011')
+        .patch(`/api/warranty/confirm/${bookingWarrantyId}`)
         .send({ status: 'DONE', solutionNote: 'Test solution' });
 
       expect(response.status).toBe(500);
@@ -349,7 +377,7 @@ describe('Booking Warranty Controller', () => {
     it('should return 500 if CUSTOMER tries to set RESOLVED status', async () => {
       authenticateToken.mockImplementation(() => (req, res, next) => {
         req.user = {
-          _id: new mongoose.Types.ObjectId('507f1f77bcf86cd799439012'),
+          _id: customerId,
           role: { name: 'CUSTOMER' }
         };
         next();
@@ -359,7 +387,7 @@ describe('Booking Warranty Controller', () => {
       );
 
       const response = await request(app)
-        .patch('/api/warranty/confirm/507f1f77bcf86cd799439011')
+        .patch(`/api/warranty/confirm/${bookingWarrantyId}`)
         .send({ status: 'RESOLVED', solutionNote: 'Test solution' });
 
       expect(response.status).toBe(500);
@@ -367,8 +395,16 @@ describe('Booking Warranty Controller', () => {
     });
 
     it('should return 400 for invalid status', async () => {
+      authenticateToken.mockImplementation(() => (req, res, next) => {
+        req.user = {
+          _id: customerId,
+          role: { name: 'CUSTOMER' }
+        };
+        next();
+      });
+
       const response = await request(app)
-        .patch('/api/warranty/confirm/507f1f77bcf86cd799439011')
+        .patch(`/api/warranty/confirm/${bookingWarrantyId}`)
         .send({ status: 'INVALID', solutionNote: 'Test solution' });
 
       expect(response.status).toBe(400);
@@ -376,11 +412,18 @@ describe('Booking Warranty Controller', () => {
     });
 
     it('should return 500 if bookingWarrantyId is invalid', async () => {
+      authenticateToken.mockImplementation(() => (req, res, next) => {
+        req.user = {
+          _id: customerId,
+          role: { name: 'CUSTOMER' }
+        };
+        next();
+      });
       bookingWarrantyService.updateWarrantyById.mockRejectedValue(new Error('ID bảo hành không hợp lệ'));
 
       const response = await request(app)
         .patch('/api/warranty/confirm/invalid-id')
-        .send({ status: 'RESOLVED', solutionNote: 'Test solution' });
+        .send({ status: 'DONE', solutionNote: 'Test solution' });
 
       expect(response.status).toBe(500);
       expect(response.body).toEqual({ error: 'ID bảo hành không hợp lệ' });
@@ -388,40 +431,44 @@ describe('Booking Warranty Controller', () => {
   });
 
   describe('POST /api/warranty/propose-schedule/:bookingWarrantyId', () => {
-    it('should propose warranty schedule successfully', async () => {
+    beforeEach(() => {
+      // Mock authenticateToken for CUSTOMER
       authenticateToken.mockImplementation(() => (req, res, next) => {
         req.user = {
-          _id: new mongoose.Types.ObjectId('507f1f77bcf86cd799439012'),
+          _id: customerId,
           role: { name: 'CUSTOMER' }
         };
         next();
       });
+    });
+
+    it('should propose warranty schedule successfully', async () => {
       const mockWarranty = {
-        _id: new mongoose.Types.ObjectId('507f1f77bcf86cd799439011'),
+        _id: bookingWarrantyId,
         proposedSchedule: '2025-08-01T10:00:00Z'
       };
       bookingWarrantyService.requestWarrantyDate.mockResolvedValue(mockWarranty);
 
       const response = await request(app)
-        .post('/api/warranty/propose-schedule/507f1f77bcf86cd799439011')
+        .post(`/api/warranty/propose-schedule/${bookingWarrantyId}`)
         .send({ proposedSchedule: '2025-08-01T10:00:00Z' });
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({
         result: expect.objectContaining({
-          _id: '507f1f77bcf86cd799439011',
+          _id: bookingWarrantyId.toString(),
           proposedSchedule: '2025-08-01T10:00:00Z'
         })
       });
       expect(bookingWarrantyService.requestWarrantyDate).toHaveBeenCalledWith(
-        '507f1f77bcf86cd799439011',
+        bookingWarrantyId.toString(),
         '2025-08-01T10:00:00Z'
       );
     });
 
     it('should return 404 if proposedSchedule is missing', async () => {
       const response = await request(app)
-        .post('/api/warranty/propose-schedule/507f1f77bcf86cd799439011')
+        .post(`/api/warranty/propose-schedule/${bookingWarrantyId}`)
         .send({});
 
       expect(response.status).toBe(404);
@@ -441,16 +488,20 @@ describe('Booking Warranty Controller', () => {
   });
 
   describe('POST /api/warranty/confirm-schedule/:bookingWarrantyId', () => {
-    it('should confirm warranty schedule successfully', async () => {
+    beforeEach(() => {
+      // Mock authenticateToken for TECHNICIAN
       authenticateToken.mockImplementation(() => (req, res, next) => {
         req.user = {
-          _id: new mongoose.Types.ObjectId('507f1f77bcf86cd799439013'),
+          _id: technicianId,
           role: { name: 'TECHNICIAN' }
         };
         next();
       });
+    });
+
+    it('should confirm warranty schedule successfully', async () => {
       const mockWarranty = {
-        _id: new mongoose.Types.ObjectId('507f1f77bcf86cd799439011'),
+        _id: bookingWarrantyId,
         confirmedSchedule: {
           startTime: '2025-08-01T10:00:00Z',
           expectedEndTime: '2025-08-01T12:00:00Z'
@@ -459,7 +510,7 @@ describe('Booking Warranty Controller', () => {
       bookingWarrantyService.confirmWarrantySchedule.mockResolvedValue(mockWarranty);
 
       const response = await request(app)
-        .post('/api/warranty/confirm-schedule/507f1f77bcf86cd799439011')
+        .post(`/api/warranty/confirm-schedule/${bookingWarrantyId}`)
         .send({
           startTime: '2025-08-01T10:00:00Z',
           expectedEndTime: '2025-08-01T12:00:00Z'
@@ -468,7 +519,7 @@ describe('Booking Warranty Controller', () => {
       expect(response.status).toBe(200);
       expect(response.body).toEqual({
         result: expect.objectContaining({
-          _id: '507f1f77bcf86cd799439011',
+          _id: bookingWarrantyId.toString(),
           confirmedSchedule: expect.objectContaining({
             startTime: '2025-08-01T10:00:00Z',
             expectedEndTime: '2025-08-01T12:00:00Z'
@@ -476,7 +527,7 @@ describe('Booking Warranty Controller', () => {
         })
       });
       expect(bookingWarrantyService.confirmWarrantySchedule).toHaveBeenCalledWith(
-        '507f1f77bcf86cd799439011',
+        bookingWarrantyId.toString(),
         '2025-08-01T10:00:00Z',
         '2025-08-01T12:00:00Z'
       );
@@ -484,7 +535,7 @@ describe('Booking Warranty Controller', () => {
 
     it('should return 404 if expectedEndTime is missing', async () => {
       const response = await request(app)
-        .post('/api/warranty/confirm-schedule/507f1f77bcf86cd799439011')
+        .post(`/api/warranty/confirm-schedule/${bookingWarrantyId}`)
         .send({ startTime: '2025-08-01T10:00:00Z' });
 
       expect(response.status).toBe(404);

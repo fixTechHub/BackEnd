@@ -27,7 +27,7 @@ const receiptSchema = new mongoose.Schema({
     },
     serviceAmount: {
         type: Number,
-        required: true
+        // required: true
     },
     commissionAmount: {
         type: Number,
