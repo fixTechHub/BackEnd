@@ -11,6 +11,7 @@ router.post('/create-new-booking-request', authenticateToken, handleMulter.array
 router.get('/top-services', bookingController.getTopBookedServices);
 router.get('/:id', bookingController.getBookingById);
 router.post('/:bookingId/done', authenticateToken, bookingController.confirmJobDone);
+router.get('/accepted-booking/:bookingId',authenticateToken,bookingController.getAcceptedBooking)
 
 router.post('/:bookingId/quote', authenticateToken, bookingController.technicianSendQuote);
 router.post('/:bookingId/quote/accept', authenticateToken, bookingController.customerAcceptQuote);

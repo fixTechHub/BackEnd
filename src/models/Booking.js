@@ -98,7 +98,7 @@ const bookingSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['PENDING', 'COMFIRMED', 'IN_PROGRESS', 'WAITING_CONFIRM', 'DONE', 'CANCELLED'],
+        enum: ['PENDING', 'COMFIRMED', 'IN_PROGRESS', 'AWAITING_DONE', 'DONE', 'CANCELLED'],
         default: 'PENDING'
     },
     isChatAllowed: {
@@ -123,7 +123,8 @@ const bookingSchema = new mongoose.Schema({
     }
 }, {
     timestamps: true
-});
+}
+);
 
 bookingSchema.index({ 'location.geojson': '2dsphere' });
 

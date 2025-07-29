@@ -56,18 +56,10 @@ class BookingWarrantyCronService {
                        
 
                         // Find the associated BookingPrice
-                        const bookingPrice = await BookingPrice.findOne({
-                            bookingId: booking._id,
-                            technicianId: booking.technicianId._id
-                        }).session(session);
-
-                        if (!bookingPrice || !bookingPrice.finalPrice) {
-                            console.warn(`No valid BookingPrice found for Booking ${booking._id}`);
-                            return;
-                        }
+                       
 
                         // Calculate 20% of finalPrice
-                        const refundAmount = bookingPrice.finalPrice * 0.2;
+                        const refundAmount = booking.finalPrice * 0.2;
 
 
                         // Update technician's balance
@@ -130,6 +122,7 @@ class BookingWarrantyCronService {
             if (!adminRole) {
                 throw new Error('Admin role not found');
             }
+            
             const admins = await User.find({ role: adminRole._id, status: 'ACTIVE' });
             for (const warranty of expiredWarranties) {
                 const session = await mongoose.startSession();
@@ -137,6 +130,22 @@ class BookingWarrantyCronService {
                     warranty.status = 'EXPIRED';
                     await warranty.save({ session });
                 })
+                const refundAmount = warranty.bookingId.finalPrice * 0.2;
+                const technician = await Technician.findById(warranty.technicianId._id).session(session);
+                technician.balance -= refundAmount
+                technician.totalHoldingAmount -= refundAmount
+                const techNotificationData = {
+                    userId: technician._id,
+                    title: 'Bảo hành hết hạn',
+                    content: `Bạn đã không xử lý bảo hành đơn ${warranty.bookingId.bookingCode} nên sẽ bị xử phạt bằng việc trừ tiền trong tài khoản.`,
+                    referenceId: warranty._id,
+                    referenceModel: 'BookingWarranty',
+                    type: 'NEW_REQUEST',
+                    // url: 'warranty'
+                };
+                await notificationService.createAndSend(techNotificationData, session);
+
+                await technician.save({ session });
                 for (const admin of admins) {
                     const adminNotificationData = {
                         userId: admin._id,

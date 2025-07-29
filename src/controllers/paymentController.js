@@ -1,27 +1,29 @@
-// const bookingPriceService = require("../services/bookingPriceService");
+const bookingService = require("../services/bookingService");
 const paymentService = require('../services/paymentService');
 const { generateToken } = require('../utils/jwt');
 const { generateCookie } = require('../utils/generateCode');
 const userService = require('../services/userService')
+
 const finalizeBooking = async (req, res) => {
     try {
-        const { bookingPriceId } = req.params;
+        const { bookingId } = req.params;
+        
         const { couponCode, discountValue, finalPrice, paymentMethod } = req.body;
-        const updatedBookingPrice = await bookingPriceService.updateBookingPriceAddCoupon(
-            bookingPriceId,
+        const updatedBooking = await bookingService.updateBookingAddCoupon(
+            bookingId,
             couponCode,
             discountValue,
             finalPrice,
             paymentMethod
         );
 
-        const paymentUrl = updatedBookingPrice.paymentUrl || null;
+        const paymentUrl = updatedBooking.paymentUrl || null;
 
         res.status(200).json({
             success: true,
             message: 'Cập nhật và xử lý thanh toán thành công',
             data: {
-                bookingPrice: updatedBookingPrice.bookingPrice,
+                booking: updatedBooking,
                 paymentUrl: paymentUrl
             }
         });
@@ -36,30 +38,29 @@ const finalizeBooking = async (req, res) => {
 };
 
 const handlePayOsSuccess = async (req, res) => {
-    const { orderCode, bookingPriceId } = req.query;
+    const { orderCode, bookingId } = req.query;
     try {
-        await paymentService.handleSuccessfulPayment(orderCode, bookingPriceId);
+        await paymentService.handleSuccessfulPayment(orderCode, bookingId);
 
-        const bookingPrice = await bookingPriceService.getBookingPriceIdForUser(bookingPriceId)
+        const booking = await bookingService.getBookingById(bookingId)
 
-        if (bookingPrice && bookingPrice.bookingId && bookingPrice.bookingId.customerId) {
-            const user = bookingPrice.bookingId.customerId.toObject();
-            const token = generateToken(user);
+        if (booking && booking.customerId) {
+            const userWithRole = await userService.findUserById(booking.customerId._id)
+            console.log(userWithRole);
+            const token = generateToken(userWithRole);
             await generateCookie(token, res);
         }
 
-        res.redirect(`${process.env.FRONT_END_URL}/feedback`);
+        res.redirect(`${process.env.FRONT_END_URL}/feedback/submit/${booking._id}`);
     } catch (error) {
         console.error('Error in PayOS success handler:', error);
         try {
             if (bookingPriceId) {
-                const bookingPrice = await bookingPriceService.getBookingPriceIdForUser(bookingPriceId)
-
-                if (bookingPrice && bookingPrice.bookingId && bookingPrice.bookingId.customerId) {
-                    const user = bookingPrice.bookingId.customerId.toObject();
-                    console.log('---------USER------------', user);
-
-                    const token = generateToken(user);
+                const booking = await bookingService.getBookingById(bookingId)
+                if (booking && booking.customerId) {
+                    const userWithRole = await userService.findUserById(booking.customerId._id)
+                    console.log(userWithRole);
+                    const token = generateToken(userWithRole);
                     await generateCookie(token, res);
                 }
             }
@@ -71,18 +72,21 @@ const handlePayOsSuccess = async (req, res) => {
 };
 
 const handlePayOsCancel = async (req, res) => {
-    const { bookingPriceId } = req.query;
+    const { bookingId } = req.query;
     try {
-        if (bookingPriceId) {
-            const bookingPrice = await bookingPriceService.getBookingPriceIdForUser(bookingPriceId)
+        if (bookingId) {
+            const booking = await bookingService.getBookingById(bookingId)
 
-            if (bookingPrice && bookingPrice.bookingId && bookingPrice.bookingId.customerId) {
-                const user = bookingPrice.bookingId.customerId.toObject();
-
-                const token = generateToken(user);
+            if (booking && booking.customerId) {
+           
+                const userWithRole = await userService.findUserById(booking.customerId._id)
+                console.log(userWithRole);
+                
+                const token = generateToken(userWithRole);
+                
                 await generateCookie(token, res);
             }
-            res.redirect(`${process.env.FRONT_END_URL}/checkout?bookingId=${bookingPrice.bookingId._id}`);
+            res.redirect(`${process.env.FRONT_END_URL}/checkout?bookingId=${booking._id}`);
 
         }
 
@@ -165,4 +169,4 @@ module.exports = {
     depositBalance,
     handleDepositPayOsSuccess,
     handleDepositPayOsCancel
-}; 
+};  

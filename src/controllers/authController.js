@@ -702,21 +702,17 @@ exports.refreshToken = async (req, res) => {
         }
 
         // Verify refresh token (fallback to JWT_SECRET if refresh secret undefined)
-        const secret = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET;
+        const secret = process.env.JWT_SECRET;
         const decoded = jwt.verify(refreshToken, secret);
 
         // Tìm user
-        const user = await User.findById(decoded.userId);
+        const user = await User.findById(decoded.userId).populate('role');
         if (!user) {
             return res.status(401).json({ message: 'Người dùng không tồn tại' });
         }
 
-        // Tạo access token mới
-        const accessToken = jwt.sign(
-            { userId: user._id, email: user.email },
-            process.env.JWT_SECRET,
-            { expiresIn: '15m' }
-        );
+        // Tạo access token mới (bao gồm role và các thông tin cần thiết)
+        const accessToken = generateToken(user);
 
         // Set cookie
         res.cookie('token', accessToken, {
@@ -726,9 +722,9 @@ exports.refreshToken = async (req, res) => {
             maxAge: 15 * 60 * 1000 // 15 phút
         });
 
-        res.json({ message: 'Refresh token thành công' });
+        return res.json({ message: 'Refresh token thành công' });
     } catch (error) {
-        res.status(401).json({ message: 'Refresh token không hợp lệ' });
+        return res.status(401).json({ message: 'Refresh token không hợp lệ' });
     }
 };
 

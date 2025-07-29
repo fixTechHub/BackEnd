@@ -20,6 +20,14 @@ const bookingWarrantySchema = new mongoose.Schema({
         type: Date,
         required: true
     },
+    proposedSchedule: {
+        type: Date,
+        required: false
+    },
+    confirmedSchedule: {
+        startTime: Date,
+        expectedEndTime: Date
+    },
     reportedIssue: {
         type: String,
         required: true
@@ -29,9 +37,10 @@ const bookingWarrantySchema = new mongoose.Schema({
         default: true
     },
     expireAt: Date,
+    images: [String],
     status: {
         type: String,
-        enum: ['PENDING', 'CONFIRMED', 'RESOLVED', 'DENIED','EXPIRED'],
+        enum: ['PENDING', 'CONFIRMED', 'RESOLVED', 'DENIED', 'DONE'],
         default: 'PENDING'
     },
     solutionNote: String,

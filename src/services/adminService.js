@@ -5,7 +5,7 @@ const contractService = require('./contractService');
 const notificationService = require('./notificationService');
 const HttpError = require('../utils/error');
 
-exports.approveTechnician = async (technicianId) => {
+exports.sendContractTechnician = async (technicianId) => {
     // Start a new session for the transaction
     const session = await mongoose.startSession();
     
@@ -51,7 +51,7 @@ exports.approveTechnician = async (technicianId) => {
         
         // After successful transaction commit, emit the notification only if a new contract was generated
         if (result && result.notificationData) {
-            await notificationService.emitSocketNotification(result.notificationData);
+            await notificationService.createAndSend(result.notificationData);
         }
         
         return {
