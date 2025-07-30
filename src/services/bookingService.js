@@ -727,7 +727,6 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
             update.discountValue = 0;
             update.finalPrice = finalPrice;
             update.holdingAmount = finalPrice * 0.2;
-            update.comissionAmount = finalPrice * 0.1;
         }
         const updatedBooking = await Booking.findByIdAndUpdate(
             booking._id,
@@ -761,7 +760,7 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
             const technician = await technicianService.getTechnicianById(updatedBooking.technicianId)
             technician.availability = 'FREE'
             await technician.save({ session })
-            const technicianServiceModel = await TechnicianServiceModel.findOne({ serviceId: updatedBooking.serviceId })
+            // const technicianServiceModel = await TechnicianServiceModel.findOne({ serviceId: updatedBooking.serviceId })
             // console.log(technicianServiceModel);
             
             const receiptData = {
@@ -769,13 +768,12 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
                 customerId: updatedBooking.customerId,
                 technicianId: updatedBooking.technicianId,
                 totalAmount: updatedBooking.finalPrice + updatedBooking.discountValue,
-                serviceAmount: technicianServiceModel.price,
+                // serviceAmount: technicianServiceModel.price,
                 discountAmount: updatedBooking.discountValue,
                 paidAmount: updatedBooking.finalPrice,
                 paymentMethod: 'CASH',
                 paymentStatus: 'PAID',
                 holdingAmount: updatedBooking.finalPrice*0.2,
-                commissionAmount: updatedBooking.finalPrice*0.1
                
             };
             await receiptService.createReceipt(receiptData, session);

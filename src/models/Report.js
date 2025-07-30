@@ -1,5 +1,4 @@
 const mongoose = require('mongoose');
-
 const reportSchema = new mongoose.Schema({
   type: {
     type: String,
@@ -76,3 +75,4 @@ reportSchema.index(
 );
 
 module.exports = mongoose.model('Report', reportSchema);
+
