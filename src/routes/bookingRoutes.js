@@ -10,7 +10,6 @@ router.get('/user',authenticateToken,bookingController.getUserBookingHistory)
 router.post('/create-new-booking-request', authenticateToken, handleMulter.array('images', 5), processAndUploadToS3('bookings'), bookingController.createBookingRequest);
 router.get('/top-services', bookingController.getTopBookedServices);
 router.get('/:id', bookingController.getBookingById);
-router.post('/:bookingId/cancel', authenticateToken, bookingController.cancelBooking);
 router.post('/:bookingId/done', authenticateToken, bookingController.confirmJobDone);
 router.get('/accepted-booking/:bookingId',authenticateToken,bookingController.getAcceptedBooking)
 

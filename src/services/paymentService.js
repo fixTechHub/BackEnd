@@ -1,5 +1,6 @@
 const PayOs = require('@payos/node');
 const bookingService = require('./bookingService');
+// const BookingPrice = require('../models/BookingPrice');
 const Booking = require('../models/Booking');
 const receiptService = require('./receiptService');
 const mongoose = require('mongoose');

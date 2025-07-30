@@ -1,4 +1,13 @@
 const technicianService = require('./technicianService');
+const CommissionConfig = require('../models/CommissionConfig');
+
+const getAllCommissionConfigs = async () => {
+    return await CommissionConfig.find().sort({ startDate: -1 }).lean();;
+};
+
+const getCurrentAppliedCommission = async () => {
+    return await CommissionConfig.findOne({ isApplied: true }).sort({ startDate: -1 });
+};
 
 const deductCommission = async (technicianId, amount, session) => {
     try {
@@ -58,7 +67,28 @@ const creditCommission = async (technicianId, amount, session) => {
     }
 };
 
+const createCommissionConfig = async (data) => {
+    const { commissionPercent, holdingPercent, commissionMinAmount, startDate } = data;
+
+    // Đặt tất cả các config hiện tại về isApplied = false
+    await CommissionConfig.updateMany({}, { isApplied: false });
+
+    // Tạo config mới và đặt isApplied = true
+    const newConfig = new CommissionConfig({
+        commissionPercent,
+        holdingPercent,
+        commissionMinAmount,
+        startDate,
+        isApplied: true
+    });
+
+    return await newConfig.save();
+};
+
 module.exports = {
+    getAllCommissionConfigs,
+    getCurrentAppliedCommission,
     deductCommission,
-    creditCommission
+    creditCommission,
+    createCommissionConfig
 };

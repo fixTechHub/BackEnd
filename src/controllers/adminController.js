@@ -1,4 +1,4 @@
-const adminService = require('../services/adminService');
+const adminService = require('../services/adminService'); 
 const User = require('../models/User');
 const Booking = require('../models/Booking');
 const Receipt = require('../models/Receipt');
@@ -157,6 +157,15 @@ exports.sendContractTechnician = async (req, res) => {
     }
 };
 
+exports.approveWithdraw = async (req, res) => {
+  try {
+    const logId = req.params.logId;
+    const result = await adminService.approveWithdrawRequest(logId);
+    res.status(200).json(result);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+};
 exports.findTechnicians = async (req, res) => {
     try {
         const technicians = await technicianService.getAllTechnicians

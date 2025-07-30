@@ -2,9 +2,10 @@ const express = require('express');
 const router = express.Router();
 const { handleMulter, processAndUploadToS3 } = require('../middlewares/uploadMiddleware'); 
 const { uploadCertificate, deleteCertificate, verifyCertificate } = require('../controllers/certificateController');
+const { authenticateToken } = require('../middlewares/authMiddleware');
 
 router.post(
-  '/upload',
+  '/:technicianId/upload',
   handleMulter.single('file'),                 
   processAndUploadToS3('certificates'),        
   uploadCertificate                             

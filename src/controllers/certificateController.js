@@ -5,8 +5,11 @@ const CertificateService = require('../services/CertificateService');
 
 const uploadCertificate = async (req, res) => {
   try {
-    const { technicianId } = req.body;
-    const fileUrl = req.s3FileUrl; 
+    const { technicianId } = req.params;
+    const fileUrl = req.s3FileUrl;
+
+    console.log('Technician ID:', technicianId);
+    console.log('S3 File URL:', fileUrl);
 
     if (!technicianId || !fileUrl) {
       return res.status(400).json({ message: 'Technician ID and file are required' });
@@ -30,7 +33,9 @@ const uploadCertificate = async (req, res) => {
 
 const deleteCertificate = async (req, res) => {
   try {
-    const certificate = await Certificate.findById(req.params.id);
+    const { id } = req.params;
+    console.log('➡️ ID cần xoá:', id);
+    const certificate = await Certificate.findById(id);
 
     if (!certificate) {
       return res.status(404).json({ message: 'Certificate not found' });
