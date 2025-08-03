@@ -23,11 +23,14 @@ router.use('/reports', require('./reportRoutes'));
 router.use('/services', require('./serviceRoutes'));
 router.use('/technicians', require('./technicianRoutes'));
 router.use('/video-call', require('./videoCallRoutes'));
+
 router.use('/receipts', require('./receiptRoutes'));
 router.use('/booking-items', require('./bookingItemRoutes'));
 router.use('/favorites', require('./favoriteTechnicianRoutes'));
 
 router.get('/test', async (req, res) => {
+
+
     try {
         const roles = await Role.find();
         const b = await require('../models/BookingItem').find();
