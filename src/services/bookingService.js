@@ -11,6 +11,7 @@ const Technician = require('../models/Technician');
 const TechnicianServiceModel = require('../models/TechnicianService');
 const BookingTechnicianSearch = require('../models/BookingTechnicianSearch');
 const { getIo } = require('../sockets/socketManager');
+const CouponUsage = require('../models/CouponUsage');
 
 const MAX_TECHNICIANS = 10;
 const SEARCH_RADII = [5, 10, 15, 30];
@@ -147,7 +148,6 @@ const getBookingById = async (bookingId) => {
             })
 
             .populate('cancelledBy');
-
         if (!booking) {
             throw new Error('Không tìm thấy đặt lịch');
         }
@@ -642,7 +642,7 @@ const getUserBookingHistory = async (userId, role, limit, skip) => {
                 }
             })
             .populate('customerId', 'fullName')
-            .populate('serviceId', 'serviceName')
+            .populate('serviceId')
             .limit(Number(limit))
             .skip(Number(skip))
             .sort({ createdAt: -1 });
@@ -760,15 +760,14 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
             const technician = await technicianService.getTechnicianById(updatedBooking.technicianId)
             technician.availability = 'FREE'
             await technician.save({ session })
-            // const technicianServiceModel = await TechnicianServiceModel.findOne({ serviceId: updatedBooking.serviceId })
-            // console.log(technicianServiceModel);
+           
             
             const receiptData = {
                 bookingId: updatedBooking._id,
                 customerId: updatedBooking.customerId,
                 technicianId: updatedBooking.technicianId,
                 totalAmount: updatedBooking.finalPrice + updatedBooking.discountValue,
-                // serviceAmount: technicianServiceModel.price,
+                serviceAmount: updatedBooking.quote.totalAmount,
                 discountAmount: updatedBooking.discountValue,
                 paidAmount: updatedBooking.finalPrice,
                 paymentMethod: 'CASH',

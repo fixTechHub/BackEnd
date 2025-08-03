@@ -7,7 +7,6 @@ const commissionService = require('./commissionService');
 const { generateOrderCode } = require('../utils/generateCode')
 const Technician = require('../models/Technician');
 const DepositLog = require('../models/DepositLog');
-const TechnicianServiceModel = require('../models/TechnicianService');
 const payOs = new PayOs(
   process.env.PAYOS_CLIENT_ID,
   process.env.PAYOS_API_KEY,
@@ -68,7 +67,6 @@ const handleSuccessfulPayment = async (orderCode, bookingId) => {
     const technician = await Technician.findById(booking.technicianId)
     technician.availability = 'FREE'
     await technician.save({ session })
-    const technicianServiceModel = await TechnicianServiceModel.findOne({ serviceId: updatedBooking.serviceId })
     const receiptData = {
       bookingId: booking._id,
       customerId: booking.customerId,

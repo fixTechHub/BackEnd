@@ -244,8 +244,8 @@ const technicianConfirm = async (req, res) => {
 const getUserBookingHistory = async (req,res) => {
     try {
         const userId = req.user.userId
-        // const role = req.user.role
-        const role = 'CUSTOMER'
+        const role = req.user.role
+        // const role = 'CUSTOMER'
         
         const { limit = 20, skip = 0 } = req.query;
         const bookings = await bookingService.getUserBookingHistory(userId,role,limit,skip)

@@ -33,29 +33,24 @@ const viewUserReceiptsByUserId = async (
             throw new Error('Customer ID không tìm thấy');
         }
 
-        // Initial match query for direct fields
         const initialMatch = {
-            customerId: new mongoose.Types.ObjectId(customerId), // Ensure customerId is an ObjectId
+            customerId: new mongoose.Types.ObjectId(customerId),
         };
 
-        // Payment Method Filter
         if (paymentMethod) {
-            initialMatch.paymentMethod = paymentMethod.toUpperCase(); // Ensure it matches enum case
+            initialMatch.paymentMethod = paymentMethod.toUpperCase();
         }
 
-        // Date Filter
         if (dateFilter) {
             const now = new Date();
-            let startDate;
-            let endDate;
+            let startDate, endDate;
 
             switch (dateFilter) {
                 case 'thisWeek':
-                    // Start of the current week (Sunday)
                     startDate = new Date(now.setDate(now.getDate() - now.getDay()));
                     startDate.setHours(0, 0, 0, 0);
                     endDate = new Date(startDate);
-                    endDate.setDate(startDate.getDate() + 6); // End of the current week (Saturday)
+                    endDate.setDate(startDate.getDate() + 6);
                     endDate.setHours(23, 59, 59, 999);
                     break;
                 case 'thisMonth':
@@ -73,89 +68,111 @@ const viewUserReceiptsByUserId = async (
                         endDate.setHours(23, 59, 59, 999);
                     }
                     break;
-                default:
-                    // No date filter or invalid filter, do nothing
-                    break;
             }
 
             if (startDate || endDate) {
                 initialMatch.issuedDate = {};
-                if (startDate) {
-                    initialMatch.issuedDate.$gte = startDate;
-                }
-                if (endDate) {
-                    initialMatch.issuedDate.$lte = endDate;
-                }
+                if (startDate) initialMatch.issuedDate.$gte = startDate;
+                if (endDate) initialMatch.issuedDate.$lte = endDate;
             }
         }
 
         const pipeline = [
-            {
-                $match: initialMatch, // Apply initial filters
-            },
-            // Lookup Booking details
+            { $match: initialMatch },
+
+            // Lookup Booking
             {
                 $lookup: {
-                    from: 'bookings', // Collection name for 'Booking' model
+                    from: 'bookings',
                     localField: 'bookingId',
                     foreignField: '_id',
-                    as: 'bookingId', // Keep the field name as bookingId for frontend consistency
+                    as: 'bookingId',
                 },
             },
             {
                 $unwind: {
                     path: '$bookingId',
-                    preserveNullAndEmptyArrays: true, // Keep receipts even if bookingId not found
+                    preserveNullAndEmptyArrays: true,
                 },
             },
-            // Lookup Service details within Booking
+
+            // Lookup Service from booking.serviceId
             {
                 $lookup: {
-                    from: 'services', // Collection name for 'Service' model
+                    from: 'services',
                     localField: 'bookingId.serviceId',
                     foreignField: '_id',
-                    as: 'bookingId.serviceId',
+                    as: 'service',
                 },
             },
             {
                 $unwind: {
-                    path: '$bookingId.serviceId',
+                    path: '$service',
                     preserveNullAndEmptyArrays: true,
                 },
             },
-            // Lookup Customer details within Booking
+            {
+                $addFields: {
+                    'bookingId.serviceId': '$service',
+                },
+            },
+
+            // Lookup Customer (receipt.customerId)
             {
                 $lookup: {
-                    from: 'users', // Collection name for 'User' model
-                    localField: 'bookingId.customerId',
+                    from: 'users',
+                    localField: 'customerId',
                     foreignField: '_id',
-                    as: 'bookingId.customerId',
+                    as: 'customer',
                 },
             },
             {
                 $unwind: {
-                    path: '$bookingId.customerId',
+                    path: '$customer',
                     preserveNullAndEmptyArrays: true,
                 },
             },
-            // Lookup Technician details within Booking
+
+            // Lookup Technician (receipt.technicianId)
             {
                 $lookup: {
-                    from: 'technicians', // Collection name for 'Technician' model
-                    localField: 'bookingId.technicianId',
+                    from: 'technicians',
+                    localField: 'technicianId',
                     foreignField: '_id',
-                    as: 'bookingId.technicianId',
+                    as: 'technician',
                 },
             },
             {
                 $unwind: {
-                    path: '$bookingId.technicianId',
+                    path: '$technician',
+                    preserveNullAndEmptyArrays: true,
+                },
+            },
+
+            // Lookup Technician's User (technician.userId)
+            {
+                $lookup: {
+                    from: 'users',
+                    let: { userId: '$technician.userId' },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: { $eq: ['$_id', '$$userId'] },
+                            },
+                        },
+                    ],
+                    as: 'technician.user',
+                },
+            },
+            {
+                $unwind: {
+                    path: '$technician.user',
                     preserveNullAndEmptyArrays: true,
                 },
             },
         ];
 
-        // Add search term matching AFTER lookups
+        // Search term
         if (searchTerm) {
             const searchRegex = new RegExp(searchTerm, 'i');
             pipeline.push({
@@ -163,33 +180,29 @@ const viewUserReceiptsByUserId = async (
                     $or: [
                         { receiptCode: searchRegex },
                         { paymentMethod: searchRegex },
-                        { 'bookingId.bookingCode': searchRegex }, // Search on populated bookingCode
+                        { 'bookingId.bookingCode': searchRegex },
                     ],
                 },
             });
         }
 
-        // Add sorting, skip, and limit for pagination
+        // Pagination & Sorting
         pipeline.push(
-            {
-                $sort: { createdAt: -1 }, // Sort by newest first
-            },
-            {
-                $skip: Number(skip),
-            },
-            {
-                $limit: Number(limit),
-            }
+            { $sort: { createdAt: -1 } },
+            { $skip: Number(skip) },
+            { $limit: Number(limit) }
         );
 
         const receipts = await Receipt.aggregate(pipeline);
-
+        console.log(receipts);
         return receipts;
     } catch (error) {
         console.error('Error fetching receipts:', error);
         throw new Error('Failed to fetch receipts');
     }
 };
+
+
 
 module.exports = {
     createReceipt,

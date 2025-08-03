@@ -3,8 +3,8 @@ const { aiChatBot } = require('../services/aiService');
 const getAiChatResponse = async (req, res) => {
     try {
         const { message } = req.body;
-        // const userId = req.user.userId
-        const userId = '68477c06b6efa9a3615217dd'
+        const userId = req.user.userId
+        // const userId = '68477c06b6efa9a3615217dd'
         if (!message || message.trim() === "") {
             return res.status(400).json({ error: "Vui lòng nhập nội dung cần hỗ trợ." });
         }
