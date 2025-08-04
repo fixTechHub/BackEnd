@@ -1,7 +1,7 @@
 const technicianService = require('../services/technicianService');
 const User = require('../models/User');
 const Technician = require('../models/Technician');
-const Certificate = require('../models/Certificate'); 
+const Certificate = require('../models/Certificate');
 const { deleteFileFromS3, uploadFileToS3 } = require('../services/s3Service');
 const contractService = require('../services/contractService')
 const notificationService = require('../services/notificationService')
@@ -9,7 +9,7 @@ const notificationService = require('../services/notificationService')
 //   try {
 //     const userId = req.user.userId;
 //     console.log('USERID', userId);
-    
+
 //     const { bookingId, laborPrice, items, warrantiesDuration } = req.body;
 //     const bookingPriceData = {
 //       bookingId,
@@ -44,12 +44,14 @@ const confirmJobDoneByTechnician = async (req, res) => {
     );
 
     res.status(200).json({
+      success: true,
       message: 'Xác nhận thành công',
       data: booking
     });
   } catch (error) {
     console.error('Lỗi khi xác nhận hoàn thành:', error);
-    res.json({
+    res.status(500).json({
+      success: false,
       message: error.message || 'Không thể xác nhận hoàn thành'
     });
   }
@@ -248,7 +250,7 @@ const getTechnicianDepositLogs = async (req, res) => {
 
 const requestWithdraw = async (req, res, next) => {
   try {
-    const {  amount, paymentMethod, technicianId } = req.body;
+    const { amount, paymentMethod, technicianId } = req.body;
 
     const result = await technicianService.requestWithdraw(
       technicianId,
@@ -430,6 +432,31 @@ const uploadCCCDImages = async (req, res) => {
   }
 };
 
+const searchTechnicians = async (req, res) => {
+  try {
+    const { serviceId, date, time } = req.body;
+
+    if (!serviceId || !date || !time) {
+      return res.status(400).json({
+        message: 'Vui lòng cung cấp đủ thông tin dịch vụ, ngày và giờ'
+      });
+    }
+
+    const technicians = await technicianService.searchTechnicians(serviceId, date, time);
+
+    res.status(200).json({
+      message: 'Tìm kiếm thợ thành công',
+      data: technicians
+    });
+  } catch (error) {
+    console.error('Error searching technicians:', error);
+    res.status(500).json({
+      message: 'Lỗi server khi tìm kiếm thợ',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+};
+
 module.exports = {
   registerAsTechnician,
   viewTechnicianProfile,
@@ -445,5 +472,6 @@ module.exports = {
   uploadCertificate,
   uploadCCCDImages,
   getTechnicianDepositLogs,
-  requestWithdraw
+  requestWithdraw,
+  searchTechnicians,
 };

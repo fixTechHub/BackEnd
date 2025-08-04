@@ -7,7 +7,7 @@ const userService = require('../services/userService')
 const finalizeBooking = async (req, res) => {
     try {
         const { bookingId } = req.params;
-        
+
         const { couponCode, discountValue, finalPrice, paymentMethod } = req.body;
         const updatedBooking = await bookingService.updateBookingAddCoupon(
             bookingId,
@@ -78,12 +78,12 @@ const handlePayOsCancel = async (req, res) => {
             const booking = await bookingService.getBookingById(bookingId)
 
             if (booking && booking.customerId) {
-           
+
                 const userWithRole = await userService.findUserById(booking.customerId._id)
                 console.log(userWithRole);
-                
+
                 const token = generateToken(userWithRole);
-                
+
                 await generateCookie(token, res);
             }
             res.redirect(`${process.env.FRONT_END_URL}/checkout?bookingId=${booking._id}`);
@@ -145,7 +145,7 @@ const handleDepositPayOsSuccess = async (req, res) => {
 }
 
 const handleDepositPayOsCancel = async (req, res) => {
-    const { amount,userId } = req.query;
+    const { amount, userId } = req.query;
     try {
         if (userId) {
             await paymentService.handleCancelDeposit(amount, userId);

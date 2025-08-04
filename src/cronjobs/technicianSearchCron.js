@@ -31,7 +31,7 @@ cron.schedule('*/10 * * * * *', async () => {
             latitude: booking.location.geojson.coordinates[1],
             longitude: booking.location.geojson.coordinates[0],
             serviceId: booking.serviceId,
-            availability: 'FREE',
+            // availability: 'FREE',
             status: 'APPROVED',
             minBalance: 200000
         };

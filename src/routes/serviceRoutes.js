@@ -4,5 +4,6 @@ const serviceController = require('../controllers/serviceController');
 
 router.get('/public', serviceController.getPublicServices);
 router.get('/:id/public', serviceController.getPublicServicesByCategoryId);
+router.post('/suggest-services', serviceController.suggestServices);
 
 module.exports = router;

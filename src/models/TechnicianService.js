@@ -6,7 +6,7 @@ const technicianServiceSchema = new mongoose.Schema({
         ref: 'Technician',
         required: true
     },
-    // Liên kết đến dịch vụ có giá cố định (serviceType: 'FIXED')
+    // Liên kết đến dịch vụ
     serviceId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Service',
@@ -15,6 +15,11 @@ const technicianServiceSchema = new mongoose.Schema({
     price: {
         type: Number,
         required: true
+    },
+    warrantyDuration: {
+        type: Number,
+        default: 0, // 0 = không có bảo hành (ví dụ: dịch vụ vệ sinh)
+        min: 0
     },
     isActive: {
         type: Boolean,
