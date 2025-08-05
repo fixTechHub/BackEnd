@@ -4,7 +4,7 @@ const Contract = require('../models/Contract');
 const Technician = require('../models/Technician');
 const notificationService = require('../services/notificationService');
 const contractService = require('../services/contractService');
-
+const { getIo } = require('../sockets/socketManager');
 class ContractCronService {
     constructor() {
         this.isRunning = false;
@@ -45,7 +45,7 @@ class ContractCronService {
             const expiredContracts = await Contract.find({
                 expirationDate: { $lt: currentDate },
                 status: { $in: ['PENDING', 'SIGNED'] }
-            }).populate('technicianId', 'name email phone');
+            }).populate('technicianId');
 
             console.log(`Found ${expiredContracts.length} expired contracts to update`);
 
@@ -63,6 +63,8 @@ class ContractCronService {
 
                         // Notify the technician about contract expiration
                         await this.sendExpirationNotification(contract);
+                        console.log(contract);
+                        
                         console.log(`Contract ${contract.contractCode} marked as expired and technician notified`);
                     }
                 } catch (error) {
@@ -94,7 +96,7 @@ class ContractCronService {
                     $lte: sevenDaysFromNow
                 },
                 status: { $in: ['PENDING', 'SIGNED'] }
-            }).populate('technicianId', 'name email phone');
+            }).populate('technicianId');
 
             console.log(`Found ${contractsExpiringIn7Days.length} contracts expiring in 7 days`);
 
@@ -117,9 +119,9 @@ class ContractCronService {
 
     // Send expiration notification to technician
     async sendExpirationNotification(contract) {
-
+        const io = getIo();
         const notificationData = {
-            userId: contract.technicianId._id,
+            userId: contract.technicianId.userId,
 
             title: 'Hạn hợp đồng',
             content: `Hợp đồng ${contract.contractCode} hết hạn vào ${contract.expirationDate.toDateString()}.`,
@@ -127,20 +129,22 @@ class ContractCronService {
             referenceModel: 'Contract',
             type: 'NEW_REQUEST',
         };
-        await notificationService.emitSocketNotification(notificationData);
-
+        const notification = await notificationService.createNotification(notificationData);
+        io.to(`user:${notification.userId}`).emit('receiveNotification', notification);
         // You can also send email notification if you have email service
         // await emailService.sendContractExpirationEmail(contract.technicianId.email, contract);
     }
 
     // Send 7-day warning notification to technician
     async sendExpirationWarningNotification(contract) {
+        const io = getIo();
         const daysUntilExpiration = Math.ceil(
             (contract.expirationDate - new Date()) / (1000 * 60 * 60 * 24)
         );
-
+        console.log(contract.technicianId);
+        
         const notificationData = {
-            userId: contract.technicianId._id,
+            userId: contract.technicianId.userId,
 
             title: 'Hạn hợp đồng',
             content: `Hợp đồng ${contract.contractCode} sẽ hết hạn sau ${daysUntilExpiration} ngày.`,
@@ -149,8 +153,8 @@ class ContractCronService {
             type: 'NEW_REQUEST',
         };
 
-        await notificationService.emitSocketNotification(notificationData);
-
+        const notification =await notificationService.createNotification(notificationData);
+        io.to(`user:${notification.userId}`).emit('receiveNotification', notification);
         // You can also send email notification if you have email service
         // await emailService.sendContractExpirationWarningEmail(contract.technicianId.email, contract, daysUntilExpiration);
     }
