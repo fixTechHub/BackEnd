@@ -87,18 +87,9 @@ const technicianSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
-    rates: { // Đơn giá do thợ tự cấu hình
-        inspectionFee: {
-            type: Number,
-            required: true
-        },
-        // Tiền công theo các bậc phức tạp
-        laborTiers: {
-            // "Giá công từ" sẽ được lấy từ đây
-            tier1: { type: Number }, // Sửa chữa đơn giản
-            tier2: { type: Number }, // Sửa chữa trung bình
-            tier3: { type: Number }  // Sửa chữa phức tạp
-        }
+    inspectionFee: {
+        type: Number,
+        required: true
     },
     pricesLastUpdatedAt: {
         type: Date,

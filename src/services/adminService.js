@@ -62,6 +62,8 @@ exports.sendContractTechnician = async (technicianId) => {
         };
         
     } catch (error) {
+        console.log(error.message);
+        
         // Rollback the transaction in case of error
         await session.abortTransaction();
         throw error;

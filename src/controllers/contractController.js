@@ -58,7 +58,7 @@ const handleDocuSignCallback = async (req, res) => {
         await contractService.updateContractStatus(contract._id, status);
 
         // Redirect to frontend with status information
-        const redirectUrl = `${process.env.FRONT_END_URL}/contract/complete`;
+        const redirectUrl = `${process.env.FRONT_END_URL}/technician`;
         res.redirect(redirectUrl);
     } catch (error) {
         if (error.message === 'Contract not found') {
