@@ -102,4 +102,42 @@ const getFeedbackList = async (filter = {}) => {
         .populate('bookingId', 'serviceId address appointmentTime');
 };
 
-module.exports = { submitFeedback, editFeedback, replyToFeedback, moderateFeedback, getFeedbackList };
+const getFeedbackListAdmin = async (filter = {}) => {
+  const query = {};
+
+  // ✅ Validate ObjectId trước khi thêm vào query
+  if (filter.toUser && mongoose.Types.ObjectId.isValid(filter.toUser)) {
+    query.toUser = filter.toUser;
+  }
+
+  if (filter.fromUser && mongoose.Types.ObjectId.isValid(filter.fromUser)) {
+    query.fromUser = filter.fromUser;
+  }
+
+  // ✅ Lọc feedback ẩn/hiện
+  if (typeof filter.isVisible === 'boolean') {
+    query.isVisible = filter.isVisible;
+  }
+
+  // ✅ Lọc theo khoảng rating
+  if (filter.rating) {
+    const { min, max } = filter.rating;
+    query.rating = {};
+
+    if (typeof min === 'number') query.rating.$gte = min;
+    if (typeof max === 'number') query.rating.$lte = max;
+
+    // Nếu không có giá trị hợp lệ thì bỏ field rating để tránh query rỗng
+    if (Object.keys(query.rating).length === 0) delete query.rating;
+  }
+
+  // ✅ Query feedback
+  return await Feedback.find(query)
+    .sort({ createdAt: -1 }) // feedback mới nhất trước
+    .populate('fromUser', 'fullName') // chỉ lấy tên người gửi
+    .populate('toUser', 'fullName')   // chỉ lấy tên người nhận
+    .populate('bookingId', 'serviceId address appointmentTime'); // lấy thông tin cơ bản của booking
+};
+
+
+module.exports = { submitFeedback, editFeedback, replyToFeedback, moderateFeedback, getFeedbackList, getFeedbackListAdmin };

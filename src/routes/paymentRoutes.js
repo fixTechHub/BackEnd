@@ -11,6 +11,16 @@ router.get('/success', paymentController.handlePayOsSuccess);
 // This route is the return URL for PayOS cancel
 router.get('/cancel', paymentController.handlePayOsCancel);
 
+router.post('/subscription',authenticateToken,paymentController.subscriptionBalance)
+
+router.get('/subscription/success',paymentController.handleSubscriptionPayOsSuccess)
+
+router.get('/subscription/cancel', paymentController.handleSubscriptionPayOsCancel)
+
+router.post('/subscription/extend', paymentController.extendSubscription);
+
+router.get('/subscription/extend/success', paymentController.handleExtendPayOsSuccess);
+
 router.post('/deposit',authenticateToken,paymentController.depositBalance)
 
 router.get('/deposit/success',paymentController.handleDepositPayOsSuccess)
