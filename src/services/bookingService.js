@@ -470,7 +470,7 @@ const customerRejectQuote = async (bookingId, customerId) => {
         // Trừ inspectionFee vào finalPrice
         // Lấy inspectionFee từ technician
         const technician = await Technician.findById(booking.technicianId);
-        const inspectionFee = technician?.rates?.inspectionFee || 0;
+        const inspectionFee = technician?.inspectionFee || 0;
         booking.finalPrice = inspectionFee;
         booking.status = 'CANCELLED';
         booking.paymentStatus = 'PENDING';
