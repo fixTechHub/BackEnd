@@ -9,6 +9,7 @@ const commissionService = require('../services/commissionService')
 const receiptService = require('../services/receiptService');
 const Technician = require('../models/Technician');
 const BookingTechnicianRequest = require('../models/BookingTechnicianRequest');
+const BookingTechnicianSearch = require('../models/BookingTechnicianSearch');
 
 const MAX_TECHNICIANS = 10;
 const SEARCH_RADII = [5, 10, 15, 30];
@@ -184,24 +185,21 @@ const cancelBooking = async (bookingId, userId, role, reason, io) => {
         }
         console.log('--- BOOKING ---', booking);
 
-
         const technician = await Technician.findById(booking.technicianId).populate('userId');
         console.log('--- TECHNICIAN ---', technician);
-
 
         if (role === "TECHNICIAN" && !technician) {
             throw new Error('Không tìm thấy thông tin kỹ thuật viên');
         }
-        const technicianId = technician?._id;
         console.log('--- TECHNICIAN ID ---', technician?.userId?._id);
-
+        console.log('--- USER ID ---', userId);
 
         // Kiểm tra quyền hủy
         if (role === 'CUSTOMER' && booking.customerId.toString() !== userId) {
-            throw new Error('Bạn không có quyền hủy booking này');
+            throw new Error('Bạn không có quyền hủy đơn này');
         }
-        if (role === 'TECHNICIAN' && booking.technicianId?.toString() !== technicianId.toString()) {
-            throw new Error('Bạn không có quyền hủy booking này');
+        if (role === 'TECHNICIAN' && technician?.userId?._id?.toString() !== userId) {
+            throw new Error('Bạn không có quyền hủy đơn này');
         }
 
         // Kiểm tra trạng thái hiện tại
@@ -211,7 +209,7 @@ const cancelBooking = async (bookingId, userId, role, reason, io) => {
         if (booking.status === 'DONE') {
             throw new Error('Không thể hủy đơn đã hoàn thành');
         }
-        if (booking.status === 'WAITING_CONFIRM') {
+        if (booking.status === 'AWAITING_DONE') {
             throw new Error('Không thể hủy đơn khi thợ đã xác nhận hoàn thành');
         }
 
@@ -261,9 +259,9 @@ const cancelBooking = async (bookingId, userId, role, reason, io) => {
 
         if (role === 'CUSTOMER') {
             const notifData = {
-                userId: booking.customerId._id,
+                userId: technician.userId._id,
                 title: 'Đơn đã bị hủy',
-                content: `Đơn này đã bị hủy vì lí do ${reason}`,
+                content: `Khách hàng đã hủy đơn vì lí do: ${reason}`,
                 referenceModel: 'Booking',
                 referenceId: bookingId,
                 url: '/',
@@ -275,9 +273,9 @@ const cancelBooking = async (bookingId, userId, role, reason, io) => {
 
         if (role === 'TECHNICIAN') {
             const notifData = {
-                userId: booking.technicianId._id,
+                userId: booking.customerId,
                 title: 'Đơn đã bị hủy',
-                content: `Đơn này đã bị hủy vì lí do ${reason}`,
+                content: `Kỹ thuật viên đã hủy đơn vì lí do: ${reason}`,
                 referenceModel: 'Booking',
                 referenceId: bookingId,
                 url: '/',
@@ -447,7 +445,7 @@ const confirmJobDone = async (bookingId, userId, role) => {
 };
 
 // Thợ gửi báo giá (quote)
-const technicianSendQuote = async (bookingId, technicianId, quoteData) => {
+const technicianSendQuote = async (bookingId, technicianId, quoteData, io) => {
     const session = await mongoose.startSession();
     session.startTransaction();
     try {
@@ -455,6 +453,8 @@ const technicianSendQuote = async (bookingId, technicianId, quoteData) => {
         const technician = await Technician.findOne({ userId: technicianId });
         console.log('--- TECHNICIAN ---', technician);
         console.log('--- TECHNICIANID ---', technicianId);
+        console.log('--- QUOTE DATA ---', quoteData);
+        console.log('--- QUOTE DATA NOTE ---', quoteData.note);
         if (!booking) throw new Error('Không tìm thấy booking');
         if (!booking.technicianId || booking.technicianId.toString() !== technician?._id.toString()) {
             throw new Error('Bạn không có quyền gửi báo giá cho booking này');
@@ -462,28 +462,81 @@ const technicianSendQuote = async (bookingId, technicianId, quoteData) => {
         if (booking.status !== 'PENDING' && booking.status !== 'IN_PROGRESS' && booking.status !== 'WAITING_CUSTOMER_CONFIRM_ADDITIONAL' && booking.status !== 'CONFIRM_ADDITIONAL') {
             throw new Error('Không thể gửi báo giá ở trạng thái hiện tại');
         }
-        // Cập nhật báo giá - tích lũy items thay vì ghi đè
+        // Lấy items hiện có và items mới
         const existingItems = booking.quote?.items || [];
         const newItems = quoteData.items || [];
-        const combinedItems = [...existingItems, ...newItems];
 
-        // Tính tổng giá công và items
-        const itemsTotal = combinedItems.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0);
+        // Thêm status PENDING cho tất cả items mới
+        const newItemsWithStatus = newItems.map(item => ({
+            ...item,
+            status: 'PENDING'
+        }));
+
+        // Tích lũy items mới vào danh sách hiện có
+        const combinedItems = [...existingItems, ...newItemsWithStatus];
+
+        // Tính totalAmount chỉ từ items có status ACCEPTED
+        const acceptedItemsTotal = combinedItems
+            .filter(item => item.status === 'ACCEPTED')
+            .reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0);
+
         const laborPrice = quoteData.laborPrice || booking.quote?.laborPrice || 0;
-        const totalAmount = laborPrice + itemsTotal;
+        const totalAmount = laborPrice + acceptedItemsTotal;
+
+        // Debug warranty duration logic
+        console.log('--- BACKEND: Warranty duration debug ---', {
+            quoteDataWarrantiesDuration: quoteData.warrantiesDuration,
+            quoteDataWarrantiesDurationType: typeof quoteData.warrantiesDuration,
+            existingWarrantiesDuration: booking.quote?.warrantiesDuration,
+            finalWarrantiesDuration: quoteData.warrantiesDuration !== undefined ? quoteData.warrantiesDuration : (booking.quote?.warrantiesDuration || 1)
+        });
 
         booking.quote = {
             ...booking.quote,
             laborPrice: laborPrice,
             items: combinedItems,
-            warrantiesDuration: quoteData.warrantiesDuration || booking.quote?.warrantiesDuration || 30,
+            warrantiesDuration: quoteData.warrantiesDuration !== undefined ? quoteData.warrantiesDuration : (booking.quote?.warrantiesDuration || 1),
             totalAmount: totalAmount,
-            note: quoteData.note || booking.quote?.note || 'Yêu cầu phát sinh thiết bị',
-            status: 'PENDING',
+            note: quoteData.note || 'Yêu cầu phát sinh thiết bị',
             quotedAt: new Date(),
         };
         booking.status = 'WAITING_CUSTOMER_CONFIRM_ADDITIONAL';
         await booking.save({ session });
+
+        const notifData = {
+            userId: booking.customerId,
+            title: 'Có thiết bị phát sinh mới',
+            content: `Kỹ thuật viên đã gửi báo giá cho thiết bị phát sinh trong booking ${booking.bookingCode}. Vui lòng kiểm tra và xác nhận.`,
+            referenceModel: 'Booking',
+            referenceId: bookingId,
+            url: `/booking/booking-processing?bookingId=${bookingId}`,
+            type: 'NEW_REQUEST'
+        };
+        const notify = await notificationService.createNotification(notifData);
+        io.to(`user:${notify.userId}`).emit('receiveNotification', notify);
+
+        // Emit socket events cho thiết bị phát sinh
+        if (io && newItems.length > 0) {
+            // Emit event thêm thiết bị phát sinh
+            io.to(`user:${booking.customerId}`).emit('booking:additionalItemsAdded', {
+                bookingId: booking._id,
+                userId: booking.customerId,
+                technicianId: technician.userId._id,
+                items: newItemsWithStatus
+            });
+
+            // Emit event cập nhật trạng thái cho từng item
+            newItemsWithStatus.forEach((item, index) => {
+                io.to(`user:${booking.customerId}`).emit('booking:additionalItemsStatusUpdate', {
+                    bookingId: booking._id,
+                    userId: booking.customerId,
+                    technicianId: technician.userId._id,
+                    itemId: `new-item-${index}`,
+                    status: 'PENDING'
+                });
+            });
+        }
+
         await session.commitTransaction();
         return booking;
     } catch (error) {
@@ -495,28 +548,81 @@ const technicianSendQuote = async (bookingId, technicianId, quoteData) => {
 };
 
 // Khách đồng ý báo giá
-const customerAcceptQuote = async (bookingId, customerId) => {
+const customerAcceptQuote = async (bookingId, customerId, io) => {
     const session = await mongoose.startSession();
     session.startTransaction();
     try {
-        const booking = await Booking.findById(bookingId).session(session);
+        const booking = await Booking.findById(bookingId).populate('technicianId', 'userId').session(session);
+        console.log('--- BOOKING ---', booking);
+        
         if (!booking) throw new Error('Không tìm thấy booking');
         if (booking.customerId.toString() !== customerId) {
             throw new Error('Bạn không có quyền duyệt báo giá cho booking này');
         }
-        if (!booking.quote || booking.quote.status !== 'PENDING') {
+        if (!booking.quote) {
             throw new Error('Không có báo giá chờ duyệt');
         }
-        booking.quote.status = 'ACCEPTED';
-        booking.status = 'CONFIRM_ADDITIONAL';
-        // Tính finalPrice (laborPrice + parts)
-        let partsTotal = 0;
+        // Cập nhật status của tất cả items PENDING thành ACCEPTED
         if (Array.isArray(booking.quote.items)) {
-            partsTotal = booking.quote.items.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0);
+            booking.quote.items = booking.quote.items.map(item => ({
+                ...item,
+                status: item.status === 'PENDING' ? 'ACCEPTED' : item.status
+            }));
         }
-        booking.finalPrice = (booking.quote.laborPrice || 0) + partsTotal;
+
+        booking.status = 'CONFIRM_ADDITIONAL';
+
+        // Tính lại totalAmount và finalPrice từ items ACCEPTED
+        const acceptedItemsTotal = booking.quote.items
+            .filter(item => item.status === 'ACCEPTED')
+            .reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0);
+
+        booking.quote.totalAmount = (booking.quote.laborPrice || 0) + acceptedItemsTotal;
+        booking.finalPrice = booking.quote.totalAmount;
         // TODO: Tính commissionAmount, technicianEarning nếu cần
         await booking.save({ session });
+
+        const notifData = {
+            userId: booking?.technicianId?.userId,
+            title: 'Yêu cầu thiết bị phát sinh đã được chấp nhận',
+            content: `Khách hàng đã chấp nhận báo giá cho thiết bị phát sinh trong booking ${booking.bookingCode}. Vui lòng kiểm tra và tiếp tục công việc.`,
+            referenceModel: 'Booking',
+            referenceId: bookingId,
+            url: `/booking/booking-processing?bookingId=${bookingId}`,
+            type: 'NEW_REQUEST'
+        };
+        const notify = await notificationService.createNotification(notifData);
+        io.to(`user:${notify.userId}`).emit('receiveNotification', notify);
+
+        // Emit socket events cho việc chấp nhận thiết bị phát sinh
+        if (io && booking.technicianId) {
+            const technician = await Technician.findById(booking.technicianId);
+            if (technician) {
+                // Emit event chấp nhận thiết bị phát sinh
+                io.to(`user:${technician.userId}`).emit('booking:additionalItemsAccepted', {
+                    bookingId: booking._id,
+                    userId: booking.customerId,
+                    technicianId: technician.userId,
+                    itemIds: booking.quote.items
+                        .filter(item => item.status === 'ACCEPTED')
+                        .map((item, index) => `item-${index}`)
+                });
+
+                // Emit event cập nhật trạng thái cho từng item
+                booking.quote.items.forEach((item, index) => {
+                    if (item.status === 'ACCEPTED') {
+                        io.to(`user:${booking.customerId}`).emit('booking:additionalItemsStatusUpdate', {
+                            bookingId: booking._id,
+                            userId: booking.customerId,
+                            technicianId: technician.userId,
+                            itemId: `item-${index}`,
+                            status: 'ACCEPTED'
+                        });
+                    }
+                });
+            }
+        }
+
         await session.commitTransaction();
         return booking;
     } catch (error) {
@@ -528,27 +634,80 @@ const customerAcceptQuote = async (bookingId, customerId) => {
 };
 
 // Khách từ chối báo giá
-const customerRejectQuote = async (bookingId, customerId) => {
+const customerRejectQuote = async (bookingId, customerId, io) => {
     const session = await mongoose.startSession();
     session.startTransaction();
     try {
-        const booking = await Booking.findById(bookingId).session(session);
+        const booking = await Booking.findById(bookingId).populate('technicianId', 'userId').session(session);
         if (!booking) throw new Error('Không tìm thấy booking');
         if (booking.customerId.toString() !== customerId) {
             throw new Error('Bạn không có quyền từ chối báo giá cho booking này');
         }
-        if (!booking.quote || booking.quote.status !== 'PENDING') {
+        if (!booking.quote) {
             throw new Error('Không có báo giá chờ duyệt');
         }
-        booking.quote.status = 'REJECTED';
-        // Trừ inspectionFee vào finalPrice
-        // Lấy inspectionFee từ technician
-        const technician = await Technician.findById(booking.technicianId);
-        const inspectionFee = technician?.rates?.inspectionFee || 0;
-        booking.finalPrice = inspectionFee;
-        // booking.status = 'CANCELLED';
-        booking.paymentStatus = 'PENDING';
+
+        // Cập nhật status của tất cả items PENDING thành REJECTED
+        if (Array.isArray(booking.quote.items)) {
+            booking.quote.items = booking.quote.items.map(item => ({
+                ...item,
+                status: item.status === 'PENDING' ? 'REJECTED' : item.status
+            }));
+        }
+
+        // Giữ nguyên trạng thái booking để thợ có thể gửi lại yêu cầu phát sinh
+        booking.status = 'IN_PROGRESS';
+
+        // Tính lại totalAmount chỉ từ items ACCEPTED (không thay đổi finalPrice)
+        const acceptedItemsTotal = booking.quote.items
+            .filter(item => item.status === 'ACCEPTED')
+            .reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0);
+
+        booking.quote.totalAmount = (booking.quote.laborPrice || 0) + acceptedItemsTotal;
+
         await booking.save({ session });
+
+        const notifData = {
+            userId: booking?.technicianId?.userId,
+            title: 'Yêu cầu thiết bị phát sinh đã bị từ chối',
+            content: `Khách hàng đã từ chối báo giá cho thiết bị phát sinh trong booking ${booking.bookingCode}. Vui lòng gửi lại yêu cầu nếu cần.`,
+            referenceModel: 'Booking',
+            referenceId: bookingId,
+            url: `/booking/booking-processing?bookingId=${bookingId}`,
+            type: 'NEW_REQUEST'
+        };
+        const notify = await notificationService.createNotification(notifData);
+        io.to(`user:${notify.userId}`).emit('receiveNotification', notify);
+
+        // Emit socket events cho việc từ chối thiết bị phát sinh
+        if (io && booking.technicianId) {
+            const technician = await Technician.findById(booking.technicianId);
+            if (technician) {
+                // Emit event từ chối thiết bị phát sinh
+                io.to(`user:${technician.userId}`).emit('booking:additionalItemsRejected', {
+                    bookingId: booking._id,
+                    userId: booking.customerId,
+                    technicianId: technician.userId,
+                    itemIds: booking.quote.items
+                        .filter(item => item.status === 'REJECTED')
+                        .map((item, index) => `item-${index}`)
+                });
+
+                // Emit event cập nhật trạng thái cho từng item
+                booking.quote.items.forEach((item, index) => {
+                    if (item.status === 'REJECTED') {
+                        io.to(`user:${booking.customerId}`).emit('booking:additionalItemsStatusUpdate', {
+                            bookingId: booking._id,
+                            userId: booking.customerId,
+                            technicianId: technician.userId,
+                            itemId: `item-${index}`,
+                            status: 'REJECTED'
+                        });
+                    }
+                });
+            }
+        }
+
         await session.commitTransaction();
         return booking;
     } catch (error) {
@@ -636,19 +795,19 @@ const selectTechnicianForBooking = async (bookingId, technicianId, customerId, i
         }
 
         // 3. Kiểm tra thời gian giữa các request (5 phút cooldown)
-        const lastRequest = await BookingTechnicianRequest.findOne({
-            bookingId
-        }).sort({ createdAt: -1 }).session(session);
+        // const lastRequest = await BookingTechnicianRequest.findOne({
+        //     bookingId
+        // }).sort({ createdAt: -1 }).session(session);
 
-        if (lastRequest) {
-            const timeSinceLastRequest = Date.now() - lastRequest.createdAt;
-            if (timeSinceLastRequest < 5 * 60 * 1000) {
-                const secondsLeft = Math.ceil((5 * 60 * 1000 - timeSinceLastRequest) / 1000);
-                const minutes = Math.floor(secondsLeft / 60);
-                const seconds = secondsLeft % 60;
-                throw new Error(`Bạn chỉ có thể gửi yêu cầu cho thợ mới sau ${minutes} phút ${seconds} giây.`);
-            }
-        }
+        // if (lastRequest) {
+        //     const timeSinceLastRequest = Date.now() - lastRequest.createdAt;
+        //     if (timeSinceLastRequest < 5 * 60 * 1000) {
+        //         const secondsLeft = Math.ceil((5 * 60 * 1000 - timeSinceLastRequest) / 1000);
+        //         const minutes = Math.floor(secondsLeft / 60);
+        //         const seconds = secondsLeft % 60;
+        //         throw new Error(`Bạn chỉ có thể gửi yêu cầu cho thợ mới sau ${minutes} phút ${seconds} giây.`);
+        //     }
+        // }
 
         // 4. Tính expiresAt theo loại booking
         const expiresAt = booking.isUrgent === true
@@ -923,129 +1082,282 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
 }
 
 const technicianAcceptBooking = async (bookingId, technicianId, io) => {
-    const session = await mongoose.startSession();
-    session.startTransaction();
+    const maxRetries = 3;
+    let retryCount = 0;
 
-    try {
-        console.log('--- technicianAcceptBooking ---');
-        console.log('bookingId:', bookingId);
-        console.log('technicianId:', technicianId);
+    while (retryCount < maxRetries) {
+        const session = await mongoose.startSession();
+        session.startTransaction();
 
-        const technician = await Technician.findOne({ userId: technicianId });
-        // 1. Kiểm tra request còn hiệu lực (chưa hết hạn)
-        const request = await BookingTechnicianRequest.findOne({
-            bookingId,
-            technicianId: technician._id,
-            status: 'PENDING',
-            expiresAt: { $gt: new Date() } // Chỉ lấy request chưa hết hạn
-        }).session(session);
-        console.log('BookingTechnicianRequest found:', request);
-        if (request) {
-            console.log('request.expiresAt:', request.expiresAt, 'now:', new Date(), 'expiresAt-now:', request.expiresAt - new Date());
-        }
+        try {
+            console.log('--- technicianAcceptBooking ---');
+            console.log('bookingId:', bookingId);
+            console.log('technicianId:', technicianId);
 
-        if (!request) {
-            console.log('Không tìm thấy BookingTechnicianRequest hợp lệ hoặc đã hết hạn');
-            throw new Error('Yêu cầu không tồn tại, đã được xử lý hoặc đã hết hạn');
-        }
+            const technician = await Technician.findOne({ userId: technicianId }).populate('userId').session(session);
+            console.log('--- Technician found ---', technician);
 
-        // 2. Kiểm tra booking chưa được assign
-        const booking = await Booking.findOne({
-            _id: bookingId,
-            status: 'AWAITING_CONFIRM',
-            technicianId: null
-        }).populate('serviceId').session(session);
-        console.log('Booking found:', booking);
+            // Kiểm tra và đảm bảo inspectionFee có giá trị
+            if (!technician.inspectionFee) {
+                console.log('Technician không có inspectionFee, set giá trị mặc định');
+                technician.inspectionFee = 0; // Giá trị mặc định
+            }
 
-        if (!booking) {
-            console.log('Booking đã được nhận bởi thợ khác hoặc không còn AWAITING_CONFIRM');
-            throw new Error('Booking đã được nhận bởi thợ khác');
-        }
+            // 1. Kiểm tra request còn hiệu lực (chưa hết hạn)
+            const request = await BookingTechnicianRequest.findOne({
+                bookingId,
+                technicianId: technician._id,
+                status: 'PENDING',
+                expiresAt: { $gt: new Date() } // Chỉ lấy request chưa hết hạn
+            }).session(session);
+            console.log('BookingTechnicianRequest found:', request);
+            if (request) {
+                console.log('request.expiresAt:', request.expiresAt, 'now:', new Date(), 'expiresAt-now:', request.expiresAt - new Date());
+            }
 
-        // 3. Cập nhật booking
-        console.log('Cập nhật booking: set technicianId và status IN_PROGRESS');
-        booking.technicianId = technician._id;
-        booking.status = 'IN_PROGRESS';
-        booking.isChatAllowed = true;
-        booking.isVideoCallAllowed = true;
+            if (!request) {
+                console.log('Không tìm thấy BookingTechnicianRequest hợp lệ hoặc đã hết hạn');
+                throw new Error('Đơn này đã được thợ khác nhận trước. Vui lòng tìm đơn khác.');
+            }
 
-        // 4. Nếu là dịch vụ FIXED, tự động lưu giá công vào quote
-        if (booking.serviceId && booking.serviceId.serviceType === 'FIXED') {
+            // 2. Kiểm tra booking chưa được assign và cập nhật atomically để tránh race condition
+            const bookingUpdateResult = await Booking.findOneAndUpdate(
+                {
+                    _id: bookingId,
+                    status: 'AWAITING_CONFIRM',
+                    technicianId: null // Chỉ update nếu chưa có thợ nào được assign
+                },
+                {
+                    $set: {
+                        technicianId: technician._id,
+                        status: 'IN_PROGRESS',
+                        isChatAllowed: true,
+                        isVideoCallAllowed: true,
+                        'quote.acceptedAt': new Date() // Thêm timestamp khi thợ nhận booking
+                    }
+                },
+                {
+                    new: true, // Trả về document sau khi update
+                    session: session
+                }
+            ).populate('serviceId');
+
+            console.log('Booking update result:', bookingUpdateResult);
+
+            if (!bookingUpdateResult) {
+                console.log('Booking đã được nhận bởi thợ khác hoặc không còn AWAITING_CONFIRM');
+                throw new Error('Đơn này đã được thợ khác nhận trước. Vui lòng tìm đơn khác.');
+            }
+
+            // 3. Sử dụng booking đã được cập nhật
+            const booking = bookingUpdateResult;
+
+            // 4. Tự động lưu giá công vào quote từ TechnicianService
             const TechnicianService = require('../models/TechnicianService');
+            console.log('--- DEBUG TECHNICIAN SERVICE ---');
+            console.log('Technician ID:', technician._id);
+            console.log('Service ID:', booking.serviceId._id);
+
             const technicianService = await TechnicianService.findOne({
                 technicianId: technician._id,
                 serviceId: booking.serviceId._id,
                 isActive: true
             }).session(session);
 
+            console.log('TechnicianService found:', technicianService ? 'Yes' : 'No');
             if (technicianService) {
+                console.log('TechnicianService details:', {
+                    price: technicianService.price,
+                    warrantyDuration: technicianService.warrantyDuration
+                });
+
                 booking.quote = {
                     status: 'ACCEPTED',
                     laborPrice: technicianService.price,
                     items: [],
                     totalAmount: technicianService.price,
-                    warrantiesDuration: 1,
+                    warrantiesDuration: technicianService.warrantyDuration || 0,
                     quotedAt: new Date()
                 };
-                console.log('Đã tự động lưu giá công cho dịch vụ FIXED:', technicianService.price);
+                // Set finalPrice
+                booking.finalPrice = technicianService.price;
+                console.log('Đã tự động lưu giá công cho dịch vụ:', technicianService.price);
+            } else {
+                console.log('Không tìm thấy TechnicianService, thử tìm không cần điều kiện isActive');
+                // Thử tìm TechnicianService không cần điều kiện isActive
+                const technicianServiceWithoutActive = await TechnicianService.findOne({
+                    technicianId: technician._id,
+                    serviceId: booking.serviceId._id
+                }).session(session);
+
+                if (technicianServiceWithoutActive) {
+                    console.log('Tìm thấy TechnicianService (không active):', {
+                        price: technicianServiceWithoutActive.price,
+                        warrantyDuration: technicianServiceWithoutActive.warrantyDuration,
+                        isActive: technicianServiceWithoutActive.isActive
+                    });
+
+                    booking.quote = {
+                        status: 'ACCEPTED',
+                        laborPrice: technicianServiceWithoutActive.price || 0,
+                        items: [],
+                        totalAmount: technicianServiceWithoutActive.price || 0,
+                        warrantiesDuration: technicianServiceWithoutActive.warrantyDuration || 0,
+                        quotedAt: new Date()
+                    };
+                    booking.finalPrice = technicianServiceWithoutActive.price || 0;
+                    console.log('Đã lưu giá công từ TechnicianService (không active):', technicianServiceWithoutActive.price);
+                } else {
+                    console.log('Không tìm thấy TechnicianService nào, tạo quote với giá trị mặc định');
+                    // Tạo quote với giá trị mặc định nếu không tìm thấy technicianService
+                    booking.quote = {
+                        status: 'ACCEPTED',
+                        laborPrice: 0,
+                        items: [],
+                        totalAmount: 0,
+                        warrantiesDuration: 0,
+                        quotedAt: new Date()
+                    };
+                    booking.finalPrice = 0;
+                }
             }
-        }
 
-        await booking.save({ session });
+            await booking.save({ session });
 
-        // 5. Cập nhật request
-        console.log('Cập nhật request: set status ACCEPTED');
-        request.status = 'ACCEPTED';
-        await request.save({ session });
+            // 5. Cập nhật request chỉ khi thợ này thực sự nhận được booking
+            console.log('Cập nhật request: set status ACCEPTED');
+            const requestUpdateResult = await BookingTechnicianRequest.findOneAndUpdate(
+                {
+                    _id: request._id,
+                    status: 'PENDING', // Chỉ update nếu request vẫn còn PENDING
+                    expiresAt: { $gt: new Date() } // Và chưa hết hạn
+                },
+                {
+                    $set: { status: 'ACCEPTED' }
+                },
+                {
+                    new: true,
+                    session: session
+                }
+            );
 
-        technician.availability = 'ONJOB';
-        await technician.save({ session });
+            if (!requestUpdateResult) {
+                console.log('Request đã được xử lý bởi thợ khác hoặc đã hết hạn');
+                throw new Error('Đơn này đã được thợ khác nhận trước. Vui lòng tìm đơn khác.');
+            }
 
-        // 6. Hủy các request khác (chỉ những request còn hiệu lực)
-        console.log('Hủy các request khác (set status REJECTED)');
-        await BookingTechnicianRequest.updateMany(
-            {
+            technician.availability = 'ONJOB';
+            await technician.save({ session });
+
+            // 6. Hủy các request khác (chỉ những request còn hiệu lực)
+            console.log('Hủy các request khác (set status REJECTED)');
+            const rejectResult = await BookingTechnicianRequest.updateMany(
+                {
+                    bookingId,
+                    _id: { $ne: requestUpdateResult._id }, // Sử dụng ID của request đã được cập nhật
+                    status: 'PENDING',
+                    expiresAt: { $gt: new Date() } // Chỉ hủy những request chưa hết hạn
+                },
+                {
+                    status: 'REJECTED'
+                },
+                { session }
+            );
+            console.log(`Đã hủy ${rejectResult.modifiedCount} request khác`);
+
+            // 7. Thông báo cho khách hàng
+            const notifData = {
+                userId: booking?.customerId,
+                title: 'Thợ đã nhận đơn của bạn',
+                content: `Kỹ thuật viên ${technician?.userId?.fullName} đã chấp nhận yêu cầu của bạn cho đơn ${booking?.bookingCode}`,
+                referenceModel: 'Booking',
+                referenceId: bookingId,
+                url: `/booking/booking-processing?bookingId=${bookingId}`,
+                type: 'NEW_REQUEST'
+            };
+            const notify = await notificationService.createNotification(notifData);
+            io.to(`user:${notify.userId}`).emit('receiveNotification', notify);
+
+            // Thông báo cho thợ thắng cuộc
+            io.to(`user:${technician.userId._id}`).emit('booking:accepted', {
                 bookingId,
-                _id: { $ne: request._id },
-                status: 'PENDING',
-                expiresAt: { $gt: new Date() } // Chỉ hủy những request chưa hết hạn
-            },
-            {
-                status: 'REJECTED'
-            },
-            { session }
-        );
-
-        // 7. Thông báo
-        io.to(`user:${booking.customerId}`).emit('booking:accepted', {
-            bookingId,
-            technicianId
-        });
-
-        const rejectedRequests = await BookingTechnicianRequest.find({
-            bookingId,
-            status: 'REJECTED'
-        }).session(session);
-        console.log('Các request bị hủy:', rejectedRequests);
-
-        rejectedRequests.forEach(req => {
-            io.to(`technician:${req.technicianId}`).emit('booking:cancelled', {
-                bookingId,
-                reason: 'Đã có thợ khác nhận đơn này'
+                bookingCode: booking.bookingCode,
+                customerName: booking.customerId?.fullName || 'Khách hàng'
             });
-        });
 
-        await session.commitTransaction();
-        console.log('Nhận đơn thành công!');
-        return { success: true, message: 'Đã nhận đơn thành công', booking };
+            // Emit socket event cho booking request accepted
+            io.to(`user:${booking.customerId}`).emit('booking:requestAccepted', {
+                bookingId: booking._id,
+                userId: booking.customerId,
+                technicianId: technician.userId._id,
+                requestId: requestUpdateResult._id
+            });
 
-    } catch (error) {
-        await session.abortTransaction();
-        console.error('Lỗi trong technicianAcceptBooking:', error);
-        throw error;
-    } finally {
-        session.endSession();
+            // Thông báo cho các thợ bị từ chối
+            const rejectedRequests = await BookingTechnicianRequest.find({
+                bookingId,
+                status: 'REJECTED'
+            }).populate('technicianId', 'userId').session(session);
+            console.log('Các request bị hủy:', rejectedRequests);
+
+            rejectedRequests.forEach(req => {
+                // Lấy userId của thợ từ technicianId
+                const technicianUserId = req.technicianId?.userId;
+                if (technicianUserId) {
+                    io.to(`technician:${technicianUserId}`).emit('booking:cancelled', {
+                        bookingId,
+                        reason: 'Đã có thợ khác nhận đơn này'
+                    });
+                }
+            });
+
+            // Emit socket event cho booking request status update
+            io.to(`user:${booking.customerId}`).emit('booking:requestStatusUpdate', {
+                bookingId: booking._id,
+                userId: booking.customerId,
+                technicianId: technician.userId._id,
+                requestId: requestUpdateResult._id,
+                status: 'ACCEPTED'
+            });
+
+            await session.commitTransaction();
+            console.log('Nhận đơn thành công!');
+            console.log(`Thợ ${technician.userId.fullName} (ID: ${technician._id}) đã nhận booking ${booking.bookingCode}`);
+            console.log('--- BOOKING AFTER ACCEPT ---');
+            console.log('booking.technicianId:', booking.technicianId);
+            console.log('booking.status:', booking.status);
+            console.log('technician.userId._id:', technician.userId._id);
+            return { success: true, message: 'Đã nhận đơn thành công', booking };
+
+        } catch (error) {
+            await session.abortTransaction();
+            console.error('Lỗi trong technicianAcceptBooking (attempt ' + (retryCount + 1) + '):', error);
+
+            // Nếu là lỗi MongoDB transaction conflict, thử lại
+            if (error.message.includes('Write conflict') || error.message.includes('Transaction numbers')) {
+                retryCount++;
+                if (retryCount < maxRetries) {
+                    console.log('Retrying... Attempt ' + (retryCount + 1));
+                    session.endSession();
+                    continue; // Thử lại
+                }
+            }
+
+            // Xử lý lỗi race condition một cách rõ ràng
+            if (error.message.includes('Booking đã được nhận bởi thợ khác') ||
+                error.message.includes('Yêu cầu đã được xử lý bởi thợ khác') ||
+                error.message.includes('Đơn này đã được thợ khác nhận trước')) {
+                throw new Error('Đơn này đã được thợ khác nhận trước. Vui lòng tìm đơn khác.');
+            }
+
+            throw error;
+        } finally {
+            session.endSession();
+        }
     }
+
+    // Nếu đã thử hết số lần mà vẫn lỗi
+    throw new Error('Có lỗi xảy ra khi xử lý yêu cầu. Vui lòng thử lại.');
 };
 
 // Thợ từ chối booking
@@ -1072,6 +1384,11 @@ const technicianRejectBooking = async (bookingId, technicianId, io) => {
         console.log('Technician found:', technician ? 'Yes' : 'No');
         if (technician) {
             console.log('Technician ID:', technician._id);
+            // Kiểm tra và đảm bảo inspectionFee có giá trị
+            if (!technician.inspectionFee) {
+                console.log('Technician không có inspectionFee, set giá trị mặc định');
+                technician.inspectionFee = 0; // Giá trị mặc định
+            }
         }
 
         // 1. Kiểm tra request còn hiệu lực (chưa hết hạn)
@@ -1139,6 +1456,23 @@ const technicianRejectBooking = async (bookingId, technicianId, io) => {
                 bookingId,
                 technicianId: technician._id,
                 status: 'rejected'
+            });
+
+            // Emit socket event cho booking request rejected
+            io.to(`user:${booking.customerId}`).emit('booking:requestRejected', {
+                bookingId: booking._id,
+                userId: booking.customerId,
+                technicianId: technician.userId._id,
+                requestId: request._id
+            });
+
+            // Emit socket event cho booking request status update
+            io.to(`user:${booking.customerId}`).emit('booking:requestStatusUpdate', {
+                bookingId: booking._id,
+                userId: booking.customerId,
+                technicianId: technician.userId._id,
+                requestId: request._id,
+                status: 'REJECTED'
             });
         }
 

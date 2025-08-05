@@ -1,7 +1,7 @@
 const bookingService = require('../services/bookingService');
 const { addressToPoint } = require('../services/geocodingService');
 const User = require('../models/User');
-const {getIo} = require('../sockets/socketManager')
+const { getIo } = require('../sockets/socketManager')
 const couponService = require('../services/couponService')
 
 const createBookingRequest = async (req, res) => {
@@ -107,19 +107,19 @@ const cancelBooking = async (req, res) => {
         const io = getIo();
         // console.log('--- ROLE ---', role);
         console.log('--- ROLE ---', req.user);
-// const cancelBooking = async (req, res) => {
-//     try {
-//         const { bookingId } = req.params;
-//         const { reason } = req.body;
-//         const userId = req.user.userId;        
-//         const role = req.user.role;
-//         // console.log('--- ROLE ---', role);
+        // const cancelBooking = async (req, res) => {
+        //     try {
+        //         const { bookingId } = req.params;
+        //         const { reason } = req.body;
+        //         const userId = req.user.userId;        
+        //         const role = req.user.role;
+        //         // console.log('--- ROLE ---', role);
 
-//         if (!reason) {
-//             return res.status(400).json({
-//                 message: 'Vui lòng cung cấp lý do hủy booking'
-//             });
-//         }
+        //         if (!reason) {
+        //             return res.status(400).json({
+        //                 message: 'Vui lòng cung cấp lý do hủy booking'
+        //             });
+        //         }
 
         const booking = await bookingService.cancelBooking(
             bookingId,
@@ -128,12 +128,12 @@ const cancelBooking = async (req, res) => {
             reason,
             io
         );
-//         const booking = await bookingService.cancelBooking(
-//             bookingId,
-//             userId,
-//             role,
-//             reason
-//         );
+        //         const booking = await bookingService.cancelBooking(
+        //             bookingId,
+        //             userId,
+        //             role,
+        //             reason
+        //         );
 
         res.status(200).json({
             message: 'Hủy booking thành công',
@@ -178,7 +178,8 @@ const technicianSendQuote = async (req, res) => {
         const { bookingId } = req.params;
         const technicianId = req.user.userId;
         const quoteData = req.body;
-        const booking = await bookingService.technicianSendQuote(bookingId, technicianId, quoteData);
+        const io = getIo();
+        const booking = await bookingService.technicianSendQuote(bookingId, technicianId, quoteData, io);
         res.status(200).json({ success: true, message: 'Gửi báo giá thành công', data: booking });
     } catch (error) {
         res.status(400).json({ success: false, message: error.message });
@@ -190,7 +191,8 @@ const customerAcceptQuote = async (req, res) => {
     try {
         const { bookingId } = req.params;
         const customerId = req.user.userId;
-        const booking = await bookingService.customerAcceptQuote(bookingId, customerId);
+        const io = getIo();
+        const booking = await bookingService.customerAcceptQuote(bookingId, customerId, io);
         res.status(200).json({ success: true, message: 'Đồng ý báo giá thành công', data: booking });
     } catch (error) {
         res.status(400).json({ success: false, message: error.message });
@@ -202,7 +204,8 @@ const customerRejectQuote = async (req, res) => {
     try {
         const { bookingId } = req.params;
         const customerId = req.user.userId;
-        const booking = await bookingService.customerRejectQuote(bookingId, customerId);
+        const io = getIo();
+        const booking = await bookingService.customerRejectQuote(bookingId, customerId, io);
         res.status(200).json({ success: true, message: 'Từ chối báo giá thành công', data: booking });
     } catch (error) {
         res.status(400).json({ success: false, message: error.message });
@@ -266,7 +269,7 @@ const technicianAcceptBooking = async (req, res) => {
 const technicianConfirm = async (req, res) => {
     try {
         const { bookingId } = req.params;
-        const technicianId = req.user.userId;        
+        const technicianId = req.user.userId;
 
         const result = await bookingService.technicianConfirmBooking(bookingId, technicianId);
         res.json(result);
@@ -275,15 +278,15 @@ const technicianConfirm = async (req, res) => {
     }
 };
 
-const getUserBookingHistory = async (req,res) => {
+const getUserBookingHistory = async (req, res) => {
     try {
         const userId = req.user.userId
         // const role = req.user.role
         const role = 'CUSTOMER'
-        
+
         const { limit = 20, skip = 0 } = req.query;
-        const bookings = await bookingService.getUserBookingHistory(userId,role,limit,skip)
-        res.status(200).json({bookings});
+        const bookings = await bookingService.getUserBookingHistory(userId, role, limit, skip)
+        res.status(200).json({ bookings });
     } catch (error) {
         console.error('Lỗi khi xác nhận hoàn thành:', error);
         res.json({
@@ -292,14 +295,14 @@ const getUserBookingHistory = async (req,res) => {
     }
 }
 
-const getAcceptedBooking = async (req,res) => {
+const getAcceptedBooking = async (req, res) => {
     try {
         const user = req.user
-        const {bookingId} = req.params
+        const { bookingId } = req.params
         const acceptedBooking = await bookingService.getAcceptedBooking(bookingId)
         const userCoupons = await couponService.getUserCoupon(user.userId)
-        
-        
+
+
         res.status(200).json({
             success: true,
             message: 'Lấy thông tin đặt lịch thành công',
@@ -376,7 +379,7 @@ const getPopularDescriptions = async (req, res) => {
     try {
         const { limit = 10 } = req.query;
         const result = await bookingService.getPopularDescriptions(limit);
-        
+
         if (result.success) {
             res.json(result);
         } else {
@@ -396,7 +399,7 @@ const searchDescriptions = async (req, res) => {
     try {
         const { query, limit = 5 } = req.query;
         const result = await bookingService.searchDescriptions(query, limit);
-        
+
         if (result.success) {
             res.json(result);
         } else {

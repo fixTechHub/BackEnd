@@ -75,12 +75,10 @@ const bookingSchema = new mongoose.Schema({
             type: Number,
             default: 1
         },
-        justification: String, // Lý do nếu giá cao hơn ước tính
         quotedAt: {
             type: Date,
             default: Date.now
         },
-        note: String,
     },
     discountCode: String,
     discountValue: {

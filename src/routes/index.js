@@ -18,7 +18,7 @@ router.use('/feedbacks', require('./feedbackRoutes'));
 router.use('/messages', require('./messageRoutes'));
 router.use('/ai', require('./aiRoutes'))
 router.use('/notifications', require('./notificationRoutes'));
-// router.use('/payments', require('./paymentRoutes'));
+router.use('/payments', require('./paymentRoutes'));
 router.use('/reports', require('./reportRoutes'));
 router.use('/services', require('./serviceRoutes'));
 router.use('/technicians', require('./technicianRoutes'));
@@ -28,8 +28,6 @@ router.use('/receipts', require('./receiptRoutes'));
 router.use('/favorites', require('./favoriteTechnicianRoutes'));
 
 router.get('/test', async (req, res) => {
-
-
     try {
         const roles = await Role.find();
         const b13 = await require('../models/BookingStatusLog').find();

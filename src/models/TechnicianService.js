@@ -18,7 +18,7 @@ const technicianServiceSchema = new mongoose.Schema({
     },
     warrantyDuration: {
         type: Number,
-        default: 0, // 0 = không có bảo hành (ví dụ: dịch vụ vệ sinh)
+        default: 0,
         min: 0
     },
     isActive: {
