@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const TechnicianService = require('./TechnicianService');
 
 const bookingSchema = new mongoose.Schema({
     bookingCode: {
@@ -50,10 +51,6 @@ const bookingSchema = new mongoose.Schema({
         default: false
     },
     quote: {
-        status: {
-            type: String,
-            enum: ['PENDING', 'ACCEPTED', 'REJECTED']
-        },
         commissionConfigId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'CommissionConfig'
@@ -66,14 +63,18 @@ const bookingSchema = new mongoose.Schema({
             name: String,
             price: Number,
             quantity: Number,
-            note: String
+            note: String,
+            status: {
+                type: String,
+                enum: ['PENDING', 'ACCEPTED', 'REJECTED'],
+                default: 'PENDING'
+            }
         }],
         totalAmount: { type: Number }, // Tổng tiền thợ đề nghị, chưa giảm giá
         warrantiesDuration: {
             type: Number,
-            default: 30
+            default: 1
         },
-        justification: String, // Lý do nếu giá cao hơn ước tính
         quotedAt: {
             type: Date,
             default: Date.now
@@ -98,7 +99,7 @@ const bookingSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['PENDING', 'COMFIRMED', 'IN_PROGRESS', 'AWAITING_DONE', 'DONE', 'CANCELLED'],
+        enum: ['PENDING', 'AWAITING_CONFIRM', 'IN_PROGRESS', 'WAITING_CUSTOMER_CONFIRM_ADDITIONAL', 'CONFIRM_ADDITIONAL', 'AWAITING_DONE', 'DONE', 'CANCELLED'],
         default: 'PENDING'
     },
     isChatAllowed: {
@@ -140,5 +141,20 @@ bookingSchema.index({ technicianId: 1, createdAt: -1 });
 bookingSchema.index({ status: 1, schedule: 1 });
 bookingSchema.index({ status: 1, createdAt: -1 });
 bookingSchema.index({ paymentStatus: 1 });
+
+// Virtual populate để lấy TechnicianService
+bookingSchema.virtual('technicianService', {
+    ref: 'TechnicianService',
+    localField: 'technicianId',
+    foreignField: 'technicianId',
+    justOne: true,
+    match: function() {
+        return { serviceId: this.serviceId, isActive: true };
+    }
+});
+
+// Đảm bảo virtual fields được include khi toJSON
+bookingSchema.set('toJSON', { virtuals: true });
+bookingSchema.set('toObject', { virtuals: true });
 
 module.exports = mongoose.model('Booking', bookingSchema);

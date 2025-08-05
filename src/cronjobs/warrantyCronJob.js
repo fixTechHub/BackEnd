@@ -62,8 +62,6 @@ class BookingWarrantyCronService {
                         const refundAmount = booking.finalPrice * 0.2;
 
 
-                        // Update technician's balance
-                        const technician = await Technician.findById(booking.technicianId._id).session(session);
 
                         if (!technician) {
                             throw new Error('Technician not found');

@@ -64,5 +64,68 @@ module.exports = function bookingSocket(io) {
             if (userSocketId) io.to(userSocketId).emit('booking:statusUpdate', data);
             if (techSocketId) io.to(techSocketId).emit('booking:statusUpdate', data);
         });
+
+        // 8. Thợ chấp nhận booking request (gửi cho user)
+        socket.on('booking:requestAccepted', (data) => {
+            // data: { bookingId, userId, technicianId, requestId }
+            const userSocketId = userSocketMap.get(data.userId);
+            if (userSocketId) {
+                io.to(userSocketId).emit('booking:requestAccepted', data);
+            }
+        });
+
+        // 9. Thợ từ chối booking request (gửi cho user)
+        socket.on('booking:requestRejected', (data) => {
+            // data: { bookingId, userId, technicianId, requestId }
+            const userSocketId = userSocketMap.get(data.userId);
+            if (userSocketId) {
+                io.to(userSocketId).emit('booking:requestRejected', data);
+            }
+        });
+
+        // 10. Cập nhật trạng thái booking request (gửi cho user)
+        socket.on('booking:requestStatusUpdate', (data) => {
+            // data: { bookingId, userId, technicianId, requestId, status }
+            const userSocketId = userSocketMap.get(data.userId);
+            if (userSocketId) {
+                io.to(userSocketId).emit('booking:requestStatusUpdate', data);
+            }
+        });
+
+        // 11. Thợ thêm thiết bị phát sinh (gửi cho user)
+        socket.on('booking:additionalItemsAdded', (data) => {
+            // data: { bookingId, userId, technicianId, items }
+            const userSocketId = userSocketMap.get(data.userId);
+            if (userSocketId) {
+                io.to(userSocketId).emit('booking:additionalItemsAdded', data);
+            }
+        });
+
+        // 12. Cập nhật trạng thái thiết bị phát sinh (gửi cho user và thợ)
+        socket.on('booking:additionalItemsStatusUpdate', (data) => {
+            // data: { bookingId, userId, technicianId, itemId, status }
+            const userSocketId = userSocketMap.get(data.userId);
+            const techSocketId = userSocketMap.get(data.technicianId);
+            if (userSocketId) io.to(userSocketId).emit('booking:additionalItemsStatusUpdate', data);
+            if (techSocketId) io.to(techSocketId).emit('booking:additionalItemsStatusUpdate', data);
+        });
+
+        // 13. User chấp nhận thiết bị phát sinh (gửi cho thợ)
+        socket.on('booking:additionalItemsAccepted', (data) => {
+            // data: { bookingId, userId, technicianId, itemId }
+            const techSocketId = userSocketMap.get(data.technicianId);
+            if (techSocketId) {
+                io.to(techSocketId).emit('booking:additionalItemsAccepted', data);
+            }
+        });
+
+        // 14. User từ chối thiết bị phát sinh (gửi cho thợ)
+        socket.on('booking:additionalItemsRejected', (data) => {
+            // data: { bookingId, userId, technicianId, itemId }
+            const techSocketId = userSocketMap.get(data.technicianId);
+            if (techSocketId) {
+                io.to(techSocketId).emit('booking:additionalItemsRejected', data);
+            }
+        });
     });
 };

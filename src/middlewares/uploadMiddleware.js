@@ -28,7 +28,7 @@ const processAndUploadToS3 = (destinationFolder) => {
                 // console.log('--- DEBUG: URLs generated in middleware ---', s3Urls);
 
                 // Gắn kết quả vào request CHO BƯỚC TIẾP THEO.
-                console.log('Uploaded S3 URL:', s3Url);
+                console.log('Uploaded S3 URL:', s3Urls);
                 req.s3FileUrls = s3Urls;
             }
 

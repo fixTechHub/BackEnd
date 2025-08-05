@@ -5,9 +5,9 @@ const connectDB = require('./src/config/connectDB');
 const { initializeSocket } = require('./src/sockets/socket');
 const { setIo } = require('./src/sockets/socketManager');
 const contractCronService = require('./src/cronjobs/contractCronJob');
-const bookingWarrantyCronService = require('./src/cronjobs/warrantyCronJob')
+const { startRequestExpirationCron } = require('./src/cronjobs/requestExpirationCron');
 require('./src/cronjobs/ex');
-require('./src/cronjobs/technicianSearchCron.js');
+// require('./src/cronjobs/technicianSearchCron.js');
 
 const PORT = process.env.PORT || 3000;
 
@@ -23,8 +23,10 @@ setIo(io);
 const startServer = async () => {
   try {
     await connectDB();
-    contractCronService.startCronJobs(); // Start the cron jobs after MongoDB connection
-    bookingWarrantyCronService.startCronJobs();
+    
+    // Khởi động các cronjobs
+    startRequestExpirationCron();
+    
     server.listen(PORT, () => {
       console.log(`API Gateway running at http://localhost:${PORT}`);
     });
