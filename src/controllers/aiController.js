@@ -3,13 +3,15 @@ const { aiChatBot } = require('../services/aiService');
 const getAiChatResponse = async (req, res) => {
     try {
         const { message } = req.body;
-        // const userId = req.user.userId
-        const userId = '68477c06b6efa9a3615217dd'
+        const userId = req.user.userId
+        // const userId = '68477c06b6efa9a3615217dd'
+      
+        const token = req.cookies.token;
         if (!message || message.trim() === "") {
             return res.status(400).json({ error: "Vui lòng nhập nội dung cần hỗ trợ." });
         }
 
-        const response = await aiChatBot(message,userId);
+        const response = await aiChatBot(message,userId,token);
         res.status(200).json({ reply: response });
 
     } catch (error) {

@@ -5,7 +5,7 @@ const { authenticateToken } = require('../middlewares/authMiddleware');
 
 // POST /api/chat
 router.post('/chat',
-    // authenticateToken,
+    authenticateToken,
      getAiChatResponse);
 
 module.exports = router;

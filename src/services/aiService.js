@@ -1,9 +1,11 @@
+const axios = require('axios');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { createClient } = require('redis');
 const { CohereClient } = require("cohere-ai");
 const mongoose = require('mongoose');
 const Booking = require('../models/Booking');
 const Service = require('../models/Service');
+
 // Initialize Google Generative AI
 const genAI = new GoogleGenerativeAI(process.env.API_AI_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
@@ -136,17 +138,17 @@ async function getSessionStats() {
     }
 }
 
-async function findMatchingService(userMessage) {
+async function findMatchingService(userMessage, fallbackDevice = null) {
     try {
-        // Generate embedding for user message
+        // Generate embedding for user message or fallback device
+        const textToEmbed = fallbackDevice ? `Sửa chữa ${fallbackDevice}` : userMessage;
         const embedResponse = await cohere.embed({
-            texts: [userMessage],
+            texts: [textToEmbed],
             model: 'embed-multilingual-v3.0',
             input_type: 'search_query'
         });
 
         const userEmbedding = embedResponse.embeddings[0];
-        console.log('User message embedding generated for:', userMessage);
 
         // Fetch active and non-deleted services
         const services = await Service.find({ isActive: true, isDeleted: false });
@@ -174,17 +176,14 @@ async function findMatchingService(userMessage) {
             }
         }
 
-        console.log('Similarity scores:', similarityScores);
-        console.log('Highest similarity:', highestSimilarity);
-
-        if (highestSimilarity > 0.6) { // Lowered threshold for better matching
+        if (highestSimilarity > 0.6) {
             console.log(`Matched service: ${bestMatch.serviceName} with similarity ${highestSimilarity}`);
             return bestMatch;
         }
 
         // Fallback: Keyword-based matching
         console.log('No service matched with similarity > 0.6, attempting keyword fallback.');
-        const device = extractDeviceName(userMessage);
+        const device = fallbackDevice || extractDeviceName(userMessage);
         if (device) {
             const fallbackService = services.find(service =>
                 service.serviceName.toLowerCase().includes(device) ||
@@ -246,51 +245,78 @@ const parseUserMessage = (userMessage, session) => {
     return userMessage;
 };
 
-const aiChatBot = async (userMessage, userId) => {
+const aiChatBot = async (userMessage, userId, token) => {
     try {
         let session = await getSession(userId);
         const currentDevice = extractDeviceName(userMessage);
-        const isTechnicianRequest = /(giới thiệu kỹ thuật viên|đề xuất kỹ thuật viên|tìm kỹ thuật viên|liên hệ kỹ thuật viên|kỹ thuật viên nào)/i.test(userMessage);
-        console.log(isTechnicianRequest);
-        
-        if (isTechnicianRequest) {
-            const matchedService = await findMatchingService(userMessage);
+        const isTechnicianRequest = /(giới thiệu kỹ thuật viên|đề xuất kỹ thuật viên|tìm kỹ thuật viên|liên hệ kỹ thuật viên|kỹ thuật viên nào|kỹ thuật viên|thợ)/i.test(userMessage);
+        console.log('Technician Request:', isTechnicianRequest);
 
-            if (!matchedService) {
-                const responseText = "Xin lỗi, tôi không thể xác định dịch vụ bạn đang cần. Vui lòng cung cấp thêm thông tin về thiết bị hoặc vấn đề bạn gặp phải.";
+        if (isTechnicianRequest) {
+            // If no device is mentioned, use the lastDevice from session
+            const deviceToUse = currentDevice || (session?.lastDevice);
+            if (!deviceToUse) {
+                const responseText = "Xin lỗi, tôi không biết bạn đang muốn sửa thiết bị nào. Vui lòng cung cấp thông tin về thiết bị hoặc vấn đề bạn gặp phải.";
                 await updateSession(userId, currentDevice, userMessage, responseText);
                 return responseText;
             }
-            const bookingCode = `BK-${Date.now()}${Math.floor(Math.random() * 1000)}`;
 
-            const booking = new Booking({
-                customerId : userId,
-                bookingCode: bookingCode,
-                serviceId: matchedService._id,
-                isUrgent: true,
+            const matchedService = await findMatchingService(userMessage, deviceToUse);
+
+            if (!matchedService) {
+                const responseText = `Xin lỗi, tôi không thể tìm thấy dịch vụ phù hợp cho ${deviceToUse}. Vui lòng cung cấp thêm thông tin về thiết bị hoặc vấn đề bạn gặp phải.`;
+                await updateSession(userId, currentDevice, userMessage, responseText);
+                return responseText;
+            }
+
+            // Prepare data for the create-new-booking-request endpoint
+            const bookingData = {
+                serviceId: matchedService._id.toString(),
                 description: userMessage,
                 address: 'Đà Nẵng, Việt Nam',
-                location: {
-                    geojson: { // Use geojson to match schema structure
-                        type: 'Point',
-                        coordinates: [108.2022, 16.0544]
+                type: 'urgent'
+            };
+
+            // Make HTTP POST request to create-new-booking-request endpoint
+            const apiBaseUrl = process.env.BACK_END_URL || 'http://localhost:3000';
+            try {
+                const response = await axios.post(
+                    `${apiBaseUrl}/bookings/create-new-booking-request`,
+                    bookingData,
+                    {
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Cookie': `token=${token}`
+                        },
+                        withCredentials: true
                     }
-                },
-                images: []
-            });
+                );
 
-            await booking.save();
+                const { success, message, booking } = response.data;
 
-            const frontendUrl = process.env.FRONT_END_URL || 'https://yourwebsite.com';
-            const chooseTechnicianUrl = `${frontendUrl}/booking/choose-technician?bookingId=${booking._id}`;
+                if (!success) {
+                    console.error('Booking creation failed:', message);
+                    const responseText = "Xin lỗi, không thể tạo yêu cầu đặt lịch lúc này. Vui lòng thử lại sau.";
+                    await updateSession(userId, currentDevice, userMessage, responseText);
+                    return responseText;
+                }
 
-            const responseText = `Tôi đã tạo một yêu cầu đặt lịch cho dịch vụ "${matchedService.serviceName}". Bạn có thể chọn kỹ thuật viên phù hợp tại đây: ${chooseTechnicianUrl}`;
+                const frontendUrl = process.env.FRONT_END_URL || 'https://yourwebsite.com';
+                const chooseTechnicianUrl = `${frontendUrl}/booking/choose-technician?bookingId=${booking._id}`;
 
-            await updateSession(userId, currentDevice, userMessage, responseText);
+                const responseText = `Tôi đã tạo một yêu cầu đặt lịch cho dịch vụ "${matchedService.serviceName}". Bạn có thể chọn kỹ thuật viên phù hợp tại đây: ${chooseTechnicianUrl}`;
 
-            return responseText;
+                await updateSession(userId, currentDevice || deviceToUse, userMessage, responseText);
+                return responseText;
+            } catch (apiError) {
+                console.error('Error calling create-new-booking-request:', apiError.response?.data || apiError.message);
+                const responseText = "Xin lỗi, có lỗi khi tạo yêu cầu đặt lịch. Vui lòng thử lại sau.";
+                await updateSession(userId, currentDevice || deviceToUse, userMessage, responseText);
+                return responseText;
+            }
         }
 
+        // Handle troubleshooting for device issues
         const processedMessage = parseUserMessage(userMessage, session);
 
         let conversationContext = '';
@@ -313,7 +339,7 @@ Yêu cầu:
 - Nếu khách hàng sử dụng "nó", "cái này", "thiết bị này" mà không rõ ngữ cảnh, hãy hỏi cụ thể về thiết bị nào.
 - Cung cấp các bước kiểm tra và xử lý sự cố theo trình tự logic.
 - Cảnh báo an toàn nếu có nguy cơ chập điện, rò điện, cháy nổ.
-- Gợi ý khi nào nên liên hệ thợ chuyên nghiệp.
+- Chỉ gợi ý liên hệ kỹ thuật viên hoặc sử dụng đường link đặt lịch khi khách hàng yêu cầu rõ ràng (ví dụ: sử dụng từ "kỹ thuật viên" hoặc "thợ"). Nếu có yêu cầu đặt lịch trước đó trong ngữ cảnh, bạn có thể nhắc lại rằng họ có thể yêu cầu kỹ thuật viên nếu cần, nhưng không tự động cung cấp đường link đặt lịch.
 - Luôn lịch sự, thân thiện và chuyên nghiệp.
 
 Câu hỏi hiện tại của khách hàng:
