@@ -35,3 +35,25 @@ exports.getPublicServicesByCategoryId = async (req, res) => {
         });
     }
 }
+
+exports.suggestServices = async (req, res) => {
+    try {
+        const { descriptionSearch } = req.body;
+        if (!descriptionSearch) {
+            return res.status(400).json({
+                message: 'Vui lòng cung cấp mô tả'
+            });
+        }
+        const services = await serviceService.suggestServices(descriptionSearch);
+        res.status(200).json({
+            message: 'Gợi ý dịch vụ thành công',
+            data: services
+        });
+    } catch (error) {
+        console.error('Error suggesting services:', error);
+        res.status(500).json({
+            message: 'Lỗi server khi gợi ý dịch vụ',
+            error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+        });
+    }
+};

@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const Technician = require('../models/Technician');
+const DepositLog = require('../models/DepositLog');
 const contractService = require('./contractService');
 const notificationService = require('./notificationService');
 const HttpError = require('../utils/error');
@@ -71,4 +72,43 @@ exports.sendContractTechnician = async (technicianId) => {
         // End the session
         await session.endSession();
     }
+};
+
+
+
+const approveWithdrawRequest = async (logId) => {
+  const log = await DepositLog.findById(logId);
+  if (!log) throw new Error('Yêu cầu không tồn tại');
+
+  if (log.status !== 'PENDING') {
+    throw new Error('Yêu cầu đã được xử lý');
+  }
+
+  const technician = await Technician.findById(log.technicianId);
+  if (!technician) throw new Error('Kỹ thuật viên không tồn tại');
+
+  if (technician.balance < log.amount) {
+    throw new Error('Số dư không đủ để duyệt yêu cầu này');
+  }
+
+  // Trừ tiền
+  technician.balance -= log.amount;
+
+  technician.totalWithdrawn += log.amount;
+  await technician.save();
+
+  // Cập nhật log
+  log.status = 'APPROVED';
+  log.balanceAfter = technician.balance;
+  await log.save();
+
+  return {
+    message: 'Đã duyệt yêu cầu rút tiền và cập nhật số dư',
+    technicianBalance: technician.balance,
+    log
+  };
+};
+
+module.exports = {
+  approveWithdrawRequest
 };

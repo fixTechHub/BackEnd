@@ -1,53 +1,42 @@
 const technicianService = require('../services/technicianService');
 const User = require('../models/User');
 const Technician = require('../models/Technician');
+const Certificate = require('../models/Certificate');
 const { deleteFileFromS3, uploadFileToS3 } = require('../services/s3Service');
-const contractService = require('../services/contractService');
-const bookingService = require('../services/bookingService');
-const notificationService = require('../services/notificationService');
-const { getIo } = require('../sockets/socketManager');
+const contractService = require('../services/contractService')
+const notificationService = require('../services/notificationService')
+const { getIo } = require('../sockets/socketManager')
 
-const sendQuotation = async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    // console.log('USSER ID', req.user);
-    const { bookingId, laborPrice, items, warrantiesDuration } = req.body;
+// const sendQuotation = async (req, res) => {
+//   try {
+//     const userId = req.user.userId;
+//     console.log('USERID', userId);
 
-    const bookingPriceData = {
-      bookingId,
-      userId,
-      laborPrice,
-      warrantiesDuration,
-      items
-    };
+//     const { bookingId, laborPrice, items, warrantiesDuration } = req.body;
+//     const bookingPriceData = {
+//       bookingId,
+//       userId,
+//       laborPrice,
+//       warrantiesDuration,
+//       items
+//     };
 
-    const io = getIo();
-
-    const result = await technicianService.sendQuotation(bookingPriceData, io);
-
-    const booking = await bookingService.getBookingById(bookingId);
-
-    io.to(`user:${booking.customerId._id}`).emit('booking:quotation', {
-      bookingId,
-      technicianId: userId,
-      quotation: result.bookingPrice,
-      items: result.bookingItems
-    });
-    console.log('Emit booking:quotation to user:', booking.customerId._id);
-
-    res.status(200).json(result);
-  } catch (error) {
-    console.error('Error sending quotation:', error);
-    res.status(500).json({ message: 'Failed to send quotation', error: error.message });
-  }
-};
+//     const result = await technicianService.sendQuotation(bookingPriceData);
+//     res.status(200).json(result);
+//   } catch (error) {
+//     console.error('Error sending quotation:', error);
+//     res.status(500).json({ message: 'Failed to send quotation', error: error.message });
+//   }
+// };
 
 const confirmJobDoneByTechnician = async (req, res) => {
   try {
     const { bookingId } = req.params;
+    console.log('ui', req.user.userId);
+
     const userId = req.user.userId;
-    // const role = req.user.role;
-    const role = 'TECHNICIAN'
+    const role = req.user.role;
+    // const role = 'TECHNICIAN'
 
     const io = getIo();
 
@@ -59,12 +48,14 @@ const confirmJobDoneByTechnician = async (req, res) => {
     );
 
     res.status(200).json({
+      success: true,
       message: 'Xác nhận thành công',
       data: booking
     });
   } catch (error) {
     console.error('Lỗi khi xác nhận hoàn thành:', error);
-    res.json({
+    res.status(500).json({
+      success: false,
       message: error.message || 'Không thể xác nhận hoàn thành'
     });
   }
@@ -123,6 +114,7 @@ const registerAsTechnician = async (req, res, next) => {
 
 const viewJobDetails = async (req, res) => {
   try {
+
     const { technicianId, bookingId } = req.params;
     console.log("bookingId:", bookingId);
     console.log("technicianId:", technicianId);
@@ -143,6 +135,7 @@ const viewJobDetails = async (req, res) => {
 const viewTechnicianBookings = async (req, res, next) => {
   try {
     const { technicianId } = req.params;
+    // const { technicianId } = req.auth || {};
 
     const bookings = await technicianService.getListBookingForTechnician(technicianId);
 
@@ -157,7 +150,7 @@ const viewTechnicianBookings = async (req, res, next) => {
 
 const viewEarningsByBooking = async (req, res) => {
   try {
-    const technicianId = req.params;
+    const { technicianId } = req.auth || {};
 
     const earningList = await technicianService.getEarningsAndCommissionList(technicianId);
 
@@ -236,32 +229,32 @@ const getTechnicianDepositLogs = async (req, res) => {
   }
 };
 
-module.exports = { getTechnicianDepositLogs };
+// module.exports = { getTechnicianDepositLogs };
 
-const depositMoney = async (req, res, next) => {
-  try {
-    const { technicianId, amount, paymentMethod } = req.body;
+// const depositMoney = async (req, res, next) => {
+//   try {
+//     const { technicianId, amount, paymentMethod } = req.body;
 
-    const result = await technicianService.depositMoney(
-      technicianId,
-      amount,
-      paymentMethod
-    );
+//     const result = await technicianService.depositMoney(
+//       technicianId,
+//       amount,
+//       paymentMethod
+//     );
 
-    res.status(200).json({
-      success: true,
-      message: 'Nạp tiền thành công',
-      data: result
-    });
-  } catch (error) {
-    console.error("Error:", error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
+//     res.status(200).json({
+//       success: true,
+//       message: 'Nạp tiền thành công',
+//       data: result
+//     });
+//   } catch (error) {
+//     console.error("Error:", error);
+//     res.status(500).json({ success: false, message: error.message });
+//   }
+// };
 
 const requestWithdraw = async (req, res, next) => {
   try {
-    const { technicianId, amount, paymentMethod } = req.body;
+    const { amount, paymentMethod, technicianId } = req.body;
 
     const result = await technicianService.requestWithdraw(
       technicianId,
@@ -373,10 +366,17 @@ const uploadCertificate = async (req, res) => {
       });
     }
 
+    const newCertificate = await Certificate.create({
+      technicianId: userId,        // gán userId là người upload
+      fileUrl: req.s3FileUrl,
+      status: 'PENDING'            // trạng thái mặc định
+    });
+
     res.status(200).json({
       success: true,
       message: 'Upload chứng chỉ thành công',
-      fileUrl: req.s3FileUrl
+      fileUrl: req.s3FileUrl,
+      certificate: newCertificate
     });
   } catch (error) {
     console.error('Error uploading certificate:', error);
@@ -436,6 +436,31 @@ const uploadCCCDImages = async (req, res) => {
   }
 };
 
+const searchTechnicians = async (req, res) => {
+  try {
+    const { serviceId, date, time } = req.body;
+
+    if (!serviceId || !date || !time) {
+      return res.status(400).json({
+        message: 'Vui lòng cung cấp đủ thông tin dịch vụ, ngày và giờ'
+      });
+    }
+
+    const technicians = await technicianService.searchTechnicians(serviceId, date, time);
+
+    res.status(200).json({
+      message: 'Tìm kiếm thợ thành công',
+      data: technicians
+    });
+  } catch (error) {
+    console.error('Error searching technicians:', error);
+    res.status(500).json({
+      message: 'Lỗi server khi tìm kiếm thợ',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+};
+
 module.exports = {
   registerAsTechnician,
   viewTechnicianProfile,
@@ -443,15 +468,14 @@ module.exports = {
   viewJobDetails,
   viewEarningsByBooking,
   getTechnicianAvailability,
-  sendQuotation,
   confirmJobDoneByTechnician,
   updateAvailability,
   getTechnicianInformation,
   viewTechnicianBookings,
-  getTechnicianDepositLogs,
-  depositMoney,
-  requestWithdraw,
   completeTechnicianProfile,
   uploadCertificate,
   uploadCCCDImages,
+  getTechnicianDepositLogs,
+  requestWithdraw,
+  searchTechnicians,
 };

@@ -8,6 +8,9 @@ const BookingStatusLog = require('../models/BookingStatusLog');
 const User = require('../models/User');
 const DepositLog = require('../models/DepositLog');
 const notificationService = require('../services/notificationService');
+const TechnicianService = require('../models/TechnicianService');
+const TechnicianSchedule = require('../models/TechnicianSchedule');
+
 
 const createNewTechnician = async (userId, technicianData, session = null) => {
   const technician = new Technician({
@@ -44,25 +47,21 @@ const findTechnicianByUserId = async (userId) => {
 };
 
 const findNearbyTechnicians = async (searchParams, radiusInKm) => {
-  const { latitude, longitude, serviceId, availability, status, minBalance, scheduleDate } = searchParams;
-  // console.log('--- TECH FIND SERVICE LOG ---', searchParams);
+  const { latitude, longitude, serviceId, status, minBalance, scheduleDate } = searchParams;
 
-  const service = await Service.findById(serviceId).select('categoryId serviceType estimatedMarketPrice serviceName').lean();
-  // console.log(service);
+  const service = await Service.findById(serviceId).select('categoryId serviceName').lean();
 
   if (!service) {
     console.log(`Không tìm thấy service nào với ID: ${serviceId}`);
     return null;
   }
   const categoryId = service.categoryId;
-  // console.log("Tìm thấy categoryId:", categoryId);
 
   const maxDistanceInMeters = radiusInKm * 1000;
 
   try {
     // Tạo query object
     let matchQuery = {
-      availability: availability,
       status: status,
       balance: { $gte: minBalance },
     };
@@ -71,6 +70,7 @@ const findNearbyTechnicians = async (searchParams, radiusInKm) => {
     }
 
     // Sử dụng currentLocation và chỉ định index cụ thể
+    console.log('--- $geoNear input ---', { longitude, latitude, maxDistanceInMeters, matchQuery });
     const technicians = await Technician.aggregate([
       {
         $geoNear: {
@@ -148,7 +148,73 @@ const findNearbyTechnicians = async (searchParams, radiusInKm) => {
         }
       },
       {
+        $lookup: {
+          from: 'feedbacks',
+          let: { technicianId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$toUser', '$$technicianId'] },
+                    { $eq: ['$isVisible', true] }
+                  ]
+                }
+              }
+            }
+          ],
+          as: 'allFeedbacks'
+        }
+      },
+      {
+        $lookup: {
+          from: 'feedbacks',
+          let: { technicianId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$toUser', '$$technicianId'] },
+                    { $eq: ['$isVisible', true] }
+                  ]
+                }
+              }
+            },
+            {
+              $lookup: {
+                from: 'users',
+                let: { fromUserId: '$fromUser' },
+                pipeline: [
+                  {
+                    $match: {
+                      $expr: { $eq: ['$_id', '$$fromUserId'] }
+                    }
+                  }
+                ],
+                as: 'customerInfo'
+              }
+            },
+            {
+              $project: {
+                _id: 1,
+                rating: 1,
+                content: 1,
+                createdAt: 1,
+                customerName: { $arrayElemAt: ['$customerInfo.fullName', 0] },
+                customerAvatar: { $arrayElemAt: ['$customerInfo.avatar', 0] }
+              }
+            },
+            {
+              $sort: { createdAt: -1 }
+            }
+          ],
+          as: 'recentFeedbacks'
+        }
+      },
+      {
         $project: {
+          _id: 1,
           userId: 1,
           currentLocation: 1,
           status: 1,
@@ -165,12 +231,13 @@ const findNearbyTechnicians = async (searchParams, radiusInKm) => {
           userInfo: { $arrayElemAt: ["$userInfo", 0] },
           category: 1,
           servicePrice: { $arrayElemAt: ["$technicianService.price", 0] },
+          warrantyDuration: { $arrayElemAt: ["$technicianService.warrantyDuration", 0] },
           hasCustomPrice: { $gt: [{ $size: "$technicianService" }, 0] },
           isAvailableOnSchedule: { $gt: [{ $size: "$availableSchedules" }, 0] },
-          rates: 1, // Lấy trực tiếp từ technician document
-          serviceType: service.serviceType,
-          estimatedMarketPrice: service.estimatedMarketPrice,
-
+          inspectionFee: 1, // Lấy trực tiếp từ technician document
+          // Thông tin đánh giá
+          totalFeedbacks: { $size: "$allFeedbacks" },
+          recentFeedbacks: 1
         }
       },
       {
@@ -182,26 +249,23 @@ const findNearbyTechnicians = async (searchParams, radiusInKm) => {
         $limit: 10
       }
     ]);
+    // Log toạ độ của từng technician
+    if (Array.isArray(technicians)) {
+      technicians.forEach(t => {
+        console.log('--- Technician location ---', t.currentLocation?.coordinates);
+      });
+    }
 
     const techniciansWithPricing = technicians.map(technician => {
-      let fixedPrice = null;
-      let tier1Price = null;
-      let marketPriceRange = service.estimatedMarketPrice;
+      let servicePrice = null;
 
-      if (service.serviceType === 'FIXED') {
-        // Dịch vụ cố định - lấy giá từ TechnicianService
-        fixedPrice = technician.hasCustomPrice ? technician.servicePrice : null;
-      } else if (service.serviceType === 'COMPLEX') {
-        // Dịch vụ phức tạp - lấy giá tier 1
-        tier1Price = technician.rates?.laborTiers?.tier1 || null;
-      }
+      // Lấy giá từ TechnicianService
+      servicePrice = technician.hasCustomPrice ? technician.servicePrice : null;
 
       return {
         ...technician,
-        fixedPrice,
-        tier1Price,
-        marketPriceRange,
-        serviceType: service.serviceType,
+        servicePrice,
+        warrantyDuration: technician.warrantyDuration || 0,
         serviceName: service.serviceName
       };
     });
@@ -232,19 +296,19 @@ const confirmJobDoneByTechnician = async (bookingId, userId, role, io) => {
       throw new Error('Không tìm thấy booking');
     }
     const technician = await Technician.findById(booking.technicianId).populate('userId');
-    console.log('--- TECHNICIAN CONFIRM ---', technician);
+    // console.log('--- TECHNICIAN CONFIRM ---', technician);
 
     if (role === "TECHNICIAN" && !technician) {
       throw new Error('Không tìm thấy thông tin kỹ thuật viên');
     }
-    const technicianId = technician?._id;
-    console.log('--- TECHNICIAN CONFIRM ID ---', technician.userId._id);
+    // console.log('--- TECHNICIAN CONFIRM ID ---', technician?.userId?._id);
+    // console.log('--- USER ID ---', userId);
 
     // Kiểm tra quyền
     if (role === 'CUSTOMER' && booking.customerId.toString() !== userId.toString()) {
       throw new Error('Bạn không có quyền xác nhận booking này');
     }
-    if (role === 'TECHNICIAN' && booking.technicianId?.toString() !== technicianId.toString()) {
+    if (role === 'TECHNICIAN' && technician?.userId?._id?.toString() !== userId.toString()) {
       throw new Error('Bạn không có quyền xác nhận booking này');
     }
 
@@ -255,9 +319,9 @@ const confirmJobDoneByTechnician = async (bookingId, userId, role, io) => {
     if (booking.status === 'PENDING') {
       throw new Error('Không thể hoàn thành booking khi chưa chọn thợ');
     }
-    // if (booking.status === 'WAITING_CONFIRM') {
-    //   throw new Error('Bạn đã xác nhận hoàn thành rồi!!');
-    // }
+    if (booking.status === 'AWAITING_DONE') {
+      throw new Error('Bạn đã xác nhận hoàn thành rồi!!');
+    }
 
     // Cập nhật trạng thái booking
     await Booking.findByIdAndUpdate(
@@ -280,16 +344,26 @@ const confirmJobDoneByTechnician = async (bookingId, userId, role, io) => {
       toStatus: 'AWAITING_DONE',
       changedBy: userId,
       role
-    }], { session }); 
+    }], { session });
 
     io.to(`user:${booking.customerId}`).emit('booking:statusUpdate', {
       bookingId: booking._id,
       status: 'AWAITING_DONE'
     });
-    io.to(`user:${technician.userId._id.toString()}`).emit('booking:statusUpdate', {
-      bookingId: booking._id,
-      status: 'AWAITING_DONE'
-    });
+
+    // Gửi thông báo cho khách hàng
+    const notifData = {
+      userId: booking.customerId,
+      title: 'Thợ đã hoàn thành công việc',
+      content: `Thợ đã xác nhận hoàn thành công việc cho booking ${booking.bookingCode}. Vui lòng kiểm tra và xác nhận.`,
+      referenceModel: 'Booking',
+      referenceId: bookingId,
+      url: `/booking/booking-processing?bookingId=${bookingId}`,
+      type: 'NEW_REQUEST'
+    };
+    const notify = await notificationService.createNotification(notifData);
+    io.to(`user:${notify.userId}`).emit('receiveNotification', notify);
+
     await session.commitTransaction();
 
     // Lấy lại booking sau khi cập nhật
@@ -309,7 +383,7 @@ const getTechnicianProfile = async (technicianId) => {
     .populate('specialtiesCategories');  // Nếu muốn lấy luôn categories (nếu có)
 
 
-  console.log(technician);
+  console.log("technicianId:", technicianId, "type:", typeof technicianId);
   if (!technician) {
     throw new Error('Technician not found');
   }
@@ -372,6 +446,10 @@ const getJobDetails = async (bookingId, technicianId) => {
 };
 
 const getListBookingForTechnician = async (technicianId) => {
+  if (!technicianId || !mongoose.Types.ObjectId.isValid(technicianId)) {
+    throw new Error('Invalid or missing technicianId');
+  }
+
   const bookings = await Booking.find({ technicianId })
     .sort({ createdAt: -1 }) // sắp xếp mới nhất trước
     .populate({
@@ -382,9 +460,12 @@ const getListBookingForTechnician = async (technicianId) => {
       path: 'serviceId',
       select: 'serviceName'
     });
+  console.log("bookings", bookings);
+
 
   // format dữ liệu trả về
   return bookings.map(booking => ({
+    bookingId: booking._id,
     bookingCode: booking.bookingCode,
     customerName: booking.customerId?.fullName || 'N/A',
     serviceName: booking.serviceId?.serviceName || 'N/A',
@@ -395,35 +476,55 @@ const getListBookingForTechnician = async (technicianId) => {
 };
 
 
-// const getEarningsAndCommissionList = async (technicianId) => {
+const getEarningsAndCommissionList = async (technicianId) => {
 
-//   const quotes = await BookingPrice.find(technicianId)
-//     .sort({ createdAt: -1 })
-//     .populate('commissionConfigId')
-//     .populate({
-//       path: 'bookingId',
-//       populate: [
-//         { path: 'customerId', select: 'fullName' },
-//         { path: 'serviceId', select: 'serviceName' }
-//       ]
-//     })
+  //   const quotes = await BookingPrice.find(technicianId)
+  //     .sort({ createdAt: -1 })
+  //     .populate('commissionConfigId')
+  //     .populate({
+  //       path: 'bookingId',
+  //       populate: [
+  //         { path: 'customerId', select: 'fullName' },
+  //         { path: 'serviceId', select: 'serviceName' }
+  //       ]
+  //     })
 
-//   const earningList = quotes.map(quote => ({
-//     // bookingId: quote.bookingId._id,
-//     bookingCode: quote.bookingId?.bookingCode,
-//     bookingInfo: {
-//       customerName: quote.bookingId?.customerId,
-//       service: quote.bookingId?.serviceId,
-//     },
-//     finalPrice: quote.finalPrice || 0,
-//     commissionAmount: quote.commissionAmount || 0,
-//     holdingAmount: quote.holdingAmount || 0,
-//     technicianEarning: quote.technicianEarning || 0,
+  //   const earningList = quotes.map(quote => ({
+  //     // bookingId: quote.bookingId._id,
+  //     bookingCode: quote.bookingId?.bookingCode,
+  //     bookingInfo: {
+  //       customerName: quote.bookingId?.customerId,
+  //       service: quote.bookingId?.serviceId,
+  //     },
+  //     finalPrice: quote.finalPrice || 0,
+  //     commissionAmount: quote.commissionAmount || 0,
+  //     holdingAmount: quote.holdingAmount || 0,
+  //     technicianEarning: quote.technicianEarning || 0,
 
-//   }));
+  //   }));
 
-//   return earningList;
-// };
+  //   return earningList;
+  // };
+  const quotes = await Booking.find({ technicianId })
+    .sort({ createdAt: -1 })
+    .populate('quote.commissionConfigId')
+    .populate('customerId', 'fullName')
+    .populate('serviceId', 'serviceName');
+  console.log("quotes", quotes);
+
+  const earningList = quotes.map(quote => ({
+    bookingCode: quote.bookingCode,
+    bookingInfo: {
+      customerName: quote.customerId?.fullName || 'N/A',
+      service: quote.serviceId?.serviceName || 'N/A',
+    },
+    finalPrice: quote.quote?.finalPrice || 0,
+    commissionAmount: quote.quote?.commissionAmount || 0,
+    holdingAmount: quote.quote?.holdingAmount || 0,
+    technicianEarning: quote.quote?.technicianEarning || 0,
+  }));
+  return earningList;
+};
 
 const getAvailability = async (technicianId) => {
   const technician = await Technician.findById(technicianId).select('availability');
@@ -465,43 +566,43 @@ const updateTechnicianAvailability = async (technicianId) => {
   );
 };
 
-const depositMoney = async (technicianId, amount, paymentMethod) => {
-  if (amount <= 0) {
-    throw new Error('Số tiền nạp phải lớn hơn 0');
-  }
+// const depositMoney = async (technicianId, amount, paymentMethod) => {
+//   if (amount <= 0) {
+//     throw new Error('Số tiền nạp phải lớn hơn 0');
+//   }
 
-  const technician = await Technician.findById(technicianId);
-  if (!technician) {
-    throw new Error('Kỹ thuật viên không tồn tại');
-  }
+//   const technician = await Technician.findById(technicianId);
+//   if (!technician) {
+//     throw new Error('Kỹ thuật viên không tồn tại');
+//   }
 
-  const balanceBefore = technician.balance;
-  technician.balance += amount;
+//   const balanceBefore = technician.balance;
+//   technician.balance += amount;
 
-  const log = await DepositLog.create({
-    technicianId,
-    type: 'DEPOSIT',
-    amount,
-    status: 'COMPLETED',
-    paymentMethod,
-    balanceBefore,
-    balanceAfter: technician.balance
-  });
+//   const log = await DepositLog.create({
+//     technicianId,
+//     type: 'DEPOSIT',
+//     amount,
+//     status: 'COMPLETED',
+//     paymentMethod,
+//     balanceBefore,
+//     balanceAfter: technician.balance
+//   });
 
-  await technician.save();
+//   await technician.save();
 
-  return {
-    balanceBefore,
-    balanceAfter: technician.balance,
-    log
-  };
-};
+//   return {
+//     balanceBefore,
+//     balanceAfter: technician.balance,
+//     log
+//   };
+// };
 
 const requestWithdraw = async (technicianId, amount, paymentMethod) => {
   if (amount <= 0) {
     throw new Error('Số tiền rút phải lớn hơn 0');
   }
-
+  console.log('Received technicianId:', technicianId);
   const technician = await Technician.findById(technicianId);
   if (!technician) {
     throw new Error('Kỹ thuật viên không tồn tại');
@@ -570,7 +671,7 @@ const getTechnicianDepositLogs = async (userId, limit, skip) => {
 const getAllTechnicians = async () => {
   try {
     const technicians = await Technician.find({ status: 'APPROVED' });
-    if(technicians===null){
+    if (technicians === null) {
       console.log('Không tìm thấy thợ ở Đà Nẵng đang thực hiện');
     }
     return technicians
@@ -580,12 +681,54 @@ const getAllTechnicians = async () => {
   }
 }
 
+const searchTechnicians = async (serviceId, date, time) => {
+  // 1. Lấy danh sách thợ cung cấp dịch vụ này
+  const technicianServices = await TechnicianService.find({ serviceId: new mongoose.Types.ObjectId(serviceId), isActive: true }).select('technicianId');
+  const technicianIds = technicianServices.map(ts => ts.technicianId);
+
+  if (technicianIds.length === 0) {
+    return []; // Không có thợ nào cung cấp dịch vụ này
+  }
+
+  // 2. Lọc ra những thợ bận vào thời gian đã cho
+  const startOfDay = new Date(date);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(date);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const busyTechnicians = await TechnicianSchedule.find({
+    technicianId: { $in: technicianIds },
+    scheduleType: 'UNAVAILABLE',
+    startTime: { $lte: new Date(`${date}T${time}`) },
+    endTime: { $gte: new Date(`${date}T${time}`) }
+  }).select('technicianId');
+
+  const busyTechnicianIds = busyTechnicians.map(schedule => schedule.technicianId.toString());
+
+  // 3. Lấy danh sách thợ rảnh
+  const availableTechnicianIds = technicianIds.filter(id => !busyTechnicianIds.includes(id.toString()));
+
+  if (availableTechnicianIds.length === 0) {
+    return []; // Tất cả thợ đều bận
+  }
+
+  // 4. Lấy thông tin chi tiết của các thợ rảnh
+  const availableTechnicians = await Technician.find({ _id: { $in: availableTechnicianIds } })
+    .populate({
+      path: 'userId',
+      select: 'fullName avatar'
+    })
+    .select('ratingAverage experienceYears jobCompleted');
+
+  return availableTechnicians;
+};
+
 module.exports = {
   registerAsTechnician,
   getTechnicianProfile,
   getCertificatesByTechnicianId,
   getJobDetails,
-  // getEarningsAndCommissionList,
+  getEarningsAndCommissionList,
   getAvailability,
   updateTechnicianAvailability,
   findNearbyTechnicians,
@@ -593,12 +736,14 @@ module.exports = {
   getTechnicianById,
   findTechnicianByUserId,
   getListBookingForTechnician,
-  depositMoney,
-  requestWithdraw,
   createNewTechnician,
   findTechnicianByUserId,
   getTechnicianDepositLogs,
+  requestWithdraw,
   getAllTechnicians,
-  getTechnicianDepositLogs
+  getTechnicianDepositLogs,
+  searchTechnicians,
 };
+
+// module.exports ={sendQuotation,};
 

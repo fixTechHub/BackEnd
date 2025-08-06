@@ -157,7 +157,8 @@ exports.googleAuthController = async (req, res) => {
 
             // Populate role before sending to client
             await user.populate('role');
-
+            console.log(user);
+            
             // Return user data without token in body
             return res.status(200).json({ user, technician, wasReactivated });
         } catch (error) {

@@ -11,6 +11,7 @@ const handleMulter = multer({ storage: storage });
 const processAndUploadToS3 = (destinationFolder) => {
     // Hàm này BẮT BUỘC phải là async
     return async (req, res, next) => {
+        console.log('--- FILE ---', req.file);
         if (!req.file && !req.files) {
             return next();
         }
@@ -27,6 +28,7 @@ const processAndUploadToS3 = (destinationFolder) => {
                 // console.log('--- DEBUG: URLs generated in middleware ---', s3Urls);
 
                 // Gắn kết quả vào request CHO BƯỚC TIẾP THEO.
+                console.log('Uploaded S3 URL:', s3Urls);
                 req.s3FileUrls = s3Urls;
             }
 
