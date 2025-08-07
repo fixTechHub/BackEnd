@@ -26,6 +26,9 @@ router.use('/video-call', require('./videoCallRoutes'));
 
 router.use('/receipts', require('./receiptRoutes'));
 router.use('/favorites', require('./favoriteTechnicianRoutes'));
+router.use('/packages', require('./adminPackageRoute'));   // cho admin thao tác gói dịch vụ
+router.use('/subscriptions', require('./technicianSubscriptionRoute')); // cho technician đăng ký/ gia hạn gói
+
 
 router.get('/test', async (req, res) => {
     try {

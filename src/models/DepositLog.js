@@ -8,7 +8,7 @@ const depositLogSchema = new mongoose.Schema({
     },
     type: {
         type: String,
-        enum: ['DEPOSIT', 'WITHDRAW'],
+        enum: ['DEPOSIT', 'WITHDRAW', 'SUBSCRIPTION', 'SUBSCRIPTION_EXTEND'],
         required: true
     },
     amount: {
