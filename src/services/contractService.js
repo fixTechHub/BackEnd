@@ -78,8 +78,8 @@ const generateContractOnRegistration = async (technicianId, session = null) => {
 
     const envelopeId = await _createDocusignEnvelope(contractData, contractCode);
 
-    // Generate the signing URL
-    const { dsApiClient, accountId } = await initializeApiClient();
+    // Generate the signing URL 
+    const { dsApiClient, accountId } = await getApiClient();
     const envelopesApi = new docusign.EnvelopesApi(dsApiClient);
     const viewRequest = new docusign.RecipientViewRequest();
     viewRequest.returnUrl = `${process.env.BACK_END_URL}/contracts/docusign/callback/${envelopeId}`; // Redirect after signing

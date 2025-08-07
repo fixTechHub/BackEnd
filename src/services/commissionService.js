@@ -22,7 +22,7 @@ const deductCommission = async (technicianId, amount, session) => {
         const commissionAmount = amount * commissionRate;
 
         technician.balance -= commissionAmount;
-        technician.totalEarning += amount*0.70
+        technician.totalEarning += amount*0.80
         technician.totalHoldingAmount += amount*0.20
         technician.jobCompleted += 1
         // Use the provided session if it exists, otherwise save directly.

@@ -153,6 +153,8 @@ exports.sendContractTechnician = async (req, res) => {
             data: technician
         });
     } catch (error) {
+        console.log(error.message);
+        
         res.status(error.statusCode || 500).json({ message: error.message });
     }
 };

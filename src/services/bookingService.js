@@ -1043,16 +1043,21 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
             technician.availability = 'FREE'
             await technician.save({ session })
            
-            
-            // const technicianServiceModel = await TechnicianServiceModel.findOne({ serviceId: updatedBooking.serviceId })
-            // console.log(technicianServiceModel);
+            const TechnicianService = require('../models/TechnicianService');
+            const technicianServiceModel = await TechnicianService.findOne({ 
+                serviceId: updatedBooking.serviceId,
+                technicianId: updatedBooking.technicianId
+              });
+            console.log(technicianServiceModel);
 
             const receiptData = {
                 bookingId: updatedBooking._id,
                 customerId: updatedBooking.customerId,
                 technicianId: updatedBooking.technicianId,
                 totalAmount: updatedBooking.finalPrice + updatedBooking.discountValue,
-                serviceAmount: updatedBooking.quote.totalAmount,
+                // serviceAmount: updatedBooking.quote.totalAmount,
+                serviceAmount: technicianServiceModel.price,
+
                 discountAmount: updatedBooking.discountValue,
                 paidAmount: updatedBooking.finalPrice,
                 paymentMethod: 'CASH',
@@ -1065,7 +1070,7 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
             // 2. Deduct commission from technician's balance
             await commissionService.deductCommission(
                 updatedBooking.technicianId,
-                updatedBooking.finalPrice,
+                updatedBooking.finalPrice+updatedBooking.discountValue,
                 session
             );
 
