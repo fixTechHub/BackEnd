@@ -4,6 +4,7 @@ const feedbackController = require('../controllers/feedbackController')
 const { handleMulter, processAndUploadToS3 } = require('../middlewares/uploadMiddleware'); 
 const { authenticateToken } = require('../middlewares/authMiddleware');
 
+router.get('/', feedbackController.getAllFeedback);
 router.get('/:technicianId', feedbackController.getFeedbackList);
 // thêm verifyCustomer
 router.post(
