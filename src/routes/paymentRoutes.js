@@ -5,6 +5,7 @@ const {authenticateToken} = require('../middlewares/authMiddleware')
 // This route will be called by the frontend to initiate the payment process
 router.post('/finalize-booking/:bookingId',authenticateToken, paymentController.finalizeBooking);
 
+
 // This route is the return URL for PayOS
 router.get('/success', paymentController.handlePayOsSuccess);
 

@@ -10,15 +10,6 @@ const serviceSchema = new mongoose.Schema({
         ref: 'Category',
         required: true
     },
-    serviceType: {
-        type: String,
-        enum: ['FIXED', 'COMPLEX'],
-        required: true
-    },
-    estimatedMarketPrice: {
-        min: { type: Number },
-        max: { type: Number }
-    },
     icon: String,
     description: String,
     isActive: {
@@ -28,6 +19,10 @@ const serviceSchema = new mongoose.Schema({
     isDeleted: {
         type: Boolean,
         default: true
+    },
+    embedding: {
+        type: [Number],
+        default: []
     }
 }, {
     timestamps: true

@@ -11,6 +11,10 @@ const BookingTechnicianSearchSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
     }],
+    foundTechniciansDetail: {
+        type: [mongoose.Schema.Types.Mixed],
+        default: []
+    },
     lastSearchAt: {
         type: Date,
         default: Date.now
