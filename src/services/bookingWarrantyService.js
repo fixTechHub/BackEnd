@@ -342,7 +342,9 @@ const confirmWarrantySchedule = async (bookingWarrantyId,startTime, expectedEndT
         await warranty.save({ session });
         const technicianSchedule = new TechnicianSchedule({
             technicianId: warranty.technicianId,
+            bookingWarrantyId: bookingWarrantyId,
             scheduleType: 'WARRANTY', // Set to 'WARRANTY' to indicate warranty schedule
+            scheduleStatus: 'AVAILABLE',
             startTime,
             endTime: expectedEndTime,
             note: `Lịch bảo hành cho yêu cầu ${warranty._id}`
