@@ -56,7 +56,7 @@ const handlePayOsSuccess = async (req, res) => {
     } catch (error) {
         console.error('Error in PayOS success handler:', error);
         try {
-            if (bookingPriceId) {
+           
                 const booking = await bookingService.getBookingById(bookingId)
                 if (booking && booking.customerId) {
                     const userWithRole = await userService.findUserById(booking.customerId._id)
@@ -64,7 +64,7 @@ const handlePayOsSuccess = async (req, res) => {
                     const token = generateToken(userWithRole);
                     await generateCookie(token, res);
                 }
-            }
+            
         } catch (loginError) {
             console.error('Error during login on payment failure:', loginError);
         }

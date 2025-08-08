@@ -5,6 +5,7 @@ const { CohereClient } = require("cohere-ai");
 const mongoose = require('mongoose');
 const Booking = require('../models/Booking');
 const Service = require('../models/Service');
+const cosineSimilarity = require('cosine-similarity');
 
 // Initialize Google Generative AI
 const genAI = new GoogleGenerativeAI(process.env.API_AI_KEY);
@@ -39,7 +40,7 @@ redisClient.on('error', (err) => {
 })();
 
 const knownDevices = [
-    "máy giặt", "tủ lạnh", "điều hòa", "quạt", "quạt điện", "lò vi sóng",
+    "máy giặt",'máy lạnh','tủ đông','tủ mát','bàn là','', "tủ lạnh", "điều hòa", "quạt", "quạt điện", "lò vi sóng",
     "máy xay sinh tố", "tivi", "bếp điện", "nồi cơm", "bàn ủi", "máy nước nóng"
 ];
 
@@ -138,93 +139,68 @@ async function getSessionStats() {
     }
 }
 
-async function findMatchingService(userMessage, fallbackDevice = null) {
+async function getCohereEmbedding(text) {
     try {
-        // Generate embedding for user message or fallback device
-        const textToEmbed = fallbackDevice ? `Sửa chữa ${fallbackDevice}` : userMessage;
         const embedResponse = await cohere.embed({
-            texts: [textToEmbed],
+            texts: [text],
             model: 'embed-multilingual-v3.0',
             input_type: 'search_query'
         });
-
-        const userEmbedding = embedResponse.embeddings[0];
-
-        // Fetch active and non-deleted services
-        const services = await Service.find({ isActive: true, isDeleted: false });
-        console.log('Active and non-deleted services found:', services.length);
-        if (services.length === 0) {
-            console.log('No active and non-deleted services in the database.');
-            return null;
-        }
-
-        let bestMatch = null;
-        let highestSimilarity = -1;
-        const similarityScores = [];
-
-        for (const service of services) {
-            if (!service.embedding || service.embedding.length === 0 || service.embedding.length < 1024) {
-                console.log(`Skipping service "${service.serviceName}" due to invalid or empty embedding.`);
-                continue;
-            }
-
-            const similarity = cosineSimilarity(userEmbedding, service.embedding);
-            similarityScores.push({ serviceName: service.serviceName, similarity });
-            if (similarity > highestSimilarity) {
-                highestSimilarity = similarity;
-                bestMatch = service;
-            }
-        }
-
-        if (highestSimilarity > 0.6) {
-            console.log(`Matched service: ${bestMatch.serviceName} with similarity ${highestSimilarity}`);
-            return bestMatch;
-        }
-
-        // Fallback: Keyword-based matching
-        console.log('No service matched with similarity > 0.6, attempting keyword fallback.');
-        const device = fallbackDevice || extractDeviceName(userMessage);
-        if (device) {
-            const fallbackService = services.find(service =>
-                service.serviceName.toLowerCase().includes(device) ||
-                (service.description && service.description.toLowerCase().includes(device))
-            );
-            if (fallbackService) {
-                console.log(`Fallback matched service: ${fallbackService.serviceName} based on device "${device}"`);
-                return fallbackService;
-            }
-        }
-
-        console.log('No fallback service found.');
-        return null;
+        return embedResponse.embeddings[0];
     } catch (error) {
-        console.error('Error finding matching service:', error);
-        return null;
+        console.error('Error generating Cohere embedding:', error);
+        throw error;
     }
 }
 
-function cosineSimilarity(vecA, vecB) {
-    if (vecA.length !== vecB.length) return 0;
-
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-
-    for (let i = 0; i < vecA.length; i++) {
-        dotProduct += vecA[i] * vecB[i];
-        normA += vecA[i] * vecA[i];
-        normB += vecB[i] * vecB[i];
+async function suggestServices(description) {
+    try {
+        const inputEmbedding = await getCohereEmbedding(description);
+        const services = await Service.find({ isActive: true }).lean();
+        const scored = services.map(s => {
+            if (!s.embedding || !Array.isArray(s.embedding) || s.embedding.length === 0) {
+                console.log(`Skipping service "${s.serviceName}" due to invalid or empty embedding.`);
+                return { ...s, score: -1 };
+            }
+            const score = cosineSimilarity(inputEmbedding, s.embedding);
+            return { ...s, score };
+        });
+        // Filter services with score > 0.3 and sort by score
+        let result = scored.filter(s => s.score > 0.3).sort((a, b) => b.score - a.score);
+        // Remove embedding field from results
+        result = result.map(({ embedding, ...rest }) => rest);
+        if (result.length === 0) {
+            // Fallback: keyword-based search
+            const regex = new RegExp(description, 'i');
+            result = await Service.find({
+                $or: [
+                    { serviceName: regex },
+                    { description: regex }
+                ],
+                isActive: true
+            }).lean();
+            // Remove embedding field
+            result = result.map(({ embedding, ...rest }) => rest);
+        }
+        return result;
+    } catch (err) {
+        console.error('Error in suggestServices:', err);
+        // Fallback: keyword-based search
+        const regex = new RegExp(description, 'i');
+        let result = await Service.find({
+            $or: [
+                { serviceName: regex },
+                { description: regex }
+            ],
+            isActive: true
+        }).lean();
+        // Remove embedding field
+        result = result.map(({ embedding, ...rest }) => rest);
+        return result;
     }
-
-    normA = Math.sqrt(normA);
-    normB = Math.sqrt(normB);
-
-    if (normA === 0 || normB === 0) return 0;
-
-    return dotProduct / (normA * normB);
 }
 
-const parseUserMessage = (userMessage, session) => {
+function parseUserMessage(userMessage, session) {
     const currentDevice = extractDeviceName(userMessage);
 
     if (currentDevice) {
@@ -243,7 +219,7 @@ const parseUserMessage = (userMessage, session) => {
     }
 
     return userMessage;
-};
+}
 
 const aiChatBot = async (userMessage, userId, token) => {
     try {
@@ -261,17 +237,26 @@ const aiChatBot = async (userMessage, userId, token) => {
                 return responseText;
             }
 
-            const matchedService = await findMatchingService(userMessage, deviceToUse);
+            // Use suggestServices to find matching services
+            const textToMatch = deviceToUse ? `Sửa chữa ${deviceToUse}` : userMessage;
+            const matchedServices = await suggestServices(textToMatch);
 
-            if (!matchedService) {
-                const responseText = `Xin lỗi, tôi không thể tìm thấy dịch vụ phù hợp cho ${deviceToUse}. Vui lòng cung cấp thêm thông tin về thiết bị hoặc vấn đề bạn gặp phải.`;
+            if (!matchedServices || matchedServices.length === 0) {
+                const responseText = `Xin lỗi, tôi không thể tìm thấy dịch vụ phù hợp cho ${deviceToUse || 'yêu cầu của bạn'}. Vui lòng cung cấp thêm thông tin về thiết bị hoặc vấn đề bạn gặp phải.`;
                 await updateSession(userId, currentDevice, userMessage, responseText);
                 return responseText;
             }
 
+            // Select the service with the highest similarity score (if using embeddings) or the first match
+            const bestMatch = matchedServices[0].score !== undefined
+                ? matchedServices.sort((a, b) => (b.score || 0) - (a.score || 0))[0]
+                : matchedServices[0];
+
+            console.log(`Selected service: ${bestMatch.serviceName}${bestMatch.score !== undefined ? ` with similarity ${bestMatch.score}` : ''}`);
+
             // Prepare data for the create-new-booking-request endpoint
             const bookingData = {
-                serviceId: matchedService._id.toString(),
+                serviceId: bestMatch._id.toString(),
                 description: userMessage,
                 address: 'Đà Nẵng, Việt Nam',
                 type: 'urgent'
@@ -304,7 +289,7 @@ const aiChatBot = async (userMessage, userId, token) => {
                 const frontendUrl = process.env.FRONT_END_URL || 'https://yourwebsite.com';
                 const chooseTechnicianUrl = `${frontendUrl}/booking/choose-technician?bookingId=${booking._id}`;
 
-                const responseText = `Tôi đã tạo một yêu cầu đặt lịch cho dịch vụ "${matchedService.serviceName}". Bạn có thể chọn kỹ thuật viên phù hợp tại đây: ${chooseTechnicianUrl}`;
+                const responseText = `Tôi đã tạo một yêu cầu đặt lịch cho dịch vụ "${bestMatch.serviceName}". Bạn có thể chọn kỹ thuật viên phù hợp tại đây: ${chooseTechnicianUrl}`;
 
                 await updateSession(userId, currentDevice || deviceToUse, userMessage, responseText);
                 return responseText;
@@ -378,5 +363,6 @@ module.exports = {
     aiChatBot,
     getSessionStats,
     getSession,
-    updateSession
+    updateSession,
+    suggestServices
 };
