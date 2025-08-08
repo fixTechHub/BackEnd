@@ -10,6 +10,8 @@ const receiptService = require('../services/receiptService');
 const Technician = require('../models/Technician');
 const BookingTechnicianRequest = require('../models/BookingTechnicianRequest');
 const BookingTechnicianSearch = require('../models/BookingTechnicianSearch');
+const { getIo } = require('../sockets/socketManager');
+const CouponUsage = require('../models/CouponUsage');
 
 const MAX_TECHNICIANS = 10;
 const SEARCH_RADII = [5, 10, 15, 30];
@@ -162,7 +164,6 @@ const getBookingById = async (bookingId) => {
                 match: { isActive: true }
             })
             .populate('cancelledBy');
-
         if (!booking) {
             throw new Error('Không tìm thấy đặt lịch');
         }
@@ -923,7 +924,7 @@ const getUserBookingHistory = async (userId, role, limit, skip) => {
                 }
             })
             .populate('customerId', 'fullName')
-            .populate('serviceId', 'serviceName')
+            .populate('serviceId')
             .limit(Number(limit))
             .skip(Number(skip))
             .sort({ createdAt: -1 });
@@ -1014,7 +1015,7 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
             { $set: update },
             { new: true, session }
         )
-        const technician = await Technician.findById(updatedBooking.technicianId)
+        // const technician = await Technician.findById(updatedBooking.technicianId)
         if (!updatedBooking) {
             throw new Error('Không tìm thấy báo giá để cập nhật');
         }
@@ -1041,15 +1042,22 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
             const technician = await technicianService.getTechnicianById(updatedBooking.technicianId)
             technician.availability = 'FREE'
             await technician.save({ session })
-            // const technicianServiceModel = await TechnicianServiceModel.findOne({ serviceId: updatedBooking.serviceId })
-            // console.log(technicianServiceModel);
+           
+            const TechnicianService = require('../models/TechnicianService');
+            const technicianServiceModel = await TechnicianService.findOne({ 
+                serviceId: updatedBooking.serviceId,
+                technicianId: updatedBooking.technicianId
+              });
+            console.log(technicianServiceModel);
 
             const receiptData = {
                 bookingId: updatedBooking._id,
                 customerId: updatedBooking.customerId,
                 technicianId: updatedBooking.technicianId,
                 totalAmount: updatedBooking.finalPrice + updatedBooking.discountValue,
-                // serviceAmount: technicianServiceModel.price,
+                // serviceAmount: updatedBooking.quote.totalAmount,
+                serviceAmount: technicianServiceModel.price,
+
                 discountAmount: updatedBooking.discountValue,
                 paidAmount: updatedBooking.finalPrice,
                 paymentMethod: 'CASH',
@@ -1062,7 +1070,7 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
             // 2. Deduct commission from technician's balance
             await commissionService.deductCommission(
                 updatedBooking.technicianId,
-                updatedBooking.finalPrice,
+                updatedBooking.finalPrice+updatedBooking.discountValue,
                 session
             );
 

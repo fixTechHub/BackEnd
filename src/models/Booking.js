@@ -79,6 +79,7 @@ const bookingSchema = new mongoose.Schema({
             type: Date,
             default: Date.now
         },
+        note: String,
     },
     discountCode: String,
     discountValue: {

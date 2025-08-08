@@ -67,18 +67,21 @@ const handleSuccessfulPayment = async (orderCode, bookingId) => {
     const receiptTotalAmount = booking.finalPrice + booking.discountValue;
     booking.holdingAmount = receiptTotalAmount * 0.2;
     await booking.save({ session });
-
+    const TechnicianService = require('../models/TechnicianService');
+    const technicianServiceModel = await TechnicianService.findOne({ 
+      serviceId: updatedBooking.serviceId,
+      technicianId: updatedBooking.technicianId
+    });
     const technician = await Technician.findById(booking.technicianId)
     technician.availability = 'FREE'
     await technician.save({ session })
-    const technicianServiceModel = await TechnicianServiceModel.findOne({ serviceId: updatedBooking.serviceId })
     const receiptData = {
       bookingId: booking._id,
       customerId: booking.customerId,
       technicianId: booking.technicianId,
       paymentGatewayTransactionId: orderCode,
       totalAmount: booking.finalPrice + booking.discountValue,
-      serviceAmount: booking.quote.totalAmount,
+      serviceAmount: technicianServiceModel.price,
       discountAmount: booking.discountValue,
       paidAmount: booking.finalPrice,
       paymentMethod: 'BANK',
@@ -90,7 +93,7 @@ const handleSuccessfulPayment = async (orderCode, bookingId) => {
     // Credit commission from technician's balance
     await commissionService.creditCommission(
       booking.technicianId,
-      booking.finalPrice,
+      booking.finalPrice+booking.discountValue,
       session
     );
 

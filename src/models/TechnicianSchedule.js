@@ -1,19 +1,26 @@
 const mongoose = require('mongoose');
-
 const technicianScheduleSchema = new mongoose.Schema({
     technicianId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Technician',
         required: true
     },
-    scheduleType: {
+    bookingId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Booking'
+    },
+    bookingWarrantyId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'BookingWarranty'
+    },
+    scheduleStatus: {
         type: String,
         enum: ['AVAILABLE', 'UNAVAILABLE'],
         required: true
     },
     scheduleType: {
         type: String,
-        enum: ['BOOKING','WARRANTY'],
+        enum: ['BOOKING', 'WARRANTY'],
         default: 'BOOKING'
     },
     startTime: {
@@ -28,11 +35,9 @@ const technicianScheduleSchema = new mongoose.Schema({
 }, {
     timestamps: true
 });
-
 technicianScheduleSchema.index({ technicianId: 1 });
 technicianScheduleSchema.index({ scheduleType: 1 });
 technicianScheduleSchema.index({ technicianId: 1, startTime: 1 });
 technicianScheduleSchema.index({ technicianId: 1, scheduleType: 1 });
 technicianScheduleSchema.index({ technicianId: 1, startTime: 1, endTime: 1 });
-
 module.exports = mongoose.model('TechnicianSchedule', technicianScheduleSchema);

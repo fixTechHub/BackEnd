@@ -1,5 +1,5 @@
 const docusign = require('docusign-esign');
-const { initializeApiClient } = require('../config/docusignSetUp');
+const { getApiClient } = require('../config/docusignSetUp');
 const Contract = require('../models/Contract');
 const { generateContractCode } = require('../utils/generateCode');
 const Technician = require('../models/Technician');
@@ -8,7 +8,7 @@ const mongoose = require('mongoose');
 
 // Internal helper function to create the DocuSign envelope
 const _createDocusignEnvelope = async (contractData, contractCode) => {
-  const { dsApiClient, accountId } = await initializeApiClient();
+  const { dsApiClient, accountId } = await getApiClient();
   const envelopesApi = new docusign.EnvelopesApi(dsApiClient);
 
   const effectiveDate = new Date();
@@ -78,8 +78,8 @@ const generateContractOnRegistration = async (technicianId, session = null) => {
 
     const envelopeId = await _createDocusignEnvelope(contractData, contractCode);
 
-    // Generate the signing URL
-    const { dsApiClient, accountId } = await initializeApiClient();
+    // Generate the signing URL 
+    const { dsApiClient, accountId } = await getApiClient();
     const envelopesApi = new docusign.EnvelopesApi(dsApiClient);
     const viewRequest = new docusign.RecipientViewRequest();
     viewRequest.returnUrl = `${process.env.BACK_END_URL}/contracts/docusign/callback/${envelopeId}`; // Redirect after signing
@@ -142,7 +142,7 @@ const createContract = async (contractData, session = null) => {
     const contractCode = await generateContractCode();
     const envelopeId = await _createDocusignEnvelope(contractData, contractCode);
 
-    const { dsApiClient, accountId } = await initializeApiClient();
+    const { dsApiClient, accountId } = await getApiClient();
     const envelopesApi = new docusign.EnvelopesApi(dsApiClient);
 
     const viewRequest = new docusign.RecipientViewRequest();

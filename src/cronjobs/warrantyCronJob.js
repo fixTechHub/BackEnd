@@ -59,17 +59,32 @@ class BookingWarrantyCronService {
                        
 
                         // Calculate 20% of finalPrice
-                        const refundAmount = booking.finalPrice * 0.2;
+                        const refundAmount = (booking.finalPrice+booking.discountValue) * 0.2;
 
-
+                        const technician = await Technician.findById(booking.technicianId._id)
 
                         if (!technician) {
                             throw new Error('Technician not found');
                         }
 
                         // Update balance and totalEarning manually
-                        technician.balance = technician.balance + refundAmount;
-
+                        if (technician.debBalance > 0) {
+                            if (technician.debBalance >= refundAmount) {
+                                // If debBalance is sufficient, reduce it by refundAmount
+                                technician.debBalance -= refundAmount;
+                            } else {
+                                // If debBalance is less than refundAmount, reduce debBalance to 0
+                                // and add the remaining amount to balance
+                                const remainingAmount = refundAmount - technician.debBalance;
+                                technician.debBalance = 0;
+                                technician.balance += remainingAmount;
+                            }
+                        } else {
+                            // If no debBalance, add refundAmount directly to balance
+                            technician.balance += refundAmount;
+                        }
+    
+                        technician.totalHoldingAmount -= refundAmount
                         // Save the updated document with session
                         await technician.save({ session });
                         console.log(`Technician ${booking.technicianId._id} balance updated with ${refundAmount}`);
@@ -128,12 +143,12 @@ class BookingWarrantyCronService {
                     warranty.status = 'EXPIRED';
                     await warranty.save({ session });
                 })
-                const refundAmount = warranty.bookingId.finalPrice * 0.2;
+                const refundAmount = (warranty.bookingId.finalPrice + warranty.bookingId.discountValue )* 0.2;
                 const technician = await Technician.findById(warranty.technicianId._id).session(session);
-                technician.balance -= refundAmount
+                // technician.balance -= refundAmount
                 technician.totalHoldingAmount -= refundAmount
                 const techNotificationData = {
-                    userId: technician._id,
+                    userId: technician.userId,
                     title: 'Bảo hành hết hạn',
                     content: `Bạn đã không xử lý bảo hành đơn ${warranty.bookingId.bookingCode} nên sẽ bị xử phạt bằng việc trừ tiền trong tài khoản.`,
                     referenceId: warranty._id,
