@@ -1015,7 +1015,7 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
             { $set: update },
             { new: true, session }
         )
-        const technician = await Technician.findById(updatedBooking.technicianId)
+        // const technician = await Technician.findById(updatedBooking.technicianId)
         if (!updatedBooking) {
             throw new Error('Không tìm thấy báo giá để cập nhật');
         }
