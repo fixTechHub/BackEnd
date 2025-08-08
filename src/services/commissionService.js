@@ -22,7 +22,7 @@ const deductCommission = async (technicianId, amount, session) => {
         const commissionAmount = amount * commissionRate;
         const earningAmount = amount - commissionAmount
 
-        if (amount > technician.balance) {
+        if (earningAmount > technician.balance) {
             // If balance is insufficient, add the difference to debBalance
             const shortfall = earningAmount - technician.balance;
             technician.debBalance += shortfall;
