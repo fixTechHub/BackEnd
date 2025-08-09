@@ -6,6 +6,8 @@ const { deleteFileFromS3, uploadFileToS3 } = require('../services/s3Service');
 const TechnicianService = require('../models/TechnicianService');
 const contractService = require('../services/contractService')
 const notificationService = require('../services/notificationService')
+const { getIo } = require('../sockets/socketManager')
+
 // const sendQuotation = async (req, res) => {
 //   try {
 //     const userId = req.user.userId;
@@ -31,9 +33,11 @@ const notificationService = require('../services/notificationService')
 const confirmJobDoneByTechnician = async (req, res) => {
   try {
     const { bookingId } = req.params;
+    console.log('ui', req.user.userId);
+
     const userId = req.user.userId;
-    // const role = req.user.role;
-    const role = 'TECHNICIAN'
+    const role = req.user.role;
+    // const role = 'TECHNICIAN'
 
     const io = getIo();
 

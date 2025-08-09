@@ -75,6 +75,10 @@ const technicianSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    debBalance: {
+        type: Number,
+        default: 0
+    },
     totalCommissionPaid: {
         type: Number,
         default: 0

@@ -8,7 +8,6 @@ const initializeSocket = (server) => {
     cors: {
       origin: [
         process.env.FRONT_END_URL, // http://localhost:5174
-        'https://d43a-2001-ee0-4b7b-3bd0-cd95-363e-be56-3de8.ngrok-free.app'
       ],
       methods: ["GET", "POST"],
       credentials: true

@@ -1,7 +1,7 @@
 const bookingService = require('../services/bookingService');
 const { addressToPoint } = require('../services/geocodingService');
 const User = require('../models/User');
-const {getIo} = require('../sockets/socketManager')
+const { getIo } = require('../sockets/socketManager')
 const couponService = require('../services/couponService')
 
 const createBookingRequest = async (req, res) => {
@@ -107,19 +107,19 @@ const cancelBooking = async (req, res) => {
         const io = getIo();
         // console.log('--- ROLE ---', role);
         console.log('--- ROLE ---', req.user);
-// const cancelBooking = async (req, res) => {
-//     try {
-//         const { bookingId } = req.params;
-//         const { reason } = req.body;
-//         const userId = req.user.userId;        
-//         const role = req.user.role;
-//         // console.log('--- ROLE ---', role);
+        // const cancelBooking = async (req, res) => {
+        //     try {
+        //         const { bookingId } = req.params;
+        //         const { reason } = req.body;
+        //         const userId = req.user.userId;        
+        //         const role = req.user.role;
+        //         // console.log('--- ROLE ---', role);
 
-//         if (!reason) {
-//             return res.status(400).json({
-//                 message: 'Vui lòng cung cấp lý do hủy booking'
-//             });
-//         }
+        //         if (!reason) {
+        //             return res.status(400).json({
+        //                 message: 'Vui lòng cung cấp lý do hủy booking'
+        //             });
+        //         }
 
         const booking = await bookingService.cancelBooking(
             bookingId,
@@ -128,12 +128,12 @@ const cancelBooking = async (req, res) => {
             reason,
             io
         );
-//         const booking = await bookingService.cancelBooking(
-//             bookingId,
-//             userId,
-//             role,
-//             reason
-//         );
+        //         const booking = await bookingService.cancelBooking(
+        //             bookingId,
+        //             userId,
+        //             role,
+        //             reason
+        //         );
 
         res.status(200).json({
             message: 'Hủy booking thành công',
@@ -148,10 +148,11 @@ const cancelBooking = async (req, res) => {
 const confirmJobDone = async (req, res) => {
     try {
         const { bookingId } = req.params;
-        const { userId } = req.body;
+        // const { userId } = req.body;
+        const userId = req.user.userId;
+        const role = user.role.name;
 
         const user = await User.findById(userId).populate('role'); console.log(user)
-        const role = user.role.name;
 
         const booking = await bookingService.confirmJobDone(
             bookingId,
@@ -177,7 +178,8 @@ const technicianSendQuote = async (req, res) => {
         const { bookingId } = req.params;
         const technicianId = req.user.userId;
         const quoteData = req.body;
-        const booking = await bookingService.technicianSendQuote(bookingId, technicianId, quoteData);
+        const io = getIo();
+        const booking = await bookingService.technicianSendQuote(bookingId, technicianId, quoteData, io);
         res.status(200).json({ success: true, message: 'Gửi báo giá thành công', data: booking });
     } catch (error) {
         res.status(400).json({ success: false, message: error.message });
@@ -189,7 +191,8 @@ const customerAcceptQuote = async (req, res) => {
     try {
         const { bookingId } = req.params;
         const customerId = req.user.userId;
-        const booking = await bookingService.customerAcceptQuote(bookingId, customerId);
+        const io = getIo();
+        const booking = await bookingService.customerAcceptQuote(bookingId, customerId, io);
         res.status(200).json({ success: true, message: 'Đồng ý báo giá thành công', data: booking });
     } catch (error) {
         res.status(400).json({ success: false, message: error.message });
@@ -201,7 +204,8 @@ const customerRejectQuote = async (req, res) => {
     try {
         const { bookingId } = req.params;
         const customerId = req.user.userId;
-        const booking = await bookingService.customerRejectQuote(bookingId, customerId);
+        const io = getIo();
+        const booking = await bookingService.customerRejectQuote(bookingId, customerId, io);
         res.status(200).json({ success: true, message: 'Từ chối báo giá thành công', data: booking });
     } catch (error) {
         res.status(400).json({ success: false, message: error.message });
@@ -228,7 +232,7 @@ const getTopBookedServices = async (req, res) => {
     }
 };
 
-const selectTechnician = async (req, res) => {
+const selectTechnicianForBooking = async (req, res) => {
     try {
         const { bookingId } = req.params;
         const { technicianId } = req.body;
@@ -238,14 +242,34 @@ const selectTechnician = async (req, res) => {
         const result = await bookingService.selectTechnicianForBooking(bookingId, technicianId, customerId, io);
         res.json(result);
     } catch (error) {
-        res.status(400).json({ error: error.message });
+        res.status(400).json({ success: false, message: error.message });
+    }
+};
+
+const technicianAcceptBooking = async (req, res) => {
+    try {
+        const { bookingId } = req.params;
+        const technicianId = req.user.userId;
+        const io = getIo();
+
+        console.log('--- DEBUG ---');
+        console.log('bookingId:', bookingId);
+        console.log('technicianId:', technicianId);
+
+        const result = await bookingService.technicianAcceptBooking(bookingId, technicianId, io);
+        res.json(result);
+    } catch (error) {
+        res.status(400).json({
+            success: false,
+            message: error.message
+        });
     }
 };
 
 const technicianConfirm = async (req, res) => {
     try {
         const { bookingId } = req.params;
-        const technicianId = req.user.userId;        
+        const technicianId = req.user.userId;
 
         const result = await bookingService.technicianConfirmBooking(bookingId, technicianId);
         res.json(result);
@@ -254,31 +278,35 @@ const technicianConfirm = async (req, res) => {
     }
 };
 
-const getUserBookingHistory = async (req,res) => {
+const getUserBookingHistory = async (req, res) => {
     try {
         const userId = req.user.userId
-        // const role = req.user.role
-        const role = 'CUSTOMER'
+        const role = req.user.role
+        // const role = 'CUSTOMER'
         
+        
+
         const { limit = 20, skip = 0 } = req.query;
-        const bookings = await bookingService.getUserBookingHistory(userId,role,limit,skip)
-        res.status(200).json({bookings});
+
+        const bookings = await bookingService.getUserBookingHistory(userId, role, limit, skip)
+        
+        res.status(200).json({ bookings });
     } catch (error) {
-        console.error('Lỗi khi xác nhận hoàn thành:', error);
+        console.error('Lỗi lấy lịch sử đặt lịch :', error.message);
         res.json({
             error: error.message || 'Không thể xác nhận hoàn thành'
         });
     }
 }
 
-const getAcceptedBooking = async (req,res) => {
+const getAcceptedBooking = async (req, res) => {
     try {
         const user = req.user
-        const {bookingId} = req.params
+        const { bookingId } = req.params
         const acceptedBooking = await bookingService.getAcceptedBooking(bookingId)
         const userCoupons = await couponService.getUserCoupon(user.userId)
-        
-        
+
+
         res.status(200).json({
             success: true,
             message: 'Lấy thông tin đặt lịch thành công',
@@ -296,6 +324,99 @@ const getAcceptedBooking = async (req,res) => {
         });
     }
 }
+// Thợ từ chối booking
+const technicianRejectBooking = async (req, res) => {
+    try {
+        const { bookingId } = req.params;
+        const technicianId = req.user.userId;
+        const io = getIo();
+
+        console.log('--- TECHNICIAN REJECT CONTROLLER DEBUG ---');
+        console.log('Request params:', req.params);
+        console.log('Request user:', req.user);
+        console.log('Booking ID:', bookingId);
+        console.log('Technician ID:', technicianId);
+
+        const result = await bookingService.technicianRejectBooking(bookingId, technicianId, io);
+        res.json(result);
+    } catch (error) {
+        console.log('--- TECHNICIAN REJECT CONTROLLER ERROR ---', error.message);
+        res.status(400).json({ success: false, message: error.message });
+    }
+};
+
+const getBookingTechnicianRequests = async (req, res) => {
+    try {
+        const { bookingId } = req.params;
+        const requests = await bookingService.getBookingTechnicianRequests(bookingId);
+        res.status(200).json({ success: true, data: requests });
+    } catch (error) {
+        res.status(400).json({ success: false, message: error.message });
+    }
+};
+
+const getTechniciansFoundByBookingId = async (req, res) => {
+    try {
+        const { bookingId } = req.params;
+        const technicians = await bookingService.getTechniciansFoundByBookingId(bookingId);
+        if (!technicians) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy kết quả tìm thợ cho booking này.' });
+        }
+        res.status(200).json({ success: true, data: technicians });
+    } catch (error) {
+        res.status(400).json({ success: false, message: error.message });
+    }
+};
+
+const getRequestStatusInfo = async (req, res) => {
+    try {
+        const { bookingId, technicianId } = req.params;
+        const statusInfo = await bookingService.getRequestStatusInfo(bookingId, technicianId);
+        res.status(200).json({ success: true, data: statusInfo });
+    } catch (error) {
+        res.status(400).json({ success: false, message: error.message });
+    }
+};
+
+// Lấy các mô tả booking phổ biến nhất
+const getPopularDescriptions = async (req, res) => {
+    try {
+        const { limit = 10 } = req.query;
+        const result = await bookingService.getPopularDescriptions(limit);
+
+        if (result.success) {
+            res.json(result);
+        } else {
+            res.status(500).json(result);
+        }
+    } catch (error) {
+        console.error('Lỗi khi lấy mô tả phổ biến:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Lỗi server khi lấy mô tả phổ biến'
+        });
+    }
+};
+
+// Tìm kiếm mô tả theo từ khóa
+const searchDescriptions = async (req, res) => {
+    try {
+        const { query, limit = 5 } = req.query;
+        const result = await bookingService.searchDescriptions(query, limit);
+
+        if (result.success) {
+            res.json(result);
+        } else {
+            res.status(500).json(result);
+        }
+    } catch (error) {
+        console.error('Lỗi khi tìm kiếm mô tả:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Lỗi server khi tìm kiếm mô tả'
+        });
+    }
+};
 
 module.exports = {
     createBookingRequest,
@@ -307,7 +428,15 @@ module.exports = {
     customerAcceptQuote,
     customerRejectQuote,
     getTopBookedServices,
-    selectTechnician,
     technicianConfirm,
-    getUserBookingHistory
+    getUserBookingHistory,
+    selectTechnicianForBooking,
+    technicianAcceptBooking,
+    technicianConfirm,
+    technicianRejectBooking,
+    getBookingTechnicianRequests,
+    getTechniciansFoundByBookingId,
+    getRequestStatusInfo,
+    getPopularDescriptions,
+    searchDescriptions,
 };

@@ -90,7 +90,7 @@ const moderateFeedback = async (req, res) => {
 
 const getFeedbackList = async (req, res) => {
     try {
-        const filters = req.query; // toUser, fromUser, rating, isVisible
+        const filters = req.query; 
         const list = await feedbackService.getFeedbackList(filters);
         res.status(200).json({ data: list });
     } catch (err) {
@@ -98,4 +98,34 @@ const getFeedbackList = async (req, res) => {
     }
 };
 
-module.exports = { submitFeedback, editFeedback, replyToFeedback, moderateFeedback, getFeedbackList };
+const getAllFeedback = async (req, res) => {
+  try {
+    const { toUser, fromUser, isVisible, ratingMin, ratingMax } = req.query;
+
+    // ⚙️ Chuẩn hóa dữ liệu filter
+    const filter = {
+      toUser,
+      fromUser,
+      isVisible: isVisible !== undefined ? isVisible === 'true' : undefined,
+      rating: (ratingMin || ratingMax) ? {
+        min: ratingMin ? Number(ratingMin) : undefined,
+        max: ratingMax ? Number(ratingMax) : undefined
+      } : undefined
+    };
+
+    const feedbackList = await feedbackService.getFeedbackList(filter);
+
+    res.status(200).json({
+      message: 'Lấy danh sách feedback thành công',
+      data: feedbackList
+    });
+  } catch (error) {
+    console.error('❌ Lỗi khi lấy feedback:', error);
+    res.status(500).json({
+      message: 'Lỗi server khi lấy danh sách feedback',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+};
+
+module.exports = { submitFeedback, editFeedback, replyToFeedback, moderateFeedback, getFeedbackList, getAllFeedback };

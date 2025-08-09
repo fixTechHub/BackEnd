@@ -1,6 +1,6 @@
 const Certificate = require('../models/Certificate');
 const { deleteFileFromS3 } = require('../services/s3Service');
-const CertificateService = require('../services/CertificateService');
+const CertificateService = require('../services/certificateService');
 
 
 const uploadCertificate = async (req, res) => {

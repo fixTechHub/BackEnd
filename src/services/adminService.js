@@ -5,7 +5,7 @@ const contractService = require('./contractService');
 const notificationService = require('./notificationService');
 const HttpError = require('../utils/error');
 
-exports.sendContractTechnician = async (technicianId) => {
+const sendContractTechnician = async (technicianId) => {
     // Start a new session for the transaction
     const session = await mongoose.startSession();
     
@@ -20,6 +20,7 @@ exports.sendContractTechnician = async (technicianId) => {
 
         // Get the latest contract for this technician
         const contracts = await contractService.getContractsByTechnicianId(technicianId);
+        console.log(contracts);
         
         let shouldGenerateContract = true;
         let result = null;
@@ -44,6 +45,8 @@ exports.sendContractTechnician = async (technicianId) => {
         if (shouldGenerateContract) {
             // Note: Make sure contractService.generateContractOnRegistration supports sessions
             result = await contractService.generateContractOnRegistration(technicianId, session);
+            console.log(result);
+            
         }
 
         // Commit the transaction
@@ -63,6 +66,8 @@ exports.sendContractTechnician = async (technicianId) => {
         };
         
     } catch (error) {
+        console.log(error.message);
+        
         // Rollback the transaction in case of error
         await session.abortTransaction();
         throw error;
@@ -108,5 +113,6 @@ const approveWithdrawRequest = async (logId) => {
 };
 
 module.exports = {
-  approveWithdrawRequest
+  approveWithdrawRequest,
+  sendContractTechnician
 };
