@@ -983,31 +983,17 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
             throw new Error('Không tìm thấy báo giá để cập nhật');
         }
         if (couponCode) {
+            
             update.discountCode = couponCode;
-            update.discountValue = discountValue;
+            update.discountValue = discountValue
             update.finalPrice = finalPrice;
-            // Find coupon document
-            const couponDoc = await couponService.getCouponByCouponCode(couponCode)
-            if (!couponDoc) {
-                throw new Error('Không tìm thấy mã giảm giá');
-            }
-            couponDoc.usedCount += 1;
-            await couponDoc.save({ session });
-            // Find userId from booking
-            const customerId = booking.customerId
-
-            if (!customerId) {
-                throw new Error('Không tìm thấy userId để lưu CouponUsage');
-            }
-            // Create CouponUsage if not already used
-            const existingUsage = await CouponUsage.findOne({ couponId: couponDoc._id, userId: customerId }).session(session);
-            if (!existingUsage) {
-                await CouponUsage.create([{ couponId: couponDoc._id, userId: customerId, bookingId: booking._id }], { session });
-            }
+            // console.log(update.finalPrice);
         } else {
             update.discountCode = null;
             update.discountValue = 0;
             update.finalPrice = finalPrice;
+            // console.log(update.finalPrice);
+            
             update.holdingAmount = finalPrice * 0.2;
         }
         const updatedBooking = await Booking.findByIdAndUpdate(
@@ -1031,12 +1017,13 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
             updatedBooking.paymentStatus = 'PAID';
             updatedBooking.status = 'DONE';
             updatedBooking.isChatAllowed = false
+            updatedBooking.customerConfirmedDone = true
             updatedBooking.isVideoCallAllowed = false
             updatedBooking.completedAt = new Date();
             // Set warrantyExpiresAt based on warrantiesDuration (in days)
             updatedBooking.warrantyExpiresAt = new Date();
             updatedBooking.warrantyExpiresAt.setDate(
-                updatedBooking.warrantyExpiresAt.getDate() + updatedBooking.quote.warrantiesDuration
+                updatedBooking.warrantyExpiresAt.getDate() + updatedBooking.quote.warrantiesDuration*30
             );
             await updatedBooking.save({ session });
             const technician = await technicianService.getTechnicianById(updatedBooking.technicianId)

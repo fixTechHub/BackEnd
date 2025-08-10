@@ -45,8 +45,8 @@ class ContractCronService {
             const expiredContracts = await Contract.find({
                 expirationDate: { $lt: currentDate },
                 status: { $in: ['PENDING', 'SIGNED'] }
-            }).populate('technicianId');
-
+            }).populate('technicianId')
+            .limit(15);
             console.log(`Found ${expiredContracts.length} expired contracts to update`);
 
             for (const contract of expiredContracts) {

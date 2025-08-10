@@ -9,9 +9,9 @@ const requestBookingWarranty = async (req, res) => {
         if (!reportedIssue || reportedIssue.trim() === '') {
             return res.status(400).json({ error: 'Vui lòng nhập lý do bảo hành' });
         }
-        // if (!images || images.length === 0) {
-        //     return res.status(400).json({ error: 'Vui lòng tải lên hình ảnh' });
-        // }
+        if (!images || images.length === 0) {
+            return res.status(400).json({ error: 'Vui lòng tải lên hình ảnh' });
+        }
         const booking = await bookingService.getBookingById(bookingId)
         const dateNow = new Date()
         if (!booking) {
