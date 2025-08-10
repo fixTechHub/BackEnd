@@ -6,8 +6,6 @@ const { deleteFileFromS3, uploadFileToS3 } = require('../services/s3Service');
 const TechnicianService = require('../models/TechnicianService');
 const contractService = require('../services/contractService')
 const notificationService = require('../services/notificationService')
-const { getIo } = require('../sockets/socketManager')
-
 // const sendQuotation = async (req, res) => {
 //   try {
 //     const userId = req.user.userId;
@@ -453,6 +451,28 @@ const uploadCCCDImages = async (req, res) => {
   }
 };
 
+
+const getSchedulesOfTechnician = async (req, res, next) => {
+  try {
+    const { technicianId } = req.params;
+
+    const schedules = await technicianService.getScheduleByTechnicianId(technicianId);
+
+    res.status(200).json({
+      success: true,
+      message: 'Lấy lịch kỹ thuật viên thành công',
+      count: schedules?.length || 0,
+      data: schedules || []
+    });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
 const searchTechnicians = async (req, res) => {
   try {
     const { serviceId, date, time } = req.body;
@@ -478,6 +498,7 @@ const searchTechnicians = async (req, res) => {
   }
 };
 
+
 module.exports = {
   registerAsTechnician,
   viewTechnicianProfile,
@@ -494,5 +515,6 @@ module.exports = {
   uploadCCCDImages,
   getTechnicianDepositLogs,
   requestWithdraw,
-  searchTechnicians,
+  getSchedulesOfTechnician,
+  searchTechnicians
 };

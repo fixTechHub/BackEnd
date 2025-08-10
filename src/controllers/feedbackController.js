@@ -8,8 +8,8 @@ const submitFeedback = async (req, res) => {
         const { rating, content } = req.body;
         console.log('✅ req.body full:', req.body);
         // console.log("userId tech", req.user);
-        
-        
+
+
         const { bookingId } = req.params;
         // const images = req.uploadedFiles || [];
         const images = req.s3FileUrls || [];
@@ -22,8 +22,8 @@ const submitFeedback = async (req, res) => {
 
         // 🔗 Lấy toUserId (tức technician's userId)
         const toUserId = booking.technicianId?.userId?._id;
-        console.log("userId tech "+ toUserId);
-        
+        console.log("userId tech " + toUserId);
+
         if (!toUserId) {
             return res.status(400).json({ message: 'Technician not found in booking' });
         }
@@ -52,7 +52,7 @@ const editFeedback = async (req, res) => {
         const { rating, content, images } = req.body;
         const fromUserId = req.user._id;
         console.log(fromUserId);
-        
+
         const result = await feedbackService.editFeedback({ feedbackId, fromUserId, rating, content, images });
         res.status(200).json({ message: 'Feedback updated', data: result });
     } catch (err) {
@@ -60,16 +60,23 @@ const editFeedback = async (req, res) => {
     }
 };
 
-const replyToFeedback = async (req, res) => {
-    try {
-        const { feedbackId } = req.params;
-        const { reply } = req.body;
-        const technicianId = req.user._id;
-        const result = await feedbackService.replyToFeedback({ feedbackId, technicianId, replyText: reply });
-        res.status(200).json({ message: 'Reply submitted', data: result });
-    } catch (err) {
-        res.status(403).json({ message: err.message });
-    }
+const replyToFeedbackController = async (req, res) => {
+  try {
+    const { feedbackId } = req.params;
+    const replyText =
+      (req.body?.reply && req.body.reply.content) ??
+      req.body?.reply ??
+      req.body?.content ?? '';
+
+    const userId = req.user?._id || req.user?.userId; // userId trong token
+    if (!userId) return res.status(401).json({ message: 'Chưa đăng nhập' });
+
+    const data = await feedbackService.replyToFeedback({ feedbackId, userId, replyText });
+    return res.status(200).json({ message: 'Reply submitted', data });
+  } catch (err) {
+    console.error('replyToFeedback error:', err);
+    return res.status(err.status || 500).json({ message: err.message || 'Server error' });
+  }
 };
 
 const moderateFeedback = async (req, res) => {
@@ -90,7 +97,7 @@ const moderateFeedback = async (req, res) => {
 
 const getFeedbackList = async (req, res) => {
     try {
-        const filters = req.query; 
+        const filters = req.query;
         const list = await feedbackService.getFeedbackList(filters);
         res.status(200).json({ data: list });
     } catch (err) {
@@ -98,34 +105,77 @@ const getFeedbackList = async (req, res) => {
     }
 };
 
-const getAllFeedback = async (req, res) => {
-  try {
-    const { toUser, fromUser, isVisible, ratingMin, ratingMax } = req.query;
+const listByTechnician = async (req, res) => {
+    try {
+        const { technicianId } = req.params;
+        const page = parseInt(req.query.page || '1', 10);
+        const limit = parseInt(req.query.limit || '10', 10);
 
-    // ⚙️ Chuẩn hóa dữ liệu filter
-    const filter = {
-      toUser,
-      fromUser,
-      isVisible: isVisible !== undefined ? isVisible === 'true' : undefined,
-      rating: (ratingMin || ratingMax) ? {
-        min: ratingMin ? Number(ratingMin) : undefined,
-        max: ratingMax ? Number(ratingMax) : undefined
-      } : undefined
-    };
-
-    const feedbackList = await feedbackService.getFeedbackList(filter);
-
-    res.status(200).json({
-      message: 'Lấy danh sách feedback thành công',
-      data: feedbackList
-    });
-  } catch (error) {
-    console.error('❌ Lỗi khi lấy feedback:', error);
-    res.status(500).json({
-      message: 'Lỗi server khi lấy danh sách feedback',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-    });
-  }
+        const result = await feedbackService.findByTechnician({ technicianId, page, limit });
+        res.status(200).json({ message: 'OK', ...result });
+    } catch (err) {
+        res.status(400).json({ message: err.message || 'Cannot get feedbacks' });
+    }
 };
 
-module.exports = { submitFeedback, editFeedback, replyToFeedback, moderateFeedback, getFeedbackList, getAllFeedback };
+const getAllFeedback = async (req, res) => {
+    try {
+        const { toUser, fromUser, isVisible, ratingMin, ratingMax } = req.query;
+
+        // ⚙️ Chuẩn hóa dữ liệu filter
+        const filter = {
+            toUser,
+            fromUser,
+            isVisible: isVisible !== undefined ? isVisible === 'true' : undefined,
+            rating: (ratingMin || ratingMax) ? {
+                min: ratingMin ? Number(ratingMin) : undefined,
+                max: ratingMax ? Number(ratingMax) : undefined
+            } : undefined
+        };
+
+        const feedbackList = await feedbackService.getFeedbackList(filter);
+
+        res.status(200).json({
+            message: 'Lấy danh sách feedback thành công',
+            data: feedbackList
+        });
+    } catch (error) {
+        console.error('❌ Lỗi khi lấy feedback:', error);
+        res.status(500).json({
+            message: 'Lỗi server khi lấy danh sách feedback',
+            error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+        });
+    }
+};
+
+const listFeedbacksForTechnician = async (req, res, next) => {
+    try {
+        const { technicianId } = req.params;
+        const result = await feedbackService.listFeedbacksByTechnician(technicianId, req.query);
+        res.json(result);
+    } catch (err) {
+        next(err);
+    }
+};
+
+const feedbackStatsForTechnician = async (req, res, next) => {
+    try {
+        const { technicianId } = req.params;
+        const stats = await feedbackService.getFeedbackStatsByTechnician(technicianId);
+        res.json(stats);
+    } catch (err) {
+        next(err);
+    }
+};
+
+module.exports = {
+    submitFeedback,
+    editFeedback,
+    replyToFeedback: replyToFeedbackController,
+    moderateFeedback,
+    getFeedbackList,
+    getAllFeedback,
+    listByTechnician,
+    listFeedbacksForTechnician,
+    feedbackStatsForTechnician
+};

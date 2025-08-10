@@ -54,26 +54,36 @@ const deleteCertificate = async (req, res) => {
 
 const verifyCertificate = async (req, res) => {
   try {
-    const { certificateId } = req.params;
-    const { status, rejectionReason } = req.body;
-
-    const certificate = await CertificateService.verifyCertificate(
-      certificateId,
+    const { id } = req.params;
+    const { status, reason } = req.body;
+    const data = await CertificateService.verifyCertificate({
+      certificateId: id,
       status,
-      rejectionReason
-    );
-
-    res.status(200).json({
-      message: `Certificate ${status.toLowerCase()}`,
-      certificate
+      reason,
+      adminUserId: req.user?._id, // cần middleware auth
     });
-  } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(200).json({ message: 'Updated', data });
+  } catch (e) {
+    res.status(/not found/i.test(e.message) ? 404 : 400).json({ message: e.message });
+  }
+};
+
+const getAllCertificates = async (req, res) => {
+  try {
+    const page  = parseInt(req.query.page || '1', 10);
+    const limit = parseInt(req.query.limit || '10', 10);
+    const status = req.query.status || null;
+    const search = req.query.search || '';
+    const data = await CertificateService.listCertificates({ search, status, page, limit });
+    res.status(200).json({ message: 'OK', ...data });
+  } catch (e) {
+    res.status(500).json({ message: e.message || 'Internal server error' });
   }
 };
 
 module.exports = {
   uploadCertificate,
   deleteCertificate,
-  verifyCertificate
+  verifyCertificate,
+  getAllCertificates
 };

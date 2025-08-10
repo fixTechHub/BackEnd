@@ -6,6 +6,9 @@ const { authenticateToken } = require('../middlewares/authMiddleware');
 
 router.get('/', feedbackController.getAllFeedback);
 router.get('/:technicianId', feedbackController.getFeedbackList);
+router.get('/by-technician/:technicianId', feedbackController.listByTechnician);
+router.get('/:technicianId/feedbacks', feedbackController.listFeedbacksForTechnician);
+router.get('/:technicianId/feedbacks/stats', feedbackController.feedbackStatsForTechnician);
 // thêm verifyCustomer
 router.post(
   '/:bookingId',
@@ -25,7 +28,7 @@ router.post(
 //   feedbackController.submitFeedback
 // );
 router.put('/:feedbackId', authenticateToken, feedbackController.editFeedback);
-router.put('/:feedbackId/reply', feedbackController.replyToFeedback);
+router.put('/:feedbackId/reply', authenticateToken, feedbackController.replyToFeedback);
 router.put('/:feedbackId/moderate', feedbackController.moderateFeedback);
 
 module.exports = router;

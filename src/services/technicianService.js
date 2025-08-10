@@ -678,18 +678,34 @@ const getTechnicianDepositLogs = async (userId, limit, skip) => {
   }
 };
 
-const getAllTechnicians = async () => {
+const getScheduleByTechnicianId = async (technicianId) => {
   try {
-    const technicians = await Technician.find({ status: 'APPROVED' });
-    if (technicians === null) {
-      console.log('Không tìm thấy thợ ở Đà Nẵng đang thực hiện');
+    // const technicians = await Technician.find({ status: 'APPROVED' });
+    // if (technicians === null) {
+    //   console.log('Không tìm thấy thợ ở Đà Nẵng đang thực hiện');
+    const schedules = await TechnicianSchedule.find({ technicianId })
+      .populate('bookingId')
+      .populate({
+        path: 'bookingWarrantyId',
+        populate: {
+          path: 'bookingId', // this is the nested population inside bookingWarrantyId
+        },
+      })
+      .sort({ startTime: 1 });
+
+    if (!schedules || schedules.length === 0) {
+      console.log(`Không tìm thấy lịch của kỹ thuật viên với ID: ${technicianId}`);
     }
-    return technicians
+
+    return schedules;
   } catch (error) {
     console.log(error.message);
-    throw error
+    throw error;
   }
-}
+};
+
+
+
 
 const searchTechnicians = async (serviceId, date, time) => {
   // 1. Lấy danh sách thợ cung cấp dịch vụ này
@@ -750,9 +766,9 @@ module.exports = {
   findTechnicianByUserId,
   getTechnicianDepositLogs,
   requestWithdraw,
-  getAllTechnicians,
   getTechnicianDepositLogs,
   searchTechnicians,
+  getScheduleByTechnicianId
 };
 
 // module.exports ={sendQuotation,};
