@@ -11,24 +11,39 @@ on:
 
 jobs:
   build:
-
     runs-on: self-hosted
 
     strategy:
       matrix:
         node-version: [22.x]
-        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        clean: true
+
+    # BƯỚC GỠ LỖI ĐỂ KIỂM TRA CẤU TRÚC THƯ MỤC
+    - name: Debug Workspace Structure
+      run: |
+        echo "--> Running in directory: $(pwd)"
+        echo "--> File structure after checkout:"
+        ls -laR
+        echo "-------------------------------------"
+
     - name: Use Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
-    - run: npm ci
-    - run: |
+        cache-dependency-path: 'package-lock.json'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Create .env file
+      run: |
         touch .env
         echo "${{ secrets.ENV_FILE }}" > .env
-        
-    - run: pm2 restart BackEndAPI
+
+    - name: Restart PM2 process
+      run: pm2 restart BackEndAPI
