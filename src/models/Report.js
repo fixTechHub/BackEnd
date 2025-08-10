@@ -2,8 +2,8 @@ const mongoose = require('mongoose');
 const reportSchema = new mongoose.Schema({
   type: {
     type: String,
-    enum: ['REPORT', 'VIOLATION'],
-    default: 'REPORT',
+    enum: ['BOOKING', 'WARRANTY', 'VIOLATION'],
+    default: 'BOOKING',
     required: true,
     index: true,
   },
@@ -38,7 +38,10 @@ const reportSchema = new mongoose.Schema({
   },
   tag: {
     type: String,
-    enum: ['NO_SHOW', 'LATE', 'RUDE', 'ISSUE', 'OTHER'],
+    enum: [
+      'NO_SHOW', 'LATE', 'RUDE', 'ISSUE', 'OTHER',
+      'WARRANTY_DENIED', 'WARRANTY_DELAY', 'POOR_FIX'
+    ],
     required: true,
   },
   description: {

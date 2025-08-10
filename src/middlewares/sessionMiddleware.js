@@ -61,7 +61,7 @@ exports.handleTemporarySession = async (req, res, next) => {
             res.cookie('lastVerificationStep', lastStep, {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === 'production',
-                sameSite: 'strict',
+                sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax',
                 maxAge: 24 * 60 * 60 * 1000 // 24 hours
             });
         }
