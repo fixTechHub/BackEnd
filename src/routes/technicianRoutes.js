@@ -14,7 +14,7 @@ router.get('/:technicianId/availability', technicianController.getTechnicianAvai
 router.get('/:technicianId/bookings', technicianController.viewTechnicianBookings);
 router.get('/:technicianId/bookings/:bookingId', technicianController.viewJobDetails);
 router.put('/:technicianId/availability', technicianController.updateAvailability);
-router.get('/:technicianId/schedules', technicianController.getScheduleByTechnicianId);
+router.get('/:technicianId/schedules', technicianController.getSchedulesOfTechnician);
 
 router.post('/register', technicianController.registerAsTechnician);
 router.post('/:bookingId/done', authenticateToken, technicianController.confirmJobDoneByTechnician);

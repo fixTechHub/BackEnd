@@ -451,6 +451,54 @@ const uploadCCCDImages = async (req, res) => {
   }
 };
 
+
+const getSchedulesOfTechnician = async (req, res, next) => {
+  try {
+    const { technicianId } = req.params;
+
+    const schedules = await technicianService.getScheduleByTechnicianId(technicianId);
+
+    res.status(200).json({
+      success: true,
+      message: 'Lấy lịch kỹ thuật viên thành công',
+      count: schedules?.length || 0,
+      data: schedules || []
+    });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+const searchTechnicians = async (req, res) => {
+  try {
+    const { serviceId, date, time } = req.body;
+
+    if (!serviceId || !date || !time) {
+      return res.status(400).json({
+        message: 'Vui lòng cung cấp đủ thông tin dịch vụ, ngày và giờ'
+      });
+    }
+
+    const technicians = await technicianService.searchTechnicians(serviceId, date, time);
+
+    res.status(200).json({
+      message: 'Tìm kiếm thợ thành công',
+      data: technicians
+    });
+  } catch (error) {
+    console.error('Error searching technicians:', error);
+    res.status(500).json({
+      message: 'Lỗi server khi tìm kiếm thợ',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+};
+
+
 module.exports = {
   registerAsTechnician,
   viewTechnicianProfile,
@@ -466,5 +514,7 @@ module.exports = {
   uploadCertificate,
   uploadCCCDImages,
   getTechnicianDepositLogs,
-  requestWithdraw
+  requestWithdraw,
+  getSchedulesOfTechnician,
+  searchTechnicians
 };
