@@ -6,8 +6,10 @@ const { initializeSocket } = require('./src/sockets/socket');
 const { setIo } = require('./src/sockets/socketManager');
 const contractCronService = require('./src/cronjobs/contractCronJob');
 const { startRequestExpirationCron } = require('./src/cronjobs/requestExpirationCron');
+
+// Import các cron jobs
 require('./src/cronjobs/ex');
-// require('./src/cronjobs/technicianSearchCron.js');
+require('./src/cronjobs/technicianSearchCron.js');
 
 const PORT = process.env.PORT || 3000;
 
@@ -19,6 +21,27 @@ const io = initializeSocket(server);
 
 setIo(io);
 
+// Graceful shutdown function
+const gracefulShutdown = (signal) => {
+    console.log(`\n${signal} received. Starting graceful shutdown...`);
+    
+    // Dừng server
+    server.close(() => {
+        console.log('HTTP server closed');
+        process.exit(0);
+    });
+    
+    // Force exit sau 10 giây nếu không thể dừng gracefully
+    setTimeout(() => {
+        console.error('Could not close connections in time, forcefully shutting down');
+        process.exit(1);
+    }, 10000);
+};
+
+// Listen for shutdown signals
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
 // Connect to MongoDB
 const startServer = async () => {
   try {
@@ -29,6 +52,7 @@ const startServer = async () => {
     
     server.listen(PORT, () => {
       console.log(`API Gateway running at http://localhost:${PORT}`);
+      console.log('Cron jobs initialized successfully');
     });
   } catch (error) {
     console.error('Failed to start server:', error.message);
