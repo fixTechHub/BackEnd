@@ -75,10 +75,15 @@ const bookingSchema = new mongoose.Schema({
             type: Number,
             default: 1
         },
+        processedWarrantyExpiration: {
+            type: Boolean,
+            default: false
+        },
         quotedAt: {
             type: Date,
             default: Date.now
         },
+        note: String,
     },
     discountCode: String,
     discountValue: {

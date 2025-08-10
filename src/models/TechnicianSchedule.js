@@ -1,5 +1,4 @@
 const mongoose = require('mongoose');
-
 const technicianScheduleSchema = new mongoose.Schema({
     technicianId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -36,11 +35,9 @@ const technicianScheduleSchema = new mongoose.Schema({
 }, {
     timestamps: true
 });
-
 technicianScheduleSchema.index({ technicianId: 1 });
 technicianScheduleSchema.index({ scheduleType: 1 });
 technicianScheduleSchema.index({ technicianId: 1, startTime: 1 });
 technicianScheduleSchema.index({ technicianId: 1, scheduleType: 1 });
 technicianScheduleSchema.index({ technicianId: 1, startTime: 1, endTime: 1 });
-
 module.exports = mongoose.model('TechnicianSchedule', technicianScheduleSchema);

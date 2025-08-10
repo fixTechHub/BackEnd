@@ -25,7 +25,7 @@ const requestWarranty = async (bookingId, reportedIssue, images) => {
             throw new Error('ID đặt lịch không hợp lệ');
         }
         const booking = await Booking.findByIdAndUpdate(
-            existingWarranty.bookingId._id,
+            bookingId,
             {
                 $set: {
                     isChatAllowed: true,
@@ -268,7 +268,7 @@ const requestWarrantyDate = async (bookingWarrantyId, dateTime) => {
         const warranty = await BookingWarranty.findById(bookingWarrantyId)
             .populate({
                 path: 'technicianId',
-                populate: { path: 'userId' }
+    
             });
 
         if (!warranty) {
@@ -280,7 +280,7 @@ const requestWarrantyDate = async (bookingWarrantyId, dateTime) => {
 
         // Gửi thông báo cho thợ
         const notifyData = {
-            userId: warranty.technicianId.userId._id,
+            userId: warranty.technicianId.userId,
             title: 'Khách đề xuất lịch bảo hành',
             content: `Khách hàng đã đề xuất lịch hẹn cho đơn bảo hành.`,
             referenceId: warranty._id,
@@ -291,7 +291,8 @@ const requestWarrantyDate = async (bookingWarrantyId, dateTime) => {
         const notification = await notificationService.createNotification(notifyData, session);
         io.to(`user:${notifyData.userId}`).emit('receiveNotification', notification);
         const customerId = warranty.customerId.toString();
-        const technicianId = warranty.technicianId?.userId._id?.toString();
+        const technicianId = warranty.technicianId?.userId?.toString();
+        
         if (customerId) {
             io.to(`user:${customerId}`).emit('warrantyUpdated', {
                 bookingWarrantyId,
@@ -328,7 +329,11 @@ const confirmWarrantySchedule = async (bookingWarrantyId,startTime, expectedEndT
         const warranty = await BookingWarranty.findById(bookingWarrantyId)
             .populate({
                 path: 'customerId'
+            })
+            .populate({
+                path: 'technicianId'
             });
+
 
         if (!warranty) {
             throw new Error('Không tìm thấy yêu cầu bảo hành');
@@ -337,7 +342,9 @@ const confirmWarrantySchedule = async (bookingWarrantyId,startTime, expectedEndT
         await warranty.save({ session });
         const technicianSchedule = new TechnicianSchedule({
             technicianId: warranty.technicianId,
+            bookingWarrantyId: bookingWarrantyId,
             scheduleType: 'WARRANTY', // Set to 'WARRANTY' to indicate warranty schedule
+            scheduleStatus: 'AVAILABLE',
             startTime,
             endTime: expectedEndTime,
             note: `Lịch bảo hành cho yêu cầu ${warranty._id}`
@@ -355,7 +362,8 @@ const confirmWarrantySchedule = async (bookingWarrantyId,startTime, expectedEndT
         const notification = await notificationService.createNotification(notifyData, session);
         io.to(`user:${notifyData.userId}`).emit('receiveNotification', notification);
         const customerId = warranty.customerId._id.toString();
-        const technicianId = warranty.technicianId.toString();
+        
+        const technicianId = warranty.technicianId.userId.toString();
         if (customerId) {
             io.to(`user:${customerId}`).emit('warrantyUpdated', {
                 bookingWarrantyId,

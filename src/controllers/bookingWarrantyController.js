@@ -5,7 +5,6 @@ const requestBookingWarranty = async (req, res) => {
     try {
         const formData = req.body
         const images = req.s3FileUrls || [];
-        console.log('req.s3FileUrls:', req.s3FileUrls);
         const { bookingId, reportedIssue } = formData
         if (!reportedIssue || reportedIssue.trim() === '') {
             return res.status(400).json({ error: 'Vui lòng nhập lý do bảo hành' });
@@ -13,14 +12,19 @@ const requestBookingWarranty = async (req, res) => {
         if (!images || images.length === 0) {
             return res.status(400).json({ error: 'Vui lòng tải lên hình ảnh' });
         }
-        const bookingWarranty = await bookingWarrantyService.requestWarranty(bookingId, reportedIssue, images);
         const booking = await bookingService.getBookingById(bookingId)
+        const dateNow = new Date()
         if (!booking) {
             return res.status(404).json({ error: 'Không tìm thấy đặt lịch' });
         }
         if (booking.status !== 'DONE') {
             return res.status(400).json({ error: 'Ban chưa có quyền được phép yêu cầu bảo hành!' });
         }
+        if (booking.warrantyExpiresAt && dateNow > new Date(booking.warrantyExpiresAt)) {
+            return res.status(400).json({ error: 'Thời hạn bảo hành đã hết. Bạn không thể gửi yêu cầu bảo hành.' });
+        }
+        const bookingWarranty = await bookingWarrantyService.requestWarranty(bookingId, reportedIssue, images);
+    
 
         res.status(201).json(bookingWarranty)
     } catch (error) {

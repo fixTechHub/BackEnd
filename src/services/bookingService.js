@@ -10,6 +10,8 @@ const receiptService = require('../services/receiptService');
 const Technician = require('../models/Technician');
 const BookingTechnicianRequest = require('../models/BookingTechnicianRequest');
 const BookingTechnicianSearch = require('../models/BookingTechnicianSearch');
+const { getIo } = require('../sockets/socketManager');
+const CouponUsage = require('../models/CouponUsage');
 
 const MAX_TECHNICIANS = 10;
 const SEARCH_RADII = [5, 10, 15, 30];
@@ -162,7 +164,6 @@ const getBookingById = async (bookingId) => {
                 match: { isActive: true }
             })
             .populate('cancelledBy');
-
         if (!booking) {
             throw new Error('Không tìm thấy đặt lịch');
         }
@@ -923,7 +924,7 @@ const getUserBookingHistory = async (userId, role, limit, skip) => {
                 }
             })
             .populate('customerId', 'fullName')
-            .populate('serviceId', 'serviceName')
+            .populate('serviceId')
             .limit(Number(limit))
             .skip(Number(skip))
             .sort({ createdAt: -1 });
@@ -982,31 +983,17 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
             throw new Error('Không tìm thấy báo giá để cập nhật');
         }
         if (couponCode) {
+            
             update.discountCode = couponCode;
-            update.discountValue = discountValue;
+            update.discountValue = discountValue
             update.finalPrice = finalPrice;
-            // Find coupon document
-            const couponDoc = await couponService.getCouponByCouponCode(couponCode)
-            if (!couponDoc) {
-                throw new Error('Không tìm thấy mã giảm giá');
-            }
-            couponDoc.usedCount += 1;
-            await couponDoc.save({ session });
-            // Find userId from booking
-            const customerId = booking.customerId
-
-            if (!customerId) {
-                throw new Error('Không tìm thấy userId để lưu CouponUsage');
-            }
-            // Create CouponUsage if not already used
-            const existingUsage = await CouponUsage.findOne({ couponId: couponDoc._id, userId: customerId }).session(session);
-            if (!existingUsage) {
-                await CouponUsage.create([{ couponId: couponDoc._id, userId: customerId, bookingId: booking._id }], { session });
-            }
+            // console.log(update.finalPrice);
         } else {
             update.discountCode = null;
             update.discountValue = 0;
             update.finalPrice = finalPrice;
+            // console.log(update.finalPrice);
+            
             update.holdingAmount = finalPrice * 0.2;
         }
         const updatedBooking = await Booking.findByIdAndUpdate(
@@ -1014,7 +1001,7 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
             { $set: update },
             { new: true, session }
         )
-        const technician = await Technician.findById(updatedBooking.technicianId)
+        // const technician = await Technician.findById(updatedBooking.technicianId)
         if (!updatedBooking) {
             throw new Error('Không tìm thấy báo giá để cập nhật');
         }
@@ -1030,26 +1017,34 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
             updatedBooking.paymentStatus = 'PAID';
             updatedBooking.status = 'DONE';
             updatedBooking.isChatAllowed = false
+            updatedBooking.customerConfirmedDone = true
             updatedBooking.isVideoCallAllowed = false
             updatedBooking.completedAt = new Date();
             // Set warrantyExpiresAt based on warrantiesDuration (in days)
             updatedBooking.warrantyExpiresAt = new Date();
             updatedBooking.warrantyExpiresAt.setDate(
-                updatedBooking.warrantyExpiresAt.getDate() + updatedBooking.quote.warrantiesDuration
+                updatedBooking.warrantyExpiresAt.getDate() + updatedBooking.quote.warrantiesDuration*30
             );
             await updatedBooking.save({ session });
             const technician = await technicianService.getTechnicianById(updatedBooking.technicianId)
             technician.availability = 'FREE'
             await technician.save({ session })
-            // const technicianServiceModel = await TechnicianServiceModel.findOne({ serviceId: updatedBooking.serviceId })
-            // console.log(technicianServiceModel);
+           
+            const TechnicianService = require('../models/TechnicianService');
+            const technicianServiceModel = await TechnicianService.findOne({ 
+                serviceId: updatedBooking.serviceId,
+                technicianId: updatedBooking.technicianId
+              });
+            console.log(technicianServiceModel);
 
             const receiptData = {
                 bookingId: updatedBooking._id,
                 customerId: updatedBooking.customerId,
                 technicianId: updatedBooking.technicianId,
                 totalAmount: updatedBooking.finalPrice + updatedBooking.discountValue,
-                // serviceAmount: technicianServiceModel.price,
+                // serviceAmount: updatedBooking.quote.totalAmount,
+                serviceAmount: technicianServiceModel.price,
+
                 discountAmount: updatedBooking.discountValue,
                 paidAmount: updatedBooking.finalPrice,
                 paymentMethod: 'CASH',
@@ -1062,7 +1057,7 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
             // 2. Deduct commission from technician's balance
             await commissionService.deductCommission(
                 updatedBooking.technicianId,
-                updatedBooking.finalPrice,
+                updatedBooking.finalPrice+updatedBooking.discountValue,
                 session
             );
 

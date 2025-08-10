@@ -16,14 +16,24 @@ const deductCommission = async (technicianId, amount, session) => {
             throw new Error('Technician not found for commission deduction.');
         }
 
-        // Using a fixed 30% commission rate as per the example.
+        // Using a fixed 20% commission rate as per the example.
         // This could be made dynamic later by fetching from CommissionConfig.
         const commissionRate = 0.20;
         const commissionAmount = amount * commissionRate;
+        const earningAmount = amount - commissionAmount
 
-        technician.balance -= commissionAmount;
-        technician.totalEarning += amount*0.70
-        technician.totalHoldingAmount += amount*0.20
+        if (earningAmount > technician.balance) {
+            // If balance is insufficient, add the difference to debBalance
+            const shortfall = earningAmount - technician.balance;
+            technician.debBalance += shortfall;
+            technician.balance = 0; // Set balance to 0 since it's insufficient
+        } else {
+            // If balance is sufficient, deduct normally
+            technician.balance -= earningAmount;
+        }
+
+        technician.totalEarning += amount
+        technician.totalHoldingAmount += commissionAmount
         technician.jobCompleted += 1
         // Use the provided session if it exists, otherwise save directly.
         if (session) {
@@ -48,11 +58,27 @@ const creditCommission = async (technicianId, amount, session) => {
         // Using a fixed 70% commission rate as per the example.
         // This could be made dynamic later by fetching from CommissionConfig.
         const commissionRate = 0.80;
-        const commissionAmount = amount * commissionRate;
-
-        technician.balance += commissionAmount;
-        technician.totalEarning += commissionAmount
-        technician.totalHoldingAmount += amount*0.20
+        const earningAmount = amount * commissionRate;
+        const commissionAmount =amount - amount * commissionRate;
+ 
+        // Check if debBalance is greater than 0
+        if (technician.debBalance > 0) {
+            if (technician.debBalance >= earningAmount) {
+                // If debBalance is sufficient, reduce it by earningAmount
+                technician.debBalance -= earningAmount;
+            } else {
+                // If debBalance is less than earningAmount, reduce debBalance to 0
+                // and add the remaining amount to balance
+                const remainingAmount = earningAmount - technician.debBalance;
+                technician.debBalance = 0;
+                technician.balance += remainingAmount;
+            }
+        } else {
+            // If no debBalance, add earningAmount directly to balance
+            technician.balance += earningAmount;
+        }
+        technician.totalEarning += amount
+        technician.totalHoldingAmount += commissionAmount
         technician.jobCompleted += 1
         // Use the provided session if it exists, otherwise save directly.
         if (session) {

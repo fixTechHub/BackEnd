@@ -43,39 +43,58 @@ class BookingWarrantyCronService {
             // Find warranties that are expired but not yet processed
             const bookings = await Booking.find({
                 warrantyExpiresAt: { $lt: currentDate },
+                processedWarrantyExpiration: false
             }).populate('technicianId', 'customerId')
+            .limit(15);
 
             console.log(`Found ${bookings.length} expired warranties to process`);
-            
+
             for (const booking of bookings) {
                 try {
                     // Start a MongoDB session for transaction
                     const session = await mongoose.startSession();
                     await session.withTransaction(async () => {
                         // Update warranty status to DENIED or mark as processed
-                       
+
 
                         // Find the associated BookingPrice
-                       
+
 
                         // Calculate 20% of finalPrice
-                        const refundAmount = booking.finalPrice * 0.2;
+                        const refundAmount = (booking.finalPrice + booking.discountValue) * 0.2;
 
-
+                        const technician = await Technician.findById(booking.technicianId._id)
 
                         if (!technician) {
                             throw new Error('Technician not found');
                         }
 
                         // Update balance and totalEarning manually
-                        technician.balance = technician.balance + refundAmount;
+                        if (technician.debBalance > 0) {
+                            if (technician.debBalance >= refundAmount) {
+                                // If debBalance is sufficient, reduce it by refundAmount
+                                technician.debBalance -= refundAmount;
+                            } else {
+                                // If debBalance is less than refundAmount, reduce debBalance to 0
+                                // and add the remaining amount to balance
+                                const remainingAmount = refundAmount - technician.debBalance;
+                                technician.debBalance = 0;
+                                technician.balance += remainingAmount;
+                            }
+                        } else {
+                            // If no debBalance, add refundAmount directly to balance
+                            technician.balance += refundAmount;
+                        }
 
+                        technician.totalHoldingAmount -= refundAmount
                         // Save the updated document with session
                         await technician.save({ session });
                         console.log(`Technician ${booking.technicianId._id} balance updated with ${refundAmount}`);
 
                         // Send notification to technician
                         await this.sendWarrantyExpirationNotification(booking, refundAmount, session);
+                        booking.processedWarrantyExpiration = true;
+                        await booking.save({ session });
                         console.log(`Warranty ${booking._id} processed, technician notified`);
                     });
                     session.endSession();
@@ -91,7 +110,7 @@ class BookingWarrantyCronService {
             this.isRunning = false;
         }
     }
-    async checkExpireWarrantyRequest(){
+    async checkExpireWarrantyRequest() {
         if (this.isRunning) {
             console.log('Warranty expiration check already running, skipping...');
             return;
@@ -120,20 +139,20 @@ class BookingWarrantyCronService {
             if (!adminRole) {
                 throw new Error('Admin role not found');
             }
-            
+
             const admins = await User.find({ role: adminRole._id, status: 'ACTIVE' });
             for (const warranty of expiredWarranties) {
                 const session = await mongoose.startSession();
-                await session.withTransaction(async ()=> {
+                await session.withTransaction(async () => {
                     warranty.status = 'EXPIRED';
                     await warranty.save({ session });
                 })
-                const refundAmount = warranty.bookingId.finalPrice * 0.2;
+                const refundAmount = (warranty.bookingId.finalPrice + warranty.bookingId.discountValue) * 0.2;
                 const technician = await Technician.findById(warranty.technicianId._id).session(session);
-                technician.balance -= refundAmount
+                // technician.balance -= refundAmount
                 technician.totalHoldingAmount -= refundAmount
                 const techNotificationData = {
-                    userId: technician._id,
+                    userId: technician.userId,
                     title: 'Bảo hành hết hạn',
                     content: `Bạn đã không xử lý bảo hành đơn ${warranty.bookingId.bookingCode} nên sẽ bị xử phạt bằng việc trừ tiền trong tài khoản.`,
                     referenceId: warranty._id,

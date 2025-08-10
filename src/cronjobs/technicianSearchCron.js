@@ -7,40 +7,60 @@ const { getIo } = require('../sockets/socketManager');
 const MAX_TECHNICIANS = 10;
 const SEARCH_TIMEOUT_MINUTES = 60;
 
-cron.schedule('*/10 * * * * *', async () => {
-    // console.log('Technician Status CronJob Start');
-    
-    // Chạy mỗi 10 giây
-    const now = new Date();
-    // Lấy các booking đang tìm thợ, chưa đủ 10 thợ, chưa quá 60 phút
-    const searches = await BookingTechnicianSearch.find({
-        completed: false,
-        createdAt: { $gte: new Date(now.getTime() - SEARCH_TIMEOUT_MINUTES * 60 * 1000) }
-    });
+// Thêm timeout và error handling để tránh blocking
+const processTechnicianSearch = async () => {
+    try {
+        const now = new Date();
+        
+        // Lấy các booking đang tìm thợ, chưa đủ 10 thợ, chưa quá 60 phút
+        const searches = await BookingTechnicianSearch.find({
+            createdAt: { $gte: new Date(now.getTime() - SEARCH_TIMEOUT_MINUTES * 60 * 1000) }
+        }).limit(5); // Giới hạn số lượng để xử lý mỗi lần
 
-    for (const search of searches) {
-        const booking = await Booking.findById(search.bookingId);
-        if (!booking) continue;
-        if (search.foundTechnicianIds.length >= MAX_TECHNICIANS) {
-            search.completed = true;
-            await search.save();
-            continue;
+        if (searches.length === 0) {
+            return;
         }
 
-        const searchParams = {
-            latitude: booking.location.geojson.coordinates[1],
-            longitude: booking.location.geojson.coordinates[0],
-            serviceId: booking.serviceId,
-            // availability: 'FREE',
-            status: 'APPROVED',
-            minBalance: 200000
-        };
+        console.log(`[${new Date().toISOString()}] Processing ${searches.length} technician searches`);
 
-        // Gọi lại hàm tìm thợ và lưu trạng thái
-        await bookingService.findTechniciansWithExpandingRadiusAndSave(
-            searchParams,
-            booking._id,
-            getIo()
-        );
+        for (const search of searches) {
+            try {
+                const booking = await Booking.findById(search.bookingId);
+                if (!booking) continue;
+                
+                // Chỉ tiếp tục quét khi booking còn ở trạng thái chọn thợ
+                if (!['PENDING', 'AWAITING_CONFIRM'].includes(booking.status)) continue;
+
+                const searchParams = {
+                    latitude: booking.location.geojson.coordinates[1],
+                    longitude: booking.location.geojson.coordinates[0],
+                    serviceId: booking.serviceId,
+                    availability: ['FREE', 'ONJOB'],
+                    status: 'APPROVED',
+                    minBalance: 200000
+                };
+
+                // Gọi lại hàm tìm thợ và lưu trạng thái
+                await bookingService.findTechniciansWithExpandingRadiusAndSave(
+                    searchParams,
+                    booking._id,
+                    getIo()
+                );
+            } catch (error) {
+                console.error(`Error processing search ${search._id}:`, error.message);
+                // Tiếp tục xử lý các search khác thay vì dừng toàn bộ
+                continue;
+            }
+        }
+    } catch (error) {
+        console.error('Error in technician search cron:', error.message);
     }
+};
+
+// Giảm tần suất từ 10 giây xuống 30 giây để giảm tải
+cron.schedule('*/30 * * * * *', processTechnicianSearch, {
+    scheduled: true,
+    timezone: "Asia/Ho_Chi_Minh"
 });
+
+console.log('Technician search cron job started (runs every 30 seconds)');

@@ -25,6 +25,7 @@ const createNewTechnician = async (userId, technicianData, session = null) => {
     certificate: technicianData.certificate || [],
     frontIdImage: technicianData.frontIdImage || null,
     backIdImage: technicianData.backIdImage || null,
+    inspectionFee: technicianData.inspectionFee,  // phí kiểm tra
     certificateVerificationStatus: false,
     jobCompleted: 0,
     availability: 'FREE',
@@ -330,8 +331,8 @@ const confirmJobDoneByTechnician = async (bookingId, userId, role, io) => {
         $set: {
           status: 'AWAITING_DONE',
           technicianConfirmedDone: true,
-          // isChatAllowed: false,
-          // isVideoCallAllowed: false
+          isChatAllowed: false,
+          isVideoCallAllowed: false
         }
       },
       { session }
@@ -762,4 +763,3 @@ module.exports = {
 };
 
 // module.exports ={sendQuotation,};
-
