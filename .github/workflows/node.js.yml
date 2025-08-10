@@ -18,7 +18,7 @@ jobs:
     - uses: actions/checkout@v4
       with:
         clean: true
-        path: _work  
+        path: _work/BackEnd  # Checkout trực tiếp vào _work/BackEnd
 
     # BƯỚC GỠ LỖI ĐỂ KIỂM TRA CẤU TRÚC THƯ MỤC
     - name: Debug Workspace Structure
@@ -33,18 +33,22 @@ jobs:
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
-        cache-dependency-path: '_work/package-lock.json' 
+        cache-dependency-path: '_work/BackEnd/package-lock.json'
 
     - name: Install dependencies
       run: npm ci
-      working-directory: _work 
+      working-directory: _work/BackEnd 
 
     - name: Create .env file
       run: |
         touch .env
         echo "${{ secrets.ENV_FILE }}" > .env
-      working-directory: _work 
+      working-directory: _work/BackEnd 
 
     - name: Restart PM2 process
-      run: pm2 restart BackEndAPI
-      working-directory: _work 
+      run: |
+        # Xóa cấu hình PM2 cũ nếu tồn tại
+        pm2 delete BackEndAPI || true
+        # Khởi động lại với đường dẫn tương đối
+        pm2 start server.js --name BackEndAPI
+      working-directory: _work/BackEnd 
