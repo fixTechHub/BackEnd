@@ -19,6 +19,7 @@ app.use(
             'http://localhost:5174',
             'https://*.ngrok-free.app', // Allow all ngrok-free.app URLs
             'https://b8d9-2001-ee0-4b7b-3bd0-2d89-bdfa-7310-9e33.ngrok-free.app',
+            'https://fix-tech-six.vercel.app',
             'https://fixtech.id.vn',
             'https://fix-tech-git-bop-tris-projects-f8fdb778.vercel.app',
             'https://fix-tech-git-develop-tris-projects-f8fdb778.vercel.app'
