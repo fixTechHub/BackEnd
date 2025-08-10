@@ -8,6 +8,7 @@ const initializeSocket = (server) => {
     cors: {
       origin: [
         process.env.FRONT_END_URL, // http://localhost:5174
+        process.env.FRONT_END_ADMIN_URL
       ],
       methods: ["GET", "POST"],
       credentials: true

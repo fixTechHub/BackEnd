@@ -28,8 +28,8 @@ const createPayOsPayment = async (bookingId) => {
     
     const paymentData = {
       orderCode: orderCode,
-      // amount: booking.finalPrice,
-      amount: 3000,
+      amount: booking.finalPrice,
+      // amount: 3000,
       description: `Thanh toan don hang `,
       returnUrl: `${process.env.BACK_END_URL}/payments/success?orderCode=${orderCode}&bookingId=${bookingId}`,
       cancelUrl: `${process.env.BACK_END_URL}/payments/cancel?bookingId=${bookingId}`
@@ -60,13 +60,15 @@ const handleSuccessfulPayment = async (orderCode, bookingId) => {
     }
   
     booking.paymentStatus = 'PAID';
-    booking.status = 'DONE';
+    booking.status = 'DONE';  
     booking.isChatAllowed = false
     booking.isVideoCallAllowed = false
     booking.customerConfirmedDone = true
+    booking.technicianEarning = finalPrice+ discountValue
     booking.warrantyExpiresAt = new Date();
-    booking.warrantyExpiresAt.setDate(
-      booking.warrantyExpiresAt.getDate() + booking.quote.warrantiesDuration
+    const warrantyMonths = Number(booking.quote?.warrantiesDuration) || 0;
+    booking.warrantyExpiresAt.setMonth(
+      booking.warrantyExpiresAt.getMonth() + warrantyMonths
     );
  
     // Find coupon document

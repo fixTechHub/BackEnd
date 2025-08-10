@@ -994,7 +994,8 @@ const getAcceptedBooking = async (bookingId) => {
             .populate('serviceId')
             .populate('customerId')
             .lean();
-
+        console.log('Booking',booking);
+        
         if (!booking) {
             throw new Error('Không tìm thấy đơn hàng đã được xác nhận');
         }
@@ -1057,10 +1058,12 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
             updatedBooking.customerConfirmedDone = true
             updatedBooking.isVideoCallAllowed = false
             updatedBooking.completedAt = new Date();
-            // Set warrantyExpiresAt based on warrantiesDuration (in days)
+            updatedBooking.technicianEarning = finalPrice+ discountValue
+            // Set warrantyExpiresAt based on warrantiesDuration (in months)
             updatedBooking.warrantyExpiresAt = new Date();
-            updatedBooking.warrantyExpiresAt.setDate(
-                updatedBooking.warrantyExpiresAt.getDate() + updatedBooking.quote.warrantiesDuration*30
+            const warrantyMonths = Number(updatedBooking.quote?.warrantiesDuration) || 0;
+            updatedBooking.warrantyExpiresAt.setMonth(
+                updatedBooking.warrantyExpiresAt.getMonth() + warrantyMonths
             );
             await updatedBooking.save({ session });
             const technician = await technicianService.getTechnicianById(updatedBooking.technicianId)
