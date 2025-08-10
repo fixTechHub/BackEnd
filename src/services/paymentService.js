@@ -70,13 +70,13 @@ const handleSuccessfulPayment = async (orderCode, bookingId) => {
     );
  
     // Find coupon document
-    const couponDoc = await couponService.getCouponByCouponCode(booking.discountCode)
+    if(booking.discountCode) {
+      const couponDoc = await couponService.getCouponByCouponCode(booking.discountCode)
     if (!couponDoc) {
       throw new Error('Không tìm thấy mã giảm giá');
     }
     couponDoc.usedCount += 1;
     await couponDoc.save({ session });
-    // Find userId from booking
     const customerId = booking.customerId
 
     if (!customerId) {
@@ -87,6 +87,9 @@ const handleSuccessfulPayment = async (orderCode, bookingId) => {
     if (!existingUsage) {
       await CouponUsage.create([{ couponId: couponDoc._id, userId: booking.customerId, bookingId: booking._id }], { session });
     }
+    }
+    // Find userId from booking
+   
     const receiptTotalAmount = booking.finalPrice + booking.discountValue;
     console.log(booking.finalPrice);
     

@@ -1023,7 +1023,7 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
             // Set warrantyExpiresAt based on warrantiesDuration (in days)
             updatedBooking.warrantyExpiresAt = new Date();
             updatedBooking.warrantyExpiresAt.setDate(
-                updatedBooking.warrantyExpiresAt.getDate() + updatedBooking.quote.warrantiesDuration
+                updatedBooking.warrantyExpiresAt.getDate() + updatedBooking.quote.warrantiesDuration*30
             );
             await updatedBooking.save({ session });
             const technician = await technicianService.getTechnicianById(updatedBooking.technicianId)
