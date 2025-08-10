@@ -11,7 +11,6 @@ const notificationService = require('../services/notificationService');
 const TechnicianService = require('../models/TechnicianService');
 const TechnicianSchedule = require('../models/TechnicianSchedule');
 
-
 const createNewTechnician = async (userId, technicianData, session = null) => {
   const technician = new Technician({
     userId,
@@ -48,15 +47,17 @@ const findTechnicianByUserId = async (userId) => {
 };
 
 const findNearbyTechnicians = async (searchParams, radiusInKm) => {
-  const { latitude, longitude, serviceId, status, minBalance, scheduleDate } = searchParams;
+  const { latitude, longitude, serviceId, status, minBalance, scheduleDate, availability } = searchParams;
 
   const service = await Service.findById(serviceId).select('categoryId serviceName').lean();
+  // console.log('--- Service for technician search ---', service);
 
   if (!service) {
     console.log(`Không tìm thấy service nào với ID: ${serviceId}`);
     return null;
   }
   const categoryId = service.categoryId;
+  // console.log('--- Category ID for technician search ---', categoryId);
 
   const maxDistanceInMeters = radiusInKm * 1000;
 
@@ -66,12 +67,20 @@ const findNearbyTechnicians = async (searchParams, radiusInKm) => {
       status: status,
       balance: { $gte: minBalance },
     };
+    // Filter by availability if provided. Accepts a string or an array (handled as $in)
+    if (availability) {
+      if (Array.isArray(availability) && availability.length > 0) {
+        matchQuery.availability = { $in: availability };
+      } else if (typeof availability === 'string') {
+        matchQuery.availability = availability;
+      }
+    }
     if (categoryId) {
       matchQuery.specialtiesCategories = new mongoose.Types.ObjectId(categoryId);
     }
 
     // Sử dụng currentLocation và chỉ định index cụ thể
-    console.log('--- $geoNear input ---', { longitude, latitude, maxDistanceInMeters, matchQuery });
+    // console.log('--- $geoNear input ---', { longitude, latitude, maxDistanceInMeters, matchQuery });
     const technicians = await Technician.aggregate([
       {
         $geoNear: {
@@ -251,11 +260,11 @@ const findNearbyTechnicians = async (searchParams, radiusInKm) => {
       }
     ]);
     // Log toạ độ của từng technician
-    if (Array.isArray(technicians)) {
-      technicians.forEach(t => {
-        console.log('--- Technician location ---', t.currentLocation?.coordinates);
-      });
-    }
+    // if (Array.isArray(technicians)) {
+    //   technicians.forEach(t => {
+    //     console.log('--- Technician location ---', t.currentLocation?.coordinates);
+    //   });
+    // }
 
     const techniciansWithPricing = technicians.map(technician => {
       let servicePrice = null;

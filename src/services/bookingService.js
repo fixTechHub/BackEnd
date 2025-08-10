@@ -3,7 +3,6 @@ const Booking = require('../models/Booking');
 const technicianService = require('./technicianService');
 const BookingStatusLog = require('../models/BookingStatusLog');
 const notificationService = require('../services/notificationService')
-const couponService = require('../services/couponService')
 const paymentService = require('../services/paymentService')
 const commissionService = require('../services/commissionService')
 const receiptService = require('../services/receiptService');
@@ -11,13 +10,14 @@ const Technician = require('../models/Technician');
 const BookingTechnicianRequest = require('../models/BookingTechnicianRequest');
 const BookingTechnicianSearch = require('../models/BookingTechnicianSearch');
 const { getIo } = require('../sockets/socketManager');
-const CouponUsage = require('../models/CouponUsage');
+const technicianScheduleService = require('./technicianScheduleService');
 
 const MAX_TECHNICIANS = 10;
 const SEARCH_RADII = [5, 10, 15, 30];
 
 const findTechniciansWithExpandingRadiusAndSave = async (searchParams, bookingId, io) => {
-    let foundTechnicians = [];
+    // Tập hợp tất cả thợ tìm được trong đợt tìm kiếm hiện tại (để luôn cập nhật trạng thái mới nhất)
+    const currentFoundByUserId = new Map();
     let foundTechnicianIds = new Set();
 
     // Lấy trạng thái tìm kiếm hiện tại
@@ -30,24 +30,43 @@ const findTechniciansWithExpandingRadiusAndSave = async (searchParams, bookingId
 
     for (const radius of SEARCH_RADII) {
         const result = await technicianService.findNearbyTechnicians(searchParams, radius);
-        // console.log('--- TECHNICIAN FOUND ---', result);
-
-        if (result && result.data && result.data.length > 0) {
+        if (result && Array.isArray(result.data) && result.data.length > 0) {
             for (const tech of result.data) {
-                if (!foundTechnicianIds.has(String(tech.userId))) {
-                    foundTechnicians.push(tech);
-                    foundTechnicianIds.add(String(tech.userId));
+                if (!tech || !tech.userId) continue;
+                const userIdStr = String(tech.userId);
+                if (!currentFoundByUserId.has(userIdStr)) {
+                    currentFoundByUserId.set(userIdStr, tech);
                 }
             }
         }
-        if (foundTechnicians.length >= MAX_TECHNICIANS) break;
+        if (currentFoundByUserId.size >= MAX_TECHNICIANS) break;
     }
 
-    // Lưu lại trạng thái
-    searchState.foundTechnicianIds = Array.from(foundTechnicianIds);
+    const refreshedList = Array.from(currentFoundByUserId.values());
+    // Cắt giới hạn tối đa nếu cần
+    const limitedList = refreshedList.slice(0, MAX_TECHNICIANS);
+    searchState.foundTechniciansDetail = limitedList;
+    searchState.foundTechnicianIds = limitedList.map(t => t.userId);
     searchState.lastSearchAt = new Date();
-    if (foundTechnicians.length >= MAX_TECHNICIANS) searchState.completed = true;
+    if (searchState.foundTechniciansDetail.length >= MAX_TECHNICIANS) searchState.completed = true;
     await searchState.save();
+
+    // Emit socket cập nhật danh sách thợ cho khách hàng (màn hình chọn thợ)
+    if (io) {
+        try {
+            const booking = await Booking.findById(bookingId).select('customerId');
+            if (booking && booking.customerId) {
+                io.to(`user:${booking.customerId.toString()}`).emit('booking:techniciansFoundUpdated', {
+                    bookingId: bookingId.toString(),
+                    technicians: searchState.foundTechniciansDetail,
+                    total: searchState.foundTechniciansDetail.length,
+                    updatedAt: new Date()
+                });
+            }
+        } catch (emitError) {
+            console.error('Lỗi emit booking:techniciansFoundUpdated:', emitError?.message || emitError);
+        }
+    }
 
     // // Gửi thông báo cho các thợ mới tìm được
     // if (io && bookingId && foundTechnicians.length > 0) {
@@ -68,9 +87,9 @@ const findTechniciansWithExpandingRadiusAndSave = async (searchParams, bookingId
     // }
 
     return {
-        data: foundTechnicians,
-        total: foundTechnicians.length,
-        message: foundTechnicians.length < MAX_TECHNICIANS
+        data: searchState.foundTechniciansDetail,
+        total: searchState.foundTechniciansDetail.length,
+        message: searchState.foundTechniciansDetail.length < MAX_TECHNICIANS
             ? 'Đã tìm được một số thợ, hệ thống sẽ tiếp tục tìm thêm nếu cần.'
             : 'Đã tìm đủ thợ phù hợp.'
     };
@@ -101,9 +120,9 @@ const createRequestAndNotify = async (bookingData, io) => {
             latitude: location.geojson.coordinates[1],
             longitude: location.geojson.coordinates[0],
             serviceId: serviceId,
-            // availability: 'FREE',
+            availability: ['FREE', 'ONJOB'],
             status: 'APPROVED',
-            minBalance: 200000
+            minBalance: 0
         };
 
         // Tìm thợ lần đầu và lưu trạng thái
@@ -245,6 +264,15 @@ const cancelBooking = async (bookingId, userId, role, reason, io) => {
                 { $set: { availability: 'FREE' } },
                 { session }
             );
+        }
+
+        // Xóa TechnicianSchedule nếu có
+        try {
+            await technicianScheduleService.deleteScheduleByBookingId(bookingId, session);
+            console.log('Đã xóa TechnicianSchedule cho booking bị hủy:', bookingId);
+        } catch (scheduleError) {
+            console.error('Lỗi khi xóa TechnicianSchedule:', scheduleError);
+            // Không throw error vì đây không phải lỗi nghiêm trọng
         }
 
         io.to(`user:${booking.customerId}`).emit('booking:statusUpdate', {
@@ -420,6 +448,15 @@ const confirmJobDone = async (bookingId, userId, role) => {
                 },
                 { session }
             );
+        }
+
+        // Xóa TechnicianSchedule nếu có
+        try {
+            await technicianScheduleService.deleteScheduleByBookingId(bookingId, session);
+            console.log('Đã xóa TechnicianSchedule cho booking hoàn thành:', bookingId);
+        } catch (scheduleError) {
+            console.error('Lỗi khi xóa TechnicianSchedule:', scheduleError);
+            // Không throw error vì đây không phải lỗi nghiêm trọng
         }
 
         // Lưu log trạng thái
@@ -1060,7 +1097,6 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
                 updatedBooking.finalPrice+updatedBooking.discountValue,
                 session
             );
-
         }
 
         await session.commitTransaction();
@@ -1219,7 +1255,18 @@ const technicianAcceptBooking = async (bookingId, technicianId, io) => {
 
             await booking.save({ session });
 
-            // 5. Cập nhật request chỉ khi thợ này thực sự nhận được booking
+            // 5. Tạo TechnicianSchedule nếu booking là scheduled type
+            if (booking.isUrgent === false && booking.schedule && booking.schedule.startTime && booking.schedule.expectedEndTime) {
+                try {
+                    await technicianScheduleService.createScheduleForBooking(booking, session);
+                    console.log('Đã tạo TechnicianSchedule cho booking scheduled:', booking._id);
+                } catch (scheduleError) {
+                    console.error('Lỗi khi tạo TechnicianSchedule:', scheduleError);
+                    // Không throw error vì đây không phải lỗi nghiêm trọng
+                }
+            }
+
+            // 6. Cập nhật request chỉ khi thợ này thực sự nhận được booking
             console.log('Cập nhật request: set status ACCEPTED');
             const requestUpdateResult = await BookingTechnicianRequest.findOneAndUpdate(
                 {
@@ -1244,7 +1291,7 @@ const technicianAcceptBooking = async (bookingId, technicianId, io) => {
             technician.availability = 'ONJOB';
             await technician.save({ session });
 
-            // 6. Hủy các request khác (chỉ những request còn hiệu lực)
+            // 7. Hủy các request khác (chỉ những request còn hiệu lực)
             console.log('Hủy các request khác (set status REJECTED)');
             const rejectResult = await BookingTechnicianRequest.updateMany(
                 {
@@ -1260,7 +1307,7 @@ const technicianAcceptBooking = async (bookingId, technicianId, io) => {
             );
             console.log(`Đã hủy ${rejectResult.modifiedCount} request khác`);
 
-            // 7. Thông báo cho khách hàng
+            // 8. Thông báo cho khách hàng
             const notifData = {
                 userId: booking?.customerId,
                 title: 'Thợ đã nhận đơn của bạn',
