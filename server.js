@@ -51,7 +51,7 @@ const startServer = async () => {
     startRequestExpirationCron();
     
     server.listen(PORT, () => {
-      console.log(`API Gateway running at http://localhost:${PORT}`);
+      console.log(`API 2 Gateway running at http://localhost:${PORT}`);
       console.log('Cron jobs initialized successfully');
     });
   } catch (error) {
