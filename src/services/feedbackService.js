@@ -2,6 +2,7 @@ const Feedback = require('../models/Feedback');
 const Booking = require('../models/Booking');
 const Technician = require('../models/Technician');
 const mongoose = require('mongoose');
+const { log } = require('node:console');
 
 const submitFeedback = async ({ bookingId, fromUserId, rating, content, images }) => {
     const booking = await Booking.findById(bookingId);
@@ -44,10 +45,10 @@ const submitFeedback = async ({ bookingId, fromUserId, rating, content, images }
 };
 
 const editFeedback = async ({ feedbackId, fromUserId, rating, content, images }) => {
-    console.log("id"+ feedbackId);
-    
+    console.log("id" + feedbackId);
+
     const feedback = await Feedback.findById(feedbackId);
-    console.log("f" ,feedback);
+    console.log("f", feedback);
 
     if (!feedback) throw new Error('Feedback not found');
     if (!feedback.fromUser || !feedback.fromUser.equals(fromUserId)) {
@@ -60,23 +61,47 @@ const editFeedback = async ({ feedbackId, fromUserId, rating, content, images })
     return await feedback.save();
 };
 
-const replyToFeedback = async ({ feedbackId, technicianId, replyText }) => {
-    const feedback = await Feedback.findById(feedbackId);
-    if (!feedback) throw new Error('Feedback not found');
-    // if (!feedback.toUser.equals(technicianId)) {
-    //     throw new Error('You are not authorized to reply to this feedback');
-    // }
-    // if (feedback.reply && feedback.reply.content) {
-    //     throw new Error('This feedback has already been replied');
-    // }
+const httpError = (status, message) => {
+    const e = new Error(message);
+    e.status = status;
+    return e;
+};
 
-    feedback.reply = {
-        content: replyText,
-        createdAt: new Date(),
-        updatedAt: new Date()
-    };
+const replyToFeedback = async ({ feedbackId, userId, replyText }) => {
+  if (!mongoose.Types.ObjectId.isValid(feedbackId)) {
+    throw new Error('feedbackId không hợp lệ');
+  }
 
-    return await feedback.save();
+  const fb = await Feedback.findById(feedbackId);
+  if (!fb) throw new Error('Feedback not found');
+
+  const tech = await Technician.findOne({ userId: userId }).select('_id').lean();
+  console.log(tech);
+  
+   // 👇 DEBUG log trước khi so sánh
+  console.log('[reply] tokenUserId   =', String(userId));
+//   console.log('[reply] technicianId  =', String(tech._id));
+  console.log('[reply] feedback.toUser=', String(fb.toUser));
+
+  // Map userId -> technicianId
+  
+  if (!tech) throw new Error('Không tìm thấy technician cho user hiện tại');
+
+
+  // ✅ So sánh technicianId với fb.toUser (vì fb.toUser đang là technicianId)
+  if (String(fb.toUser) !== String(tech._id)) {
+    throw new Error('Bạn không có quyền trả lời feedback này');
+  }
+
+  const now = new Date();
+  fb.reply = {
+    content: String(replyText || '').trim(),
+    createdAt: fb.reply?.createdAt || now,
+    updatedAt: now
+  };
+
+  await fb.save();
+  return fb;
 };
 
 const moderateFeedback = async ({ feedbackId, isVisible, reason }) => {
@@ -102,42 +127,205 @@ const getFeedbackList = async (filter = {}) => {
         .populate('bookingId', 'serviceId address appointmentTime');
 };
 
-const getFeedbackListAdmin = async (filter = {}) => {
-  const query = {};
-
-  // ✅ Validate ObjectId trước khi thêm vào query
-  if (filter.toUser && mongoose.Types.ObjectId.isValid(filter.toUser)) {
-    query.toUser = filter.toUser;
+const findByTechnician = async ({
+  technicianId,
+  page = 1,
+  limit = 10,
+  rating,               // 1..5 (optional)
+  sort = 'recent',      // 'recent' | 'rating_desc' | 'rating_asc'
+  from,                 // 'YYYY-MM-DD' (optional)
+  to,                   // 'YYYY-MM-DD' (optional)
+  visible = true,       // default: chỉ lấy feedback hiển thị
+}) => {
+  if (!mongoose.Types.ObjectId.isValid(technicianId)) {
+    throw new Error('technicianId không hợp lệ');
   }
 
-  if (filter.fromUser && mongoose.Types.ObjectId.isValid(filter.fromUser)) {
-    query.fromUser = filter.fromUser;
+  const filter = {
+    toUser: technicianId,               // ⚠️ fb.toUser = technicianId
+    ...(typeof visible === 'boolean' ? { isVisible: visible } : {}),
+    ...(rating ? { rating: Number(rating) } : {}),
+  };
+
+  if (from || to) {
+    filter.createdAt = {};
+    if (from) filter.createdAt.$gte = new Date(from);
+    if (to)   filter.createdAt.$lte = new Date(to);
   }
 
-  // ✅ Lọc feedback ẩn/hiện
-  if (typeof filter.isVisible === 'boolean') {
-    query.isVisible = filter.isVisible;
-  }
+  const sortObj =
+    sort === 'rating_desc' ? { rating: -1, createdAt: -1 } :
+    sort === 'rating_asc'  ? { rating:  1, createdAt: -1 } :
+                             { createdAt: -1 };
 
-  // ✅ Lọc theo khoảng rating
-  if (filter.rating) {
-    const { min, max } = filter.rating;
-    query.rating = {};
+  const skip = (page - 1) * limit;
 
-    if (typeof min === 'number') query.rating.$gte = min;
-    if (typeof max === 'number') query.rating.$lte = max;
+  const [items, total] = await Promise.all([
+    Feedback.find(filter)
+      .populate('fromUser', 'fullName email avatar')
+      .sort(sortObj)
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    Feedback.countDocuments(filter),
+  ]);
 
-    // Nếu không có giá trị hợp lệ thì bỏ field rating để tránh query rỗng
-    if (Object.keys(query.rating).length === 0) delete query.rating;
-  }
-
-  // ✅ Query feedback
-  return await Feedback.find(query)
-    .sort({ createdAt: -1 }) // feedback mới nhất trước
-    .populate('fromUser', 'fullName') // chỉ lấy tên người gửi
-    .populate('toUser', 'fullName')   // chỉ lấy tên người nhận
-    .populate('bookingId', 'serviceId address appointmentTime'); // lấy thông tin cơ bản của booking
+  return {
+    items,
+    page,
+    limit,
+    total,
+    totalPages: Math.ceil(total / limit),
+  };
 };
 
 
-module.exports = { submitFeedback, editFeedback, replyToFeedback, moderateFeedback, getFeedbackList, getFeedbackListAdmin };
+const getFeedbackListAdmin = async (filter = {}) => {
+    const query = {};
+
+    // ✅ Validate ObjectId trước khi thêm vào query
+    if (filter.toUser && mongoose.Types.ObjectId.isValid(filter.toUser)) {
+        query.toUser = filter.toUser;
+    }
+
+    if (filter.fromUser && mongoose.Types.ObjectId.isValid(filter.fromUser)) {
+        query.fromUser = filter.fromUser;
+    }
+
+    // ✅ Lọc feedback ẩn/hiện
+    if (typeof filter.isVisible === 'boolean') {
+        query.isVisible = filter.isVisible;
+    }
+
+    // ✅ Lọc theo khoảng rating
+    if (filter.rating) {
+        const { min, max } = filter.rating;
+        query.rating = {};
+
+        if (typeof min === 'number') query.rating.$gte = min;
+        if (typeof max === 'number') query.rating.$lte = max;
+
+        // Nếu không có giá trị hợp lệ thì bỏ field rating để tránh query rỗng
+        if (Object.keys(query.rating).length === 0) delete query.rating;
+    }
+
+    // ✅ Query feedback
+    return await Feedback.find(query)
+        .sort({ createdAt: -1 }) // feedback mới nhất trước
+        .populate('fromUser', 'fullName') // chỉ lấy tên người gửi
+        .populate('toUser', 'fullName')   // chỉ lấy tên người nhận
+        .populate('bookingId', 'serviceId address appointmentTime'); // lấy thông tin cơ bản của booking
+};
+
+// Helper: parse bool từ query (?visible=true/false)
+function parseBoolean(val, def) {
+    if (val === undefined) return def;
+    if (val === 'true' || val === true) return true;
+    if (val === 'false' || val === false) return false;
+    return def;
+}
+
+// Helper: build sort
+function buildSort(sortKey) {
+    if (sortKey === 'rating_desc') return { rating: -1, createdAt: -1 };
+    if (sortKey === 'rating_asc') return { rating: 1, createdAt: -1 };
+    return { createdAt: -1 }; // recent
+}
+
+// Lấy userId từ technicianId (vì Feedback.toUser là userId)
+async function getTechnicianUserId(technicianId) {
+    if (!mongoose.isValidObjectId(technicianId)) {
+        const err = new Error('technicianId không hợp lệ');
+        err.status = 400;
+        throw err;
+    }
+    const tech = await Technician.findById(technicianId).select('user').lean();
+    if (!tech) {
+        const err = new Error('Không tìm thấy technician');
+        err.status = 404;
+        throw err;
+    }
+    return tech.user;
+}
+
+// List feedbacks theo technicianId (map sang userId)
+async function listFeedbacksByTechnician(technicianId, query = {}) {
+    const userId = await getTechnicianUserId(technicianId);
+
+    const page = Math.max(parseInt(query.page || '1', 10), 1);
+    const limit = Math.min(Math.max(parseInt(query.limit || '10', 10), 1), 100);
+    const rating = query.rating ? parseInt(query.rating, 10) : undefined;
+    const visible = parseBoolean(query.visible, true);
+    const sort = buildSort(query.sort);
+
+    const filter = {
+        toUser: userId,
+        ...(visible !== undefined ? { isVisible: visible } : {}),
+        ...(rating ? { rating } : {}),
+    };
+
+    // Khoảng thời gian (optional): ?from=2024-01-01&to=2024-12-31
+    if (query.from || query.to) {
+        filter.createdAt = {};
+        if (query.from) filter.createdAt.$gte = new Date(query.from);
+        if (query.to) filter.createdAt.$lte = new Date(query.to);
+    }
+
+    const [items, total] = await Promise.all([
+        Feedback.find(filter)
+            .sort(sort)
+            .skip((page - 1) * limit)
+            .limit(limit)
+            .populate({ path: 'fromUser', select: 'name avatar _id' })
+            .populate({ path: 'bookingId', select: 'bookingCode serviceName schedule _id' })
+            .lean(),
+        Feedback.countDocuments(filter),
+    ]);
+
+    return {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        items,
+    };
+}
+
+// Stats: average + distribution theo technicianId
+async function getFeedbackStatsByTechnician(technicianId) {
+    const userId = await getTechnicianUserId(technicianId);
+
+    const match = { toUser: new mongoose.Types.ObjectId(userId), isVisible: true };
+
+    const agg = await Feedback.aggregate([
+        { $match: match },
+        { $group: { _id: '$rating', count: { $sum: 1 } } },
+        { $sort: { _id: 1 } },
+    ]);
+
+    const total = agg.reduce((s, x) => s + x.count, 0);
+    const sum = agg.reduce((s, x) => s + x._id * x.count, 0);
+    const average = total ? sum / total : 0;
+
+    const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    agg.forEach(x => { distribution[x._id] = x.count; });
+
+    return {
+        averageRating: Number(average.toFixed(2)),
+        total,
+        distribution,
+    };
+}
+
+module.exports = {
+    submitFeedback,
+    editFeedback,
+    replyToFeedback,
+    moderateFeedback,
+    getFeedbackList,
+    getFeedbackListAdmin,
+    findByTechnician,
+    listFeedbacksByTechnician,
+    getFeedbackStatsByTechnician,
+    getTechnicianUserId,
+};

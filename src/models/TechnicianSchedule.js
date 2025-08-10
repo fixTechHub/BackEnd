@@ -6,14 +6,22 @@ const technicianScheduleSchema = new mongoose.Schema({
         ref: 'Technician',
         required: true
     },
-    scheduleType: {
+    bookingId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Booking'
+    },
+    bookingWarrantyId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'BookingWarranty'
+    },
+    scheduleStatus: {
         type: String,
         enum: ['AVAILABLE', 'UNAVAILABLE'],
         required: true
     },
     scheduleType: {
         type: String,
-        enum: ['BOOKING','WARRANTY'],
+        enum: ['BOOKING', 'WARRANTY'],
         default: 'BOOKING'
     },
     startTime: {
