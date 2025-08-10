@@ -3,6 +3,7 @@ const User = require('../models/User');
 const Technician = require('../models/Technician');
 const Certificate = require('../models/Certificate');
 const { deleteFileFromS3, uploadFileToS3 } = require('../services/s3Service');
+const TechnicianService = require('../models/TechnicianService');
 const contractService = require('../services/contractService')
 const notificationService = require('../services/notificationService')
 const { getIo } = require('../sockets/socketManager')
@@ -299,8 +300,8 @@ const completeTechnicianProfile = async (req, res) => {
     const backArr = fileObj.backIdImage || [];
     const certArr = fileObj.certificates || [];
 
-    if (frontArr.length === 0 || backArr.length === 0 || certArr.length === 0) {
-      throw new Error('Thiếu file bắt buộc (CCCD hoặc chứng chỉ)');
+    if (frontArr.length === 0 || backArr.length === 0) {
+      throw new Error('Thiếu ảnh CCCD bắt buộc');
     }
 
     // Upload lần lượt
@@ -318,10 +319,26 @@ const completeTechnicianProfile = async (req, res) => {
       backIdImage: backUrl,
       certificate: certUrls,
       specialtiesCategories: req.body.specialtiesCategories ? JSON.parse(req.body.specialtiesCategories) : [],
-      bankAccount: req.body.bankAccount ? JSON.parse(req.body.bankAccount) : undefined
+      bankAccount: req.body.bankAccount ? JSON.parse(req.body.bankAccount) : undefined,
+      inspectionFee: Number(req.body.inspectionFee)
     };
 
     const technician = await technicianService.createNewTechnician(userId, technicianBody, session);
+
+    // Lưu giá dịch vụ & thời gian bảo hành (TechnicianService)
+    if (req.body.serviceDetails) {
+      const parsedDetails = typeof req.body.serviceDetails === 'string' ? JSON.parse(req.body.serviceDetails) : req.body.serviceDetails;
+      const serviceDocs = Object.entries(parsedDetails).map(([serviceId, detail]) => ({
+        technicianId: technician._id,
+        serviceId,
+        price: Number(detail.price) || 0,
+        warrantyDuration: Number(detail.warranty) || 0,
+        isActive: true,
+      }));
+      if (serviceDocs.length) {
+        await TechnicianService.insertMany(serviceDocs, { session });
+      }
+    }
 
     // Update user status
     user.status = 'ACTIVE';

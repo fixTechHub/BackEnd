@@ -427,18 +427,14 @@ exports.completeRegistration = async (req, res) => {
         const { role, specialties, experienceYears, identification } = req.body;
         const userId = req.user.userId;
 
-        // Tìm role trong database
-        const roleDoc = await userService.findRoleByName(role);
-        if (!roleDoc) {
-            return res.status(400).json({ message: 'Role không hợp lệ' });
-        }
 
         // Find and update user
-        const user = await User.findById(userId);
+        let user = await User.findById(userId).populate('role');
         if (!user) {
             return res.status(404).json({ message: "Không tìm thấy người dùng" });
         }
-        if (user.role.name !== 'PENDING') {
+        // Kiểm tra nếu vai trò hiện tại không phải PENDING thì không được phép đổi
+        if (user.role && user.role.name !== 'PENDING') {
             return res.status(400).json({ message: "Vai trò đã được chọn" });
         }
 
@@ -504,6 +500,9 @@ exports.verifyEmail = async (req, res) => {
         }
 
         user.emailVerified = true;
+
+        // Lấy thông tin role để đảm bảo có name
+        await user.populate('role');
 
         // Nếu role là CUSTOMER, sau khi xác thực email thì kích hoạt tài khoản
         if (user.role && user.role.name === 'CUSTOMER') {
