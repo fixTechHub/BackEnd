@@ -320,7 +320,8 @@ const completeTechnicianProfile = async (req, res) => {
       certificate: certUrls,
       specialtiesCategories: req.body.specialtiesCategories ? JSON.parse(req.body.specialtiesCategories) : [],
       bankAccount: req.body.bankAccount ? JSON.parse(req.body.bankAccount) : undefined,
-      inspectionFee: Number(req.body.inspectionFee)
+      // The front-end may omit inspectionFee; default to 0 in that case.
+      inspectionFee: req.body.inspectionFee !== undefined ? Number(req.body.inspectionFee) : 0
     };
 
     const technician = await technicianService.createNewTechnician(userId, technicianBody, session);

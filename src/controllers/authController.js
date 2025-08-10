@@ -308,12 +308,14 @@ const checkVerificationStatus = async (user) => {
 
             // Kiểm tra các trường bắt buộc
             const hasSpecialties = Array.isArray(technician.specialtiesCategories) && technician.specialtiesCategories.length > 0;
-            const hasCertificates = Array.isArray(technician.certificate) && technician.certificate.length > 0;
+            // Certificates are optional; remove from mandatory checks.
+            const hasCertificates = true;
+
             const hasIdentification = technician.identification && technician.identification.trim() !== '';
             const hasFrontIdImage = technician.frontIdImage && technician.frontIdImage.trim() !== '';
             const hasBackIdImage = technician.backIdImage && technician.backIdImage.trim() !== '';
 
-            if (!hasSpecialties || !hasCertificates || !hasIdentification || !hasFrontIdImage || !hasBackIdImage) {
+            if (!hasSpecialties || !hasIdentification || !hasFrontIdImage || !hasBackIdImage) {
                 return {
                     step: 'COMPLETE_PROFILE',
                     redirectTo: '/technician/complete-profile',

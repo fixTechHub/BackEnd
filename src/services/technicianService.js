@@ -25,7 +25,7 @@ const createNewTechnician = async (userId, technicianData, session = null) => {
     certificate: technicianData.certificate || [],
     frontIdImage: technicianData.frontIdImage || null,
     backIdImage: technicianData.backIdImage || null,
-    inspectionFee: technicianData.inspectionFee,  // phí kiểm tra
+    inspectionFee: technicianData.inspectionFee || 0,  // phí kiểm tra (default 0)
     certificateVerificationStatus: false,
     jobCompleted: 0,
     availability: 'FREE',
