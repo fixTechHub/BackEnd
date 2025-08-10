@@ -994,7 +994,6 @@ const getAcceptedBooking = async (bookingId) => {
             .populate('serviceId')
             .populate('customerId')
             .lean();
-        console.log('Booking',booking);
         
         if (!booking) {
             throw new Error('Không tìm thấy đơn hàng đã được xác nhận');
