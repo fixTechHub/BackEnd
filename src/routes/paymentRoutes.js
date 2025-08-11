@@ -20,7 +20,9 @@ router.get('/subscription/cancel', paymentController.handleSubscriptionPayOsCanc
 
 router.post('/subscription/extend', paymentController.extendSubscription);
 
-router.get('/subscription/extend/success', paymentController.handleExtendPayOsSuccess);
+router.get('/subscription/extend/success', paymentController.handleExtendPayOsSuccess); 
+
+router.get('/subscription/extend/cancel', paymentController.handleSubscriptionExtendCancel);
 
 router.post('/deposit',authenticateToken,paymentController.depositBalance)
 

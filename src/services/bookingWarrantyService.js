@@ -393,5 +393,15 @@ module.exports = {
     getWarrantyById,
     updateWarrantyById,
     requestWarrantyDate,
-    confirmWarrantySchedule
+    confirmWarrantySchedule,
+    getWarrantiesOfUser
 };
+
+// ===== New function =====
+async function getWarrantiesOfUser(userId){
+  return BookingWarranty.find({ customerId: userId })
+    .populate('bookingId')
+    .populate('customerId')
+    .populate('technicianId.userId')
+    .sort({ createdAt: -1 });
+}
