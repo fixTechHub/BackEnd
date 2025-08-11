@@ -461,7 +461,7 @@ const getListBookingForTechnician = async (technicianId) => {
       path: 'serviceId',
       select: 'serviceName'
     });
-  console.log("bookings", bookings);
+  // console.log("bookings", bookings);
 
 
   // format dữ liệu trả về
@@ -519,12 +519,29 @@ const getEarningsAndCommissionList = async (technicianId) => {
       customerName: quote.customerId?.fullName || 'N/A',
       service: quote.serviceId?.serviceName || 'N/A',
     },
-    finalPrice: quote.quote?.finalPrice || 0,
-    commissionAmount: quote.quote?.commissionAmount || 0,
-    holdingAmount: quote.quote?.holdingAmount || 0,
-    technicianEarning: quote.quote?.technicianEarning || 0,
+    finalPrice: quote?.finalPrice || 0,
+    holdingAmount: quote?.holdingAmount || 0,
+    technicianEarning: quote?.technicianEarning || 0,
   }));
   return earningList;
+
+//   const earningList = quotes.map(item => ({
+//   bookingCode: item.bookingCode,
+//   bookingInfo: {
+//     customerName: item.customerId?.fullName ?? 'N/A',
+//     service: item.serviceId?.serviceName ?? 'N/A',
+//   },
+//   // finalPrice có thể nằm ở root hoặc trong item.quote
+//   finalPrice: item.finalPrice ?? item.quote?.totalAmount ?? item.quote?.laborPrice ?? 0,
+
+//   // holdingAmount có thể nằm ở root hoặc trong item.quote
+//   holdingAmount: item.holdingAmount ?? item.quote?.holdingAmount ?? 0,
+
+//   // technicianEarning có thể nằm ở root hoặc trong item.quote
+//   technicianEarning: finalPrice - holdingAmount,
+// }));
+
+return earningList;
 };
 
 const getAvailability = async (technicianId) => {

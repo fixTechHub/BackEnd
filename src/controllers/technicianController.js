@@ -149,8 +149,9 @@ const viewTechnicianBookings = async (req, res, next) => {
 
 const viewEarningsByBooking = async (req, res) => {
   try {
-    const { technicianId } = req.auth || {};
-
+    const { technicianId } = req.params || {};
+    console.log('id cua technician',technicianId);
+    
     const earningList = await technicianService.getEarningsAndCommissionList(technicianId);
 
     res.json({
