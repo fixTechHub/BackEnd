@@ -5,7 +5,8 @@ const Certificate = require('../models/Certificate');
 const { deleteFileFromS3, uploadFileToS3 } = require('../services/s3Service');
 const TechnicianService = require('../models/TechnicianService');
 const contractService = require('../services/contractService')
-const notificationService = require('../services/notificationService')
+const notificationService = require('../services/notificationService');
+const { getIo } = require('../sockets/socketManager');
 // const sendQuotation = async (req, res) => {
 //   try {
 //     const userId = req.user.userId;
