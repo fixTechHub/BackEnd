@@ -10,7 +10,9 @@ const initializeSocket = (server) => {
         process.env.FRONT_END_URL,
         'https://fix-tech-six.vercel.app',
         'https://fix-tech-git-develop-tris-projects-f8fdb778.vercel.app',
-        'http://localhost:5174'
+        'http://localhost:5174',
+        'https://fixtech.id.vn', // Domain chính của bạn
+        'https://www.fixtech.id.vn' // Cả www và non-www
       ],
       methods: ["GET", "POST"],
       credentials: true,
