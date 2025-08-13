@@ -7,7 +7,9 @@ const initializeSocket = (server) => {
   const io = new Server(server, {
     cors: {
       origin: [
-        process.env.FRONT_END_URL, // http://localhost:5174
+        process.env.FRONT_END_URL,
+        'http://localhost:5174',
+        'https://fix-tech-git-develop-tris-projects-f8fdb778.vercel.app'
       ],
       methods: ["GET", "POST"],
       credentials: true

@@ -5,6 +5,7 @@ const app = express();
 const cookieParser = require("cookie-parser");
 const routes = require('./routes')
 const actionLogger = require('./middlewares/actionLogger');
+const redisService = require('./services/redisService');
 
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -32,6 +33,19 @@ app.use(
 );
 
 // app.use(actionLogger);
+
+// Khởi tạo Redis service
+const initializeRedis = async () => {
+    try {
+        await redisService.connect();
+        console.log('Redis service đã được khởi tạo');
+    } catch (error) {
+        console.log('Không thể khởi tạo Redis, sử dụng fallback mode:', error.message);
+    }
+};
+
+// Khởi tạo Redis khi app start
+initializeRedis();
 
 // Routes (Định tuyến)
 app.use('/api', routes);

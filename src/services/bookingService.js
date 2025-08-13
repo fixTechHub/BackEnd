@@ -11,6 +11,7 @@ const BookingTechnicianRequest = require('../models/BookingTechnicianRequest');
 const BookingTechnicianSearch = require('../models/BookingTechnicianSearch');
 const { getIo } = require('../sockets/socketManager');
 const technicianScheduleService = require('./technicianScheduleService');
+const redisService = require('./redisService');
 
 const MAX_TECHNICIANS = 10;
 const SEARCH_RADII = [5, 10, 15, 30];
@@ -144,6 +145,30 @@ const createRequestAndNotify = async (bookingData, io) => {
 
         await session.commitTransaction();
         session.endSession();
+
+        // Xóa cache để đảm bảo dữ liệu mới nhất
+        if (newBooking.description) {
+            try {
+                // Xóa cache popular descriptions
+                await redisService.del('popular_descriptions_5');
+                await redisService.del('popular_descriptions_10');
+                
+                // Xóa cache search descriptions có thể chứa description này
+                const searchCacheKeys = [
+                    `search_descriptions_${newBooking.description.toLowerCase().substring(0, 3)}_5`,
+                    `search_descriptions_${newBooking.description.toLowerCase().substring(0, 5)}_5`
+                ];
+                
+                for (const key of searchCacheKeys) {
+                    await redisService.del(key);
+                }
+                
+                console.log('Đã xóa cache cho description:', newBooking.description);
+            } catch (cacheError) {
+                console.error('Lỗi khi xóa cache:', cacheError);
+                // Không throw error vì đây không phải lỗi nghiêm trọng
+            }
+        }
 
         return { booking: newBooking, technicians: foundTechs };
     } catch (error) {
@@ -1586,9 +1611,23 @@ const getTechniciansFoundByBookingId = async (bookingId) => {
     return search.foundTechniciansDetail;
 };
 
-// Lấy các mô tả booking phổ biến nhất
+// Lấy các mô tả booking phổ biến nhất với Redis cache
 const getPopularDescriptions = async (limit = 10) => {
     try {
+        // Kiểm tra cache trước
+        const cacheKey = `popular_descriptions_${limit}`;
+        const cached = await redisService.get(cacheKey);
+        
+        if (cached) {
+            console.log('Lấy popular descriptions từ Redis cache');
+            return {
+                success: true,
+                data: cached
+            };
+        }
+
+        // Nếu không có cache, chạy aggregation
+        console.log('Chạy aggregation để lấy popular descriptions');
         const popularDescriptions = await Booking.aggregate([
             {
                 $match: {
@@ -1616,6 +1655,9 @@ const getPopularDescriptions = async (limit = 10) => {
             }
         ]);
 
+        // Cache kết quả trong 15 phút
+        await redisService.set(cacheKey, popularDescriptions, 900);
+
         return {
             success: true,
             data: popularDescriptions
@@ -1629,7 +1671,7 @@ const getPopularDescriptions = async (limit = 10) => {
     }
 };
 
-// Tìm kiếm mô tả theo từ khóa
+// Tìm kiếm mô tả theo từ khóa với Redis cache
 const searchDescriptions = async (query, limit = 5) => {
     try {
         if (!query || query.trim().length < 2) {
@@ -1639,13 +1681,24 @@ const searchDescriptions = async (query, limit = 5) => {
             };
         }
 
+        // Kiểm tra cache trước
+        const cacheKey = `search_descriptions_${query.trim().toLowerCase()}_${limit}`;
+        const cached = await redisService.get(cacheKey);
+        
+        if (cached) {
+            console.log('Lấy search results từ Redis cache cho query:', query);
+            return {
+                success: true,
+                data: cached
+            };
+        }
+
+        // Nếu không có cache, chạy aggregation
+        console.log('Chạy aggregation để tìm kiếm descriptions cho query:', query);
         const searchResults = await Booking.aggregate([
             {
                 $match: {
                     description: {
-                        $exists: true,
-                        $ne: null,
-                        $ne: "",
                         $regex: query.trim(),
                         $options: 'i'
                     }
@@ -1671,6 +1724,9 @@ const searchDescriptions = async (query, limit = 5) => {
                 }
             }
         ]);
+
+        // Cache kết quả trong 10 phút (ngắn hơn vì search thay đổi nhiều)
+        await redisService.set(cacheKey, searchResults, 600);
 
         return {
             success: true,
