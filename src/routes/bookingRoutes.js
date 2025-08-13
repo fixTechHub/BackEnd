@@ -2,14 +2,15 @@ const express = require('express');
 const bookingController = require('../controllers/bookingController');
 const { handleMulter, processAndUploadToS3 } = require('../middlewares/uploadMiddleware');
 const { authenticateToken } = require('../middlewares/authMiddleware');
+const { popularDescriptionsLimiter, searchDescriptionsLimiter } = require('../middlewares/rateLimitMiddleware');
 const router = express.Router();
 
 router.get('/user', authenticateToken, bookingController.getUserBookingHistory)
 router.get('/accepted-booking/:bookingId', authenticateToken, bookingController.getAcceptedBooking)
 
-// Routes cho gợi ý mô tả
-router.get('/popular-descriptions', bookingController.getPopularDescriptions);
-router.get('/search-descriptions', bookingController.searchDescriptions);
+// Routes cho gợi ý mô tả với rate limiting
+router.get('/popular-descriptions', popularDescriptionsLimiter, bookingController.getPopularDescriptions);
+router.get('/search-descriptions', searchDescriptionsLimiter, bookingController.searchDescriptions);
 
 router.post('/create-new-booking-request', authenticateToken, handleMulter.array('images', 5), processAndUploadToS3('bookings'), bookingController.createBookingRequest);
 router.get('/top-services', bookingController.getTopBookedServices);

@@ -7,12 +7,22 @@ const initializeSocket = (server) => {
   const io = new Server(server, {
     cors: {
       origin: [
-        process.env.FRONT_END_URL, // http://localhost:5174
-        process.env.FRONT_END_ADMIN_URL
+        process.env.FRONT_END_ADMIN_URL,
+        process.env.FRONT_END_URL,
+        'https://fix-tech-six.vercel.app',
+        'https://fix-tech-git-develop-tris-projects-f8fdb778.vercel.app',
+        'http://localhost:5174',
+        'https://fixtech.id.vn', // Domain chính của bạn
+        'https://www.fixtech.id.vn' // Cả www và non-www
       ],
       methods: ["GET", "POST"],
-      credentials: true
-    }
+      credentials: true,
+      allowedHeaders: ["Content-Type", "Authorization"]
+    },
+    transports: ['websocket', 'polling'],
+    allowEIO3: true,
+    pingTimeout: 60000,
+    pingInterval: 25000
   });
 
   io.on('connection', (socket) => {

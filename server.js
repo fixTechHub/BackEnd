@@ -17,6 +17,14 @@ const PORT = process.env.PORT || 3000;
 // Create an HTTP server from the Express app
 const server = http.createServer(app);
 
+// Cấu hình server để xử lý proxy headers
+server.on('request', (req, res) => {
+    // Đảm bảo X-Forwarded-For được xử lý đúng
+    if (req.headers['x-forwarded-for']) {
+        req.connection.remoteAddress = req.headers['x-forwarded-for'].split(',')[0].trim();
+    }
+});
+
 // Initialize Socket.IO and get the io instance
 const io = initializeSocket(server);
 
