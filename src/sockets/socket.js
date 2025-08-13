@@ -8,12 +8,18 @@ const initializeSocket = (server) => {
     cors: {
       origin: [
         process.env.FRONT_END_URL,
-        'http://localhost:5174',
-        'https://fix-tech-git-develop-tris-projects-f8fdb778.vercel.app'
+        'https://fix-tech-six.vercel.app',
+        'https://fix-tech-git-develop-tris-projects-f8fdb778.vercel.app',
+        'http://localhost:5174'
       ],
       methods: ["GET", "POST"],
-      credentials: true
-    }
+      credentials: true,
+      allowedHeaders: ["Content-Type", "Authorization"]
+    },
+    transports: ['websocket', 'polling'],
+    allowEIO3: true,
+    pingTimeout: 60000,
+    pingInterval: 25000
   });
 
   io.on('connection', (socket) => {
