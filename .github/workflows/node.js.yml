@@ -15,23 +15,26 @@ jobs:
         node-version: [22.x]
 
     steps:
-    # Xóa thư mục cũ để tránh bị lặp
-    - name: Clean old directory
-      run: rm -rf BackEnd
+    # Cleanup toàn bộ workspace
+    - name: Clean workspace
+      run: |
+        cd ${{ github.workspace }}
+        rm -rf ./*
+        rm -rf ./.[!.]*
+        ls -la
 
-    # Checkout source vào đúng thư mục BackEnd (1 tầng)
+    # Checkout trực tiếp vào workspace root (không dùng path)
     - uses: actions/checkout@v4
       with:
         clean: true
-        path: BackEnd
-        submodules: false
 
-    # Debug cấu trúc thư mục sau khi checkout
-    - name: Debug Workspace Structure
+    # Debug cấu trúc thư mục
+    - name: Debug Workspace Structure  
       run: |
         echo "--> Running in directory: $(pwd)"
+        echo "--> Workspace: ${{ github.workspace }}"
         echo "--> File structure after checkout:"
-        ls -laR
+        ls -la
         echo "-------------------------------------"
 
     # Setup Node.js
@@ -40,7 +43,6 @@ jobs:
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
-        cache-dependency-path: 'BackEnd/package-lock.json'
 
     # Cài dependencies
     - name: Install dependencies
