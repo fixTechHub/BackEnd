@@ -7,6 +7,9 @@ const routes = require('./routes')
 const actionLogger = require('./middlewares/actionLogger');
 const redisService = require('./services/redisService');
 
+// Cấu hình trust proxy để giải quyết lỗi X-Forwarded-For
+app.set('trust proxy', true);
+
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 // Parse JSON
