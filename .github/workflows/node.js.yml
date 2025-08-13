@@ -15,41 +15,48 @@ jobs:
         node-version: [22.x]
 
     steps:
+    # Xóa thư mục cũ để tránh bị lặp
+    - name: Clean old directory
+      run: rm -rf BackEnd
+
+    # Checkout source vào đúng thư mục BackEnd (1 tầng)
     - uses: actions/checkout@v4
       with:
         clean: true
-        path: _work/BackEnd  # Checkout trực tiếp vào _work/BackEnd
-        submodules: false  # Ngăn checkout lặp hoặc submodules gây lồng
+        path: BackEnd
+        submodules: false
 
-    # BƯỚC GỠ LỖI ĐỂ KIỂM TRA CẤU TRÚC THƯ MỤC
+    # Debug cấu trúc thư mục sau khi checkout
     - name: Debug Workspace Structure
       run: |
         echo "--> Running in directory: $(pwd)"
         echo "--> File structure after checkout:"
-        ls -laR _work
+        ls -laR
         echo "-------------------------------------"
 
+    # Setup Node.js
     - name: Use Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
-        cache-dependency-path: '_work/BackEnd/package-lock.json' # Chỉ định đúng đường dẫn
+        cache-dependency-path: 'BackEnd/package-lock.json'
 
+    # Cài dependencies
     - name: Install dependencies
       run: npm ci
-      working-directory: _work/BackEnd # Chỉ định thư mục làm việc
+      working-directory: BackEnd
 
+    # Tạo file .env từ secrets
     - name: Create .env file
       run: |
         touch .env
         echo "${{ secrets.ENV_FILE }}" > .env
-      working-directory: _work/BackEnd # Chỉ định thư mục làm việc
+      working-directory: BackEnd
 
+    # Khởi động lại PM2 process
     - name: Start PM2 process
       run: |
-        # Xóa cấu hình PM2 cũ nếu tồn tại
         pm2 delete BackEndAPI || true
-        # Khởi động với đường dẫn tương đối
         pm2 start server.js --name BackEndAPI
-      working-directory: _work/BackEnd # Chỉ định thư mục làm việc
+      working-directory: BackEnd
