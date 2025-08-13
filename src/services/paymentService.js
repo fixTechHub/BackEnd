@@ -19,16 +19,14 @@ const payOs = new PayOs(
   process.env.PAYOS_CHECKSUM_KEY
 );
 
-const createPayOsPayment = async (bookingId) => {
+const createPayOsPayment = async (bookingId, finalPrice) => {
   try {
     // PayOS requires a unique integer for orderCode.
     const orderCode = await generateOrderCode();
-    const booking = await Booking.findById(bookingId)
-    // console.log(booking.finalPrice);
-    
+    const amount = finalPrice
     const paymentData = {
       orderCode: orderCode,
-      amount: booking.finalPrice,
+      amount: amount,
       // amount: 3000,
       description: `Thanh toan don hang `,
       returnUrl: `${process.env.BACK_END_URL}/payments/success?orderCode=${orderCode}&bookingId=${bookingId}`,
@@ -64,8 +62,8 @@ const handleSuccessfulPayment = async (orderCode, bookingId) => {
     booking.isChatAllowed = false
     booking.isVideoCallAllowed = false
     booking.customerConfirmedDone = true
-    booking.technicianEarning = finalPrice+ discountValue
-    booking.warrantyExpiresAt = new Date();
+    booking.technicianEarning = booking.quote.totalAmount
+    booking.warrantyExpiresAt = new Date()
     const warrantyMonths = Number(booking.quote?.warrantiesDuration) || 0;
     booking.warrantyExpiresAt.setMonth(
       booking.warrantyExpiresAt.getMonth() + warrantyMonths
