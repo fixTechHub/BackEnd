@@ -12,4 +12,5 @@ router.patch('/deny/:bookingWarrantyId',authenticateToken,bookingWarrantyControl
 router.patch('/confirm/:bookingWarrantyId',authenticateToken,bookingWarrantyController.confirmWarranty)
 router.post('/propose-schedule/:bookingWarrantyId',authenticateToken, bookingWarrantyController.proposeWarrantySchedule)
 router.post('/confirm-schedule/:bookingWarrantyId',authenticateToken, bookingWarrantyController.confirmWarrantySchedule)
+router.get('/', authenticateToken, bookingWarrantyController.listMyWarranties)
 module.exports = router;

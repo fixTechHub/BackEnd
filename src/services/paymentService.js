@@ -577,6 +577,58 @@ const createExtendPayOsPayment = async (technicianId, { amount, packageId, days 
   }
 };
 
+const handleExtendSubscriptionCancel = async (userId, packageId, days) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    if (!userId || !packageId || !days) throw new Error('Thiếu thông tin cần thiết');
+
+    const technician = await Technician.findOne({ userId }).session(session);
+    if (!technician) throw new Error('Không tìm thấy kỹ thuật viên');
+
+    const activeSub = await TechnicianSubscription.findOne({
+      technician: technician._id,
+      status: 'ACTIVE',
+    }).session(session);
+
+    if (!activeSub) throw new Error('Không tìm thấy gói đang sử dụng');
+
+    const originalEndDate = new Date(activeSub.endDate);
+    const now = new Date();
+
+    // ✅ Đảm bảo không được giảm endDate về trước thời gian hiện tại
+    const reducedEndDate = new Date(originalEndDate.getTime() - days * 24 * 60 * 60 * 1000);
+    if (reducedEndDate < now) throw new Error('Không thể hủy gia hạn vì sẽ làm gói hết hạn ngay');
+
+    // ✅ Cập nhật lại endDate
+    activeSub.endDate = reducedEndDate;
+    await activeSub.save({ session });
+
+    // ✅ Ghi log hủy gia hạn
+    const cancelLog = new DepositLog({
+      technicianId: technician._id,
+      type: 'SUBSCRIPTION_CANCEL_EXTENSION',
+      amount: 0, // Không hoàn tiền
+      status: 'COMPLETED',
+      paymentMethod: 'NONE',
+      balanceBefore: technician.balance,
+      balanceAfter: technician.balance,
+      note: `Hủy gia hạn gói ${packageId} bớt ${days} ngày`,
+    });
+
+    await cancelLog.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    throw error;
+  }
+};
+
+
 
 module.exports = {
   createPayOsPayment,
@@ -589,5 +641,6 @@ module.exports = {
   handleCancelSubscription,
   handleExtendSubscription,
   getPackageById,
-  createExtendPayOsPayment
+  createExtendPayOsPayment,
+  handleExtendSubscriptionCancel
 };
