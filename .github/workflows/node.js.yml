@@ -10,55 +10,62 @@ jobs:
   build:
     runs-on: self-hosted
 
-    strategy:
-      matrix:
-        node-version: [22.x]
-
     steps:
-    # Cleanup toàn bộ workspace
-    - name: Clean workspace
+    # Xóa folder BackEnd cũ
+    - name: Clean BackEnd directory
       run: |
         cd ${{ github.workspace }}
-        rm -rf ./*
-        rm -rf ./.[!.]*
+        rm -rf BackEnd
+        echo "Cleaned old BackEnd directory"
         ls -la
 
-    # Checkout trực tiếp vào workspace root (không dùng path)
-    - uses: actions/checkout@v4
+    # Checkout code vào folder BackEnd
+    - name: Checkout code
+      uses: actions/checkout@v4
       with:
-        clean: true
+        path: BackEnd
 
-    # Debug cấu trúc thư mục
-    - name: Debug Workspace Structure  
+    # Debug structure
+    - name: Check structure
       run: |
-        echo "--> Running in directory: $(pwd)"
-        echo "--> Workspace: ${{ github.workspace }}"
-        echo "--> File structure after checkout:"
+        echo "Working directory: $(pwd)"
+        echo "Workspace: ${{ github.workspace }}"
         ls -la
-        echo "-------------------------------------"
+        echo "--- BackEnd folder content ---"
+        ls -la BackEnd/
+        echo "--- Looking for package.json ---"
+        find BackEnd -name "package.json"
 
     # Setup Node.js
-    - name: Use Node.js ${{ matrix.node-version }}
+    - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
+        node-version: 22.x
 
-    # Cài dependencies
+    # Install dependencies
     - name: Install dependencies
-      run: npm ci
-      working-directory: BackEnd
+      run: |
+        cd BackEnd
+        if [ -f "package.json" ]; then
+          npm ci
+        else
+          echo "package.json not found in BackEnd root"
+          ls -la
+          find . -name "package.json"
+          exit 1
+        fi
 
-    # Tạo file .env từ secrets
+    # Create .env
     - name: Create .env file
       run: |
-        touch .env
+        cd BackEnd
         echo "${{ secrets.ENV_FILE }}" > .env
-      working-directory: BackEnd
+        echo ".env file created"
 
-    # Khởi động lại PM2 process
-    - name: Start PM2 process
+    # Start PM2
+    - name: Start PM2
       run: |
+        cd BackEnd
         pm2 delete BackEndAPI || true
         pm2 start server.js --name BackEndAPI
-      working-directory: BackEnd
+        pm2 list
