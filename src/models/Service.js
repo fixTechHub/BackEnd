@@ -11,9 +11,18 @@ const serviceSchema = new mongoose.Schema({
         required: true
     },
     icon: String,
+    description: String,
     isActive: {
         type: Boolean,
         default: true
+    },
+    isDeleted: {
+        type: Boolean,
+        default: true
+    },
+    embedding: {
+        type: [Number],
+        default: []
     }
 }, {
     timestamps: true

@@ -21,6 +21,19 @@ const technicianSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    frontIdImage: { type: String },
+    backIdImage: { type: String },
+    status: {
+        type: String,
+        enum: ['PENDING', 'APPROVED', 'REJECTED', 'INACTIVE', 'PENDING_DELETION', 'DELETED'],
+        default: 'PENDING'
+    },
+    pendingDeletionAt: {
+        type: Date
+    },
+    deletedAt: {
+        type: Date
+    },
     ratingAverage: {
         type: Number,
         default: 0,
@@ -48,6 +61,10 @@ const technicianSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    certificate: {
+        type: [String],
+        default: []
+    },
     bankAccount: {
         bankName: String,
         accountNumber: String,
@@ -55,6 +72,10 @@ const technicianSchema = new mongoose.Schema({
         branch: String
     },
     totalEarning: {
+        type: Number,
+        default: 0
+    },
+    debBalance: {
         type: Number,
         default: 0
     },
@@ -69,12 +90,15 @@ const technicianSchema = new mongoose.Schema({
     totalWithdrawn: {
         type: Number,
         default: 0
+    },
+    pricesLastUpdatedAt: {
+        type: Date,
+        default: null
     }
 }, {
     timestamps: true
 });
 
-// 2dsphere index for geospatial queries
 technicianSchema.index({ currentLocation: '2dsphere' });
 
 // Other indexes
@@ -83,9 +107,6 @@ technicianSchema.index({ ratingAverage: -1 });
 technicianSchema.index({ specialtiesCategories: 1 });
 technicianSchema.index({ createdAt: -1 });
 
-// Compound indexes for common queries
-technicianSchema.index({ availability: 1, ratingAverage: -1 });
-technicianSchema.index({ specialtiesCategories: 1, availability: 1 });
-technicianSchema.index({ currentLocation: '2dsphere', availability: 1 });
+technicianSchema.index({ currentLocation: '2dsphere', availability: 1, status: 1, specialtiesCategories: 1, ratingAverage: -1 });
 
 module.exports = mongoose.model('Technician', technicianSchema);

@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { type } = require('os');
 
 const notificationSchema = new mongoose.Schema({
     userId: {
@@ -19,8 +20,22 @@ const notificationSchema = new mongoose.Schema({
         enum: ['NEW_REQUEST', 'MESSAGE', 'PAYMENT'],
         required: true
     },
+    referenceModel: { type: String, 
+        required: function() 
+        { return !!this.referenceId; }
+        , enum: ['User', 'Payment', 'Message','Booking','Contract','BookingPrice','BookingWarranty'] // Các model có thể tham chiếu }, referenceId: { type: mongoose.Schema.Types.ObjectId, refPath: 'referenceModel' // Tham chiếu động dựa trên trường referenceModel
+     },
+     url : {
+        type: String,
+     },
+    status: {
+        type: String,
+        enum: ['DISPLAY', 'DELETED'],
+        default: 'DISPLAY'
+    },
     referenceId: {
-        type: mongoose.Schema.Types.ObjectId
+        type: mongoose.Schema.Types.ObjectId,
+         refPath: 'referenceModel'
     },
     isRead: {
         type: Boolean,

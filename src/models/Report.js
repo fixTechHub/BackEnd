@@ -1,11 +1,29 @@
 const mongoose = require('mongoose');
-
 const reportSchema = new mongoose.Schema({
   type: {
     type: String,
-    enum: ['REPORT', 'VIOLATION'],
+    enum: ['BOOKING', 'WARRANTY', 'VIOLATION'],
+    default: 'BOOKING',
     required: true,
-    default: 'report',
+    index: true,
+  },
+  bookingId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Booking',
+    required: false,
+    index: true,
+  },
+  warrantyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'BookingWarranty',
+    required: false,
+    index: true,
+  },
+  reporterId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    index: true,
   },
   reportedUserId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -13,37 +31,51 @@ const reportSchema = new mongoose.Schema({
     required: true,
     index: true,
   },
-  reporterId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+  title: {
+    type: String,
     required: true,
-    index: true, 
+    trim: true,
+  },
+  tag: {
+    type: String,
+    enum: [
+      'NO_SHOW', 'LATE', 'RUDE', 'ISSUE', 'OTHER',
+      'WARRANTY_DENIED', 'WARRANTY_DELAY', 'POOR_FIX'
+    ],
+    required: true,
   },
   description: {
     type: String,
     required: true,
   },
+  evidences: {
+    type: [String],
+    default: [],
+  },
   status: {
     type: String,
-    enum: ['PENDING', 'CONFIRMED', 'REJECTED', 'RESOLVED', 'CLOSED'],
-    default: 'pending',
-    index: true, 
-  },
-  penalty: {
-    type: String,
-    default: null,
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now,
+    enum: ['PENDING', 'AWAITING_RESPONSE', 'REJECTED', 'RESOLVED'],
+    default: 'PENDING',
     index: true,
   },
-  updatedAt: {
-    type: Date,
-    default: Date.now,
+  responseDeadline: Date,
+  responseLocked: {
+    type: Boolean,
+    default: false,
   },
+}, {
+  timestamps: true,
 });
 
-reportSchema.index({ type: 1, status: 1 }); 
+reportSchema.index({ bookingId: 1, warrantyId: 1, status: 1 });
+reportSchema.index(
+  { bookingId: 1, warrantyId: 1, reporterId: 1, reportedUserId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { status: { $in: ['PENDING', 'AWAITING_RESPONSE'] } },
+    name: 'uniq_active_report_booking_or_warranty'
+  }
+);
 
 module.exports = mongoose.model('Report', reportSchema);
+

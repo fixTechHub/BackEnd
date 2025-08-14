@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const TechnicianService = require('./TechnicianService');
 
 const bookingSchema = new mongoose.Schema({
     bookingCode: {
@@ -20,22 +21,79 @@ const bookingSchema = new mongoose.Schema({
         required: true
     },
     location: {
-        type: {
-            type: String,
-            enum: ['Point'],
-            default: 'Point'
+        address: {
+            type: String
         },
-        coordinates: {
-            type: [Number],
-            required: true
+        geojson: {
+            type: {
+                type: String,
+                enum: ['Point'],
+                default: 'Point'
+            },
+            coordinates: {
+                type: [Number],
+                required: true
+            }
         }
     },
     description: String,
     images: [String],
     schedule: {
-        type: Date,
-        required: true
+        startTime: {
+            type: Date,
+        },
+        expectedEndTime: {
+            type: Date
+        }
     },
+    isUrgent: { // Trường mới để xác định yêu cầu khẩn cấp
+        type: Boolean,
+        default: false
+    },
+    quote: {
+        commissionConfigId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'CommissionConfig'
+        },
+        laborPrice: {
+            type: Number,
+            default: 0
+        },
+        items: [{
+            name: String,
+            price: Number,
+            quantity: Number,
+            note: String,
+            status: {
+                type: String,
+                enum: ['PENDING', 'ACCEPTED', 'REJECTED'],
+                default: 'PENDING'
+            }
+        }],
+        totalAmount: { type: Number }, // Tổng tiền thợ đề nghị, chưa giảm giá
+        warrantiesDuration: {
+            type: Number,
+            default: 1
+        },
+        processedWarrantyExpiration: {
+            type: Boolean,
+            default: false
+        },
+        quotedAt: {
+            type: Date,
+            default: Date.now
+        },
+        note: String,
+    },
+    discountCode: String,
+    discountValue: {
+        type: Number,
+        default: 0
+    },
+    technicianEarning: Number,
+    commissionAmount: Number,
+    holdingAmount: Number,
+    finalPrice: Number,
     customerConfirmedDone: {
         type: Boolean,
         default: false
@@ -46,13 +104,12 @@ const bookingSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['PENDING', 'QUOTED', 'IN_PROGRESS', 'WAITING_CONFIRM', 'DONE', 'CANCELLED'],
+        enum: ['PENDING', 'AWAITING_CONFIRM', 'IN_PROGRESS', 'WAITING_CUSTOMER_CONFIRM_ADDITIONAL', 'CONFIRM_ADDITIONAL', 'AWAITING_DONE', 'DONE', 'CANCELLED'],
         default: 'PENDING'
     },
-    statusReason: String,
     isChatAllowed: {
         type: Boolean,
-        default: true
+        default: false
     },
     isVideoCallAllowed: {
         type: Boolean,
@@ -64,17 +121,18 @@ const bookingSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
     },
+    cancellationReason: String,
     paymentStatus: {
         type: String,
         enum: ['PENDING', 'PAID', 'CANCELLED', 'FAILED', 'REFUNDED'],
         default: 'PENDING'
-    },
-    cancellationReason: String
+    }
 }, {
     timestamps: true
-});
+}
+);
 
-bookingSchema.index({ location: '2dsphere' });
+bookingSchema.index({ 'location.geojson': '2dsphere' });
 
 bookingSchema.index({ bookingCode: 1 }, { unique: true });
 bookingSchema.index({ status: 1 });
@@ -88,5 +146,20 @@ bookingSchema.index({ technicianId: 1, createdAt: -1 });
 bookingSchema.index({ status: 1, schedule: 1 });
 bookingSchema.index({ status: 1, createdAt: -1 });
 bookingSchema.index({ paymentStatus: 1 });
+
+// Virtual populate để lấy TechnicianService
+bookingSchema.virtual('technicianService', {
+    ref: 'TechnicianService',
+    localField: 'technicianId',
+    foreignField: 'technicianId',
+    justOne: true,
+    match: function() {
+        return { serviceId: this.serviceId, isActive: true };
+    }
+});
+
+// Đảm bảo virtual fields được include khi toJSON
+bookingSchema.set('toJSON', { virtuals: true });
+bookingSchema.set('toObject', { virtuals: true });
 
 module.exports = mongoose.model('Booking', bookingSchema);
