@@ -2,7 +2,6 @@ const Certificate = require('../models/Certificate');
 const mongoose = require('mongoose');
 const Technician = require('../models/Technician');
 const Service = require('../models/Service');
-const CommissionConfig = require('../models/CommissionConfig');
 const Booking = require('../models/Booking');
 const BookingStatusLog = require('../models/BookingStatusLog');
 const User = require('../models/User');
@@ -704,9 +703,6 @@ const getScheduleByTechnicianId = async (technicianId) => {
   }
 };
 
-
-
-
 const searchTechnicians = async (serviceId, date, time) => {
   // 1. Lấy danh sách thợ cung cấp dịch vụ này
   const technicianServices = await TechnicianService.find({ serviceId: new mongoose.Types.ObjectId(serviceId), isActive: true }).select('technicianId');
@@ -770,5 +766,3 @@ module.exports = {
   searchTechnicians,
   getScheduleByTechnicianId
 };
-
-// module.exports ={sendQuotation,};

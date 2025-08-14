@@ -15,7 +15,7 @@ const processTechnicianSearch = async () => {
         // Lấy các booking đang tìm thợ, chưa đủ 10 thợ, chưa quá 60 phút
         const searches = await BookingTechnicianSearch.find({
             createdAt: { $gte: new Date(now.getTime() - SEARCH_TIMEOUT_MINUTES * 60 * 1000) }
-        }).limit(5); // Giới hạn số lượng để xử lý mỗi lần
+        })
 
         if (searches.length === 0) {
             return;
@@ -37,7 +37,7 @@ const processTechnicianSearch = async () => {
                     serviceId: booking.serviceId,
                     availability: ['FREE', 'ONJOB'],
                     status: 'APPROVED',
-                    minBalance: 200000
+                    minBalance: 0
                 };
 
                 // Gọi lại hàm tìm thợ và lưu trạng thái
