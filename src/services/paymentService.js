@@ -11,20 +11,22 @@ const DepositLog = require('../models/DepositLog');
 const TechnicianServiceModel = require('../models/TechnicianService');
 const TechnicianSubscription = require('../models/TechnicianSubscription');
 const SubscriptionPackage = require('../models/CommissionPackage');
+const CouponUsage = require('../models/CouponUsage');
+const couponService = require('./couponService')
 const payOs = new PayOs(
   process.env.PAYOS_CLIENT_ID,
   process.env.PAYOS_API_KEY,
   process.env.PAYOS_CHECKSUM_KEY
 );
 
-const createPayOsPayment = async (bookingId) => {
+const createPayOsPayment = async (bookingId, finalPrice) => {
   try {
     // PayOS requires a unique integer for orderCode.
     const orderCode = await generateOrderCode();
-    const booking = await Booking.findById(bookingId)
+    const amount = finalPrice
     const paymentData = {
       orderCode: orderCode,
-      amount: booking.finalPrice,
+      amount: amount,
       // amount: 3000,
       description: `Thanh toan don hang `,
       returnUrl: `${process.env.BACK_END_URL}/payments/success?orderCode=${orderCode}&bookingId=${bookingId}`,
@@ -54,23 +56,49 @@ const handleSuccessfulPayment = async (orderCode, bookingId) => {
     if (!booking) {
       throw new Error('Không tìm thấy đơn');
     }
-
+  
     booking.paymentStatus = 'PAID';
-    booking.status = 'DONE';
+    booking.status = 'DONE';  
     booking.isChatAllowed = false
     booking.isVideoCallAllowed = false
-    booking.warrantyExpiresAt = new Date();
-    booking.warrantyExpiresAt.setDate(
-      booking.warrantyExpiresAt.getDate() + booking.quote.warrantiesDuration
+    booking.customerConfirmedDone = true
+    booking.technicianEarning = booking.quote.totalAmount
+    booking.warrantyExpiresAt = new Date()
+    const warrantyMonths = Number(booking.quote?.warrantiesDuration) || 0;
+    booking.warrantyExpiresAt.setMonth(
+      booking.warrantyExpiresAt.getMonth() + warrantyMonths
     );
+ 
+    // Find coupon document
+    if(booking.discountCode) {
+      const couponDoc = await couponService.getCouponByCouponCode(booking.discountCode)
+    if (!couponDoc) {
+      throw new Error('Không tìm thấy mã giảm giá');
+    }
+    couponDoc.usedCount += 1;
+    await couponDoc.save({ session });
+    const customerId = booking.customerId
 
+    if (!customerId) {
+      throw new Error('Không tìm thấy userId để lưu CouponUsage');
+    }
+    // Create CouponUsage if not already used
+    const existingUsage = await CouponUsage.findOne({ couponId: couponDoc._id, userId: booking.customerId }).session(session);
+    if (!existingUsage) {
+      await CouponUsage.create([{ couponId: couponDoc._id, userId: booking.customerId, bookingId: booking._id }], { session });
+    }
+    }
+    // Find userId from booking
+   
     const receiptTotalAmount = booking.finalPrice + booking.discountValue;
+    console.log(booking.finalPrice);
+    
     booking.holdingAmount = receiptTotalAmount * 0.2;
     await booking.save({ session });
     const TechnicianService = require('../models/TechnicianService');
-    const technicianServiceModel = await TechnicianService.findOne({ 
-      serviceId: updatedBooking.serviceId,
-      technicianId: updatedBooking.technicianId
+    const technicianServiceModel = await TechnicianService.findOne({
+      serviceId: booking.serviceId,
+      technicianId: booking.technicianId
     });
     const technician = await Technician.findById(booking.technicianId)
     technician.availability = 'FREE'
@@ -93,7 +121,7 @@ const handleSuccessfulPayment = async (orderCode, bookingId) => {
     // Credit commission from technician's balance
     await commissionService.creditCommission(
       booking.technicianId,
-      booking.finalPrice+booking.discountValue,
+      booking.finalPrice + booking.discountValue,
       session
     );
 
@@ -549,6 +577,58 @@ const createExtendPayOsPayment = async (technicianId, { amount, packageId, days 
   }
 };
 
+const handleExtendSubscriptionCancel = async (userId, packageId, days) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    if (!userId || !packageId || !days) throw new Error('Thiếu thông tin cần thiết');
+
+    const technician = await Technician.findOne({ userId }).session(session);
+    if (!technician) throw new Error('Không tìm thấy kỹ thuật viên');
+
+    const activeSub = await TechnicianSubscription.findOne({
+      technician: technician._id,
+      status: 'ACTIVE',
+    }).session(session);
+
+    if (!activeSub) throw new Error('Không tìm thấy gói đang sử dụng');
+
+    const originalEndDate = new Date(activeSub.endDate);
+    const now = new Date();
+
+    // ✅ Đảm bảo không được giảm endDate về trước thời gian hiện tại
+    const reducedEndDate = new Date(originalEndDate.getTime() - days * 24 * 60 * 60 * 1000);
+    if (reducedEndDate < now) throw new Error('Không thể hủy gia hạn vì sẽ làm gói hết hạn ngay');
+
+    // ✅ Cập nhật lại endDate
+    activeSub.endDate = reducedEndDate;
+    await activeSub.save({ session });
+
+    // ✅ Ghi log hủy gia hạn
+    const cancelLog = new DepositLog({
+      technicianId: technician._id,
+      type: 'SUBSCRIPTION_CANCEL_EXTENSION',
+      amount: 0, // Không hoàn tiền
+      status: 'COMPLETED',
+      paymentMethod: 'NONE',
+      balanceBefore: technician.balance,
+      balanceAfter: technician.balance,
+      note: `Hủy gia hạn gói ${packageId} bớt ${days} ngày`,
+    });
+
+    await cancelLog.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    throw error;
+  }
+};
+
+
 
 module.exports = {
   createPayOsPayment,
@@ -561,5 +641,6 @@ module.exports = {
   handleCancelSubscription,
   handleExtendSubscription,
   getPackageById,
-  createExtendPayOsPayment
+  createExtendPayOsPayment,
+  handleExtendSubscriptionCancel
 };

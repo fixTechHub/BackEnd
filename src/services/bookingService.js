@@ -3,7 +3,6 @@ const Booking = require('../models/Booking');
 const technicianService = require('./technicianService');
 const BookingStatusLog = require('../models/BookingStatusLog');
 const notificationService = require('../services/notificationService')
-const couponService = require('../services/couponService')
 const paymentService = require('../services/paymentService')
 const commissionService = require('../services/commissionService')
 const receiptService = require('../services/receiptService');
@@ -11,13 +10,15 @@ const Technician = require('../models/Technician');
 const BookingTechnicianRequest = require('../models/BookingTechnicianRequest');
 const BookingTechnicianSearch = require('../models/BookingTechnicianSearch');
 const { getIo } = require('../sockets/socketManager');
-const CouponUsage = require('../models/CouponUsage');
+const technicianScheduleService = require('./technicianScheduleService');
+const redisService = require('./redisService');
 
 const MAX_TECHNICIANS = 10;
 const SEARCH_RADII = [5, 10, 15, 30];
 
 const findTechniciansWithExpandingRadiusAndSave = async (searchParams, bookingId, io) => {
-    let foundTechnicians = [];
+    // Tập hợp tất cả thợ tìm được trong đợt tìm kiếm hiện tại (để luôn cập nhật trạng thái mới nhất)
+    const currentFoundByUserId = new Map();
     let foundTechnicianIds = new Set();
 
     // Lấy trạng thái tìm kiếm hiện tại
@@ -30,24 +31,43 @@ const findTechniciansWithExpandingRadiusAndSave = async (searchParams, bookingId
 
     for (const radius of SEARCH_RADII) {
         const result = await technicianService.findNearbyTechnicians(searchParams, radius);
-        // console.log('--- TECHNICIAN FOUND ---', result);
-
-        if (result && result.data && result.data.length > 0) {
+        if (result && Array.isArray(result.data) && result.data.length > 0) {
             for (const tech of result.data) {
-                if (!foundTechnicianIds.has(String(tech.userId))) {
-                    foundTechnicians.push(tech);
-                    foundTechnicianIds.add(String(tech.userId));
+                if (!tech || !tech.userId) continue;
+                const userIdStr = String(tech.userId);
+                if (!currentFoundByUserId.has(userIdStr)) {
+                    currentFoundByUserId.set(userIdStr, tech);
                 }
             }
         }
-        if (foundTechnicians.length >= MAX_TECHNICIANS) break;
+        if (currentFoundByUserId.size >= MAX_TECHNICIANS) break;
     }
 
-    // Lưu lại trạng thái
-    searchState.foundTechnicianIds = Array.from(foundTechnicianIds);
+    const refreshedList = Array.from(currentFoundByUserId.values());
+    // Cắt giới hạn tối đa nếu cần
+    const limitedList = refreshedList.slice(0, MAX_TECHNICIANS);
+    searchState.foundTechniciansDetail = limitedList;
+    searchState.foundTechnicianIds = limitedList.map(t => t.userId);
     searchState.lastSearchAt = new Date();
-    if (foundTechnicians.length >= MAX_TECHNICIANS) searchState.completed = true;
+    if (searchState.foundTechniciansDetail.length >= MAX_TECHNICIANS) searchState.completed = true;
     await searchState.save();
+
+    // Emit socket cập nhật danh sách thợ cho khách hàng (màn hình chọn thợ)
+    if (io) {
+        try {
+            const booking = await Booking.findById(bookingId).select('customerId');
+            if (booking && booking.customerId) {
+                io.to(`user:${booking.customerId.toString()}`).emit('booking:techniciansFoundUpdated', {
+                    bookingId: bookingId.toString(),
+                    technicians: searchState.foundTechniciansDetail,
+                    total: searchState.foundTechniciansDetail.length,
+                    updatedAt: new Date()
+                });
+            }
+        } catch (emitError) {
+            console.error('Lỗi emit booking:techniciansFoundUpdated:', emitError?.message || emitError);
+        }
+    }
 
     // // Gửi thông báo cho các thợ mới tìm được
     // if (io && bookingId && foundTechnicians.length > 0) {
@@ -68,9 +88,9 @@ const findTechniciansWithExpandingRadiusAndSave = async (searchParams, bookingId
     // }
 
     return {
-        data: foundTechnicians,
-        total: foundTechnicians.length,
-        message: foundTechnicians.length < MAX_TECHNICIANS
+        data: searchState.foundTechniciansDetail,
+        total: searchState.foundTechniciansDetail.length,
+        message: searchState.foundTechniciansDetail.length < MAX_TECHNICIANS
             ? 'Đã tìm được một số thợ, hệ thống sẽ tiếp tục tìm thêm nếu cần.'
             : 'Đã tìm đủ thợ phù hợp.'
     };
@@ -101,9 +121,9 @@ const createRequestAndNotify = async (bookingData, io) => {
             latitude: location.geojson.coordinates[1],
             longitude: location.geojson.coordinates[0],
             serviceId: serviceId,
-            // availability: 'FREE',
+            availability: ['FREE', 'ONJOB'],
             status: 'APPROVED',
-            minBalance: 200000
+            minBalance: 0
         };
 
         // Tìm thợ lần đầu và lưu trạng thái
@@ -125,6 +145,30 @@ const createRequestAndNotify = async (bookingData, io) => {
 
         await session.commitTransaction();
         session.endSession();
+
+        // Xóa cache để đảm bảo dữ liệu mới nhất
+        if (newBooking.description) {
+            try {
+                // Xóa cache popular descriptions
+                await redisService.del('popular_descriptions_5');
+                await redisService.del('popular_descriptions_10');
+                
+                // Xóa cache search descriptions có thể chứa description này
+                const searchCacheKeys = [
+                    `search_descriptions_${newBooking.description.toLowerCase().substring(0, 3)}_5`,
+                    `search_descriptions_${newBooking.description.toLowerCase().substring(0, 5)}_5`
+                ];
+                
+                for (const key of searchCacheKeys) {
+                    await redisService.del(key);
+                }
+                
+                console.log('Đã xóa cache cho description:', newBooking.description);
+            } catch (cacheError) {
+                console.error('Lỗi khi xóa cache:', cacheError);
+                // Không throw error vì đây không phải lỗi nghiêm trọng
+            }
+        }
 
         return { booking: newBooking, technicians: foundTechs };
     } catch (error) {
@@ -245,6 +289,15 @@ const cancelBooking = async (bookingId, userId, role, reason, io) => {
                 { $set: { availability: 'FREE' } },
                 { session }
             );
+        }
+
+        // Xóa TechnicianSchedule nếu có
+        try {
+            await technicianScheduleService.deleteScheduleByBookingId(bookingId, session);
+            console.log('Đã xóa TechnicianSchedule cho booking bị hủy:', bookingId);
+        } catch (scheduleError) {
+            console.error('Lỗi khi xóa TechnicianSchedule:', scheduleError);
+            // Không throw error vì đây không phải lỗi nghiêm trọng
         }
 
         io.to(`user:${booking.customerId}`).emit('booking:statusUpdate', {
@@ -420,6 +473,15 @@ const confirmJobDone = async (bookingId, userId, role) => {
                 },
                 { session }
             );
+        }
+
+        // Xóa TechnicianSchedule nếu có
+        try {
+            await technicianScheduleService.deleteScheduleByBookingId(bookingId, session);
+            console.log('Đã xóa TechnicianSchedule cho booking hoàn thành:', bookingId);
+        } catch (scheduleError) {
+            console.error('Lỗi khi xóa TechnicianSchedule:', scheduleError);
+            // Không throw error vì đây không phải lỗi nghiêm trọng
         }
 
         // Lưu log trạng thái
@@ -957,7 +1019,7 @@ const getAcceptedBooking = async (bookingId) => {
             .populate('serviceId')
             .populate('customerId')
             .lean();
-
+        
         if (!booking) {
             throw new Error('Không tìm thấy đơn hàng đã được xác nhận');
         }
@@ -984,30 +1046,13 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
         }
         if (couponCode) {
             update.discountCode = couponCode;
-            update.discountValue = discountValue;
+            update.discountValue = discountValue
             update.finalPrice = finalPrice;
-            // Find coupon document
-            const couponDoc = await couponService.getCouponByCouponCode(couponCode)
-            if (!couponDoc) {
-                throw new Error('Không tìm thấy mã giảm giá');
-            }
-            couponDoc.usedCount += 1;
-            await couponDoc.save({ session });
-            // Find userId from booking
-            const customerId = booking.customerId
-
-            if (!customerId) {
-                throw new Error('Không tìm thấy userId để lưu CouponUsage');
-            }
-            // Create CouponUsage if not already used
-            const existingUsage = await CouponUsage.findOne({ couponId: couponDoc._id, userId: customerId }).session(session);
-            if (!existingUsage) {
-                await CouponUsage.create([{ couponId: couponDoc._id, userId: customerId, bookingId: booking._id }], { session });
-            }
         } else {
             update.discountCode = null;
             update.discountValue = 0;
             update.finalPrice = finalPrice;
+            
             update.holdingAmount = finalPrice * 0.2;
         }
         const updatedBooking = await Booking.findByIdAndUpdate(
@@ -1022,7 +1067,7 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
 
         let paymentUrl = null;
         if (paymentMethod === 'PAYOS') {
-            paymentUrl = await paymentService.createPayOsPayment(bookingId);
+            paymentUrl = await paymentService.createPayOsPayment(updatedBooking._id, updatedBooking.finalPrice);
         } else if (paymentMethod === 'CASH') {
             // Handle cash payment:
             // 1. Update booking status and create receipt
@@ -1031,12 +1076,15 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
             updatedBooking.paymentStatus = 'PAID';
             updatedBooking.status = 'DONE';
             updatedBooking.isChatAllowed = false
+            updatedBooking.customerConfirmedDone = true
             updatedBooking.isVideoCallAllowed = false
             updatedBooking.completedAt = new Date();
-            // Set warrantyExpiresAt based on warrantiesDuration (in days)
-            updatedBooking.warrantyExpiresAt = new Date();
-            updatedBooking.warrantyExpiresAt.setDate(
-                updatedBooking.warrantyExpiresAt.getDate() + updatedBooking.quote.warrantiesDuration
+            updatedBooking.technicianEarning = booking.quote.totalAmount
+            updatedBooking.warrantyExpiresAt = new Date()
+            // Set warrantyExpiresAt based on warrantiesDuration (in months)
+            const warrantyMonths = Number(updatedBooking.quote?.warrantiesDuration) || 0;
+            updatedBooking.warrantyExpiresAt.setMonth(
+                updatedBooking.warrantyExpiresAt.getMonth() + warrantyMonths
             );
             await updatedBooking.save({ session });
             const technician = await technicianService.getTechnicianById(updatedBooking.technicianId)
@@ -1073,7 +1121,6 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
                 updatedBooking.finalPrice+updatedBooking.discountValue,
                 session
             );
-
         }
 
         await session.commitTransaction();
@@ -1232,7 +1279,18 @@ const technicianAcceptBooking = async (bookingId, technicianId, io) => {
 
             await booking.save({ session });
 
-            // 5. Cập nhật request chỉ khi thợ này thực sự nhận được booking
+            // 5. Tạo TechnicianSchedule nếu booking là scheduled type
+            if (booking.isUrgent === false && booking.schedule && booking.schedule.startTime && booking.schedule.expectedEndTime) {
+                try {
+                    await technicianScheduleService.createScheduleForBooking(booking, session);
+                    console.log('Đã tạo TechnicianSchedule cho booking scheduled:', booking._id);
+                } catch (scheduleError) {
+                    console.error('Lỗi khi tạo TechnicianSchedule:', scheduleError);
+                    // Không throw error vì đây không phải lỗi nghiêm trọng
+                }
+            }
+
+            // 6. Cập nhật request chỉ khi thợ này thực sự nhận được booking
             console.log('Cập nhật request: set status ACCEPTED');
             const requestUpdateResult = await BookingTechnicianRequest.findOneAndUpdate(
                 {
@@ -1257,7 +1315,7 @@ const technicianAcceptBooking = async (bookingId, technicianId, io) => {
             technician.availability = 'ONJOB';
             await technician.save({ session });
 
-            // 6. Hủy các request khác (chỉ những request còn hiệu lực)
+            // 7. Hủy các request khác (chỉ những request còn hiệu lực)
             console.log('Hủy các request khác (set status REJECTED)');
             const rejectResult = await BookingTechnicianRequest.updateMany(
                 {
@@ -1273,7 +1331,7 @@ const technicianAcceptBooking = async (bookingId, technicianId, io) => {
             );
             console.log(`Đã hủy ${rejectResult.modifiedCount} request khác`);
 
-            // 7. Thông báo cho khách hàng
+            // 8. Thông báo cho khách hàng
             const notifData = {
                 userId: booking?.customerId,
                 title: 'Thợ đã nhận đơn của bạn',
@@ -1552,9 +1610,23 @@ const getTechniciansFoundByBookingId = async (bookingId) => {
     return search.foundTechniciansDetail;
 };
 
-// Lấy các mô tả booking phổ biến nhất
+// Lấy các mô tả booking phổ biến nhất với Redis cache
 const getPopularDescriptions = async (limit = 10) => {
     try {
+        // Kiểm tra cache trước
+        const cacheKey = `popular_descriptions_${limit}`;
+        const cached = await redisService.get(cacheKey);
+        
+        if (cached) {
+            console.log('Lấy popular descriptions từ Redis cache');
+            return {
+                success: true,
+                data: cached
+            };
+        }
+
+        // Nếu không có cache, chạy aggregation
+        console.log('Chạy aggregation để lấy popular descriptions');
         const popularDescriptions = await Booking.aggregate([
             {
                 $match: {
@@ -1582,6 +1654,9 @@ const getPopularDescriptions = async (limit = 10) => {
             }
         ]);
 
+        // Cache kết quả trong 15 phút
+        await redisService.set(cacheKey, popularDescriptions, 900);
+
         return {
             success: true,
             data: popularDescriptions
@@ -1595,7 +1670,7 @@ const getPopularDescriptions = async (limit = 10) => {
     }
 };
 
-// Tìm kiếm mô tả theo từ khóa
+// Tìm kiếm mô tả theo từ khóa với Redis cache
 const searchDescriptions = async (query, limit = 5) => {
     try {
         if (!query || query.trim().length < 2) {
@@ -1605,13 +1680,24 @@ const searchDescriptions = async (query, limit = 5) => {
             };
         }
 
+        // Kiểm tra cache trước
+        const cacheKey = `search_descriptions_${query.trim().toLowerCase()}_${limit}`;
+        const cached = await redisService.get(cacheKey);
+        
+        if (cached) {
+            console.log('Lấy search results từ Redis cache cho query:', query);
+            return {
+                success: true,
+                data: cached
+            };
+        }
+
+        // Nếu không có cache, chạy aggregation
+        console.log('Chạy aggregation để tìm kiếm descriptions cho query:', query);
         const searchResults = await Booking.aggregate([
             {
                 $match: {
                     description: {
-                        $exists: true,
-                        $ne: null,
-                        $ne: "",
                         $regex: query.trim(),
                         $options: 'i'
                     }
@@ -1637,6 +1723,9 @@ const searchDescriptions = async (query, limit = 5) => {
                 }
             }
         ]);
+
+        // Cache kết quả trong 10 phút (ngắn hơn vì search thay đổi nhiều)
+        await redisService.set(cacheKey, searchResults, 600);
 
         return {
             success: true,

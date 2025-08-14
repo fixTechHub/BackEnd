@@ -197,7 +197,7 @@ const updateWarrantyById = async (bookingWarrantyId, formData) => {
                 referenceId: existingWarranty._id,
                 referenceModel: 'BookingWarranty',
                 type: 'NEW_REQUEST',
-                // url: 'warranty'
+                url: `warranty?bookingWarrantyId=${existingWarranty._id}`
             };
             const notificationUser = await notificationService.createNotification(notifyData, session);
             io.to(`user:${notificationUser.userId}`).emit('receiveNotification', notificationUser);

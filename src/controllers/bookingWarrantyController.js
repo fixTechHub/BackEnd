@@ -9,9 +9,9 @@ const requestBookingWarranty = async (req, res) => {
         if (!reportedIssue || reportedIssue.trim() === '') {
             return res.status(400).json({ error: 'Vui lòng nhập lý do bảo hành' });
         }
-        // if (!images || images.length === 0) {
-        //     return res.status(400).json({ error: 'Vui lòng tải lên hình ảnh' });
-        // }
+        if (!images || images.length === 0) {
+            return res.status(400).json({ error: 'Vui lòng tải lên hình ảnh' });
+        }
         const booking = await bookingService.getBookingById(bookingId)
         const dateNow = new Date()
         if (!booking) {
@@ -162,7 +162,7 @@ const confirmWarrantySchedule = async (req, res) => {
 // New: list warranties of current user (customer)
 const listMyWarranties = async (req, res)=>{
     try{
-        const userId = req.user.id;
+        const userId = req.user.userId;
         const warranties = await bookingWarrantyService.getWarrantiesOfUser(userId);
         res.json(warranties);
     }catch(err){

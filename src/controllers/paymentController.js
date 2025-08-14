@@ -56,7 +56,7 @@ const handlePayOsSuccess = async (req, res) => {
     } catch (error) {
         console.error('Error in PayOS success handler:', error);
         try {
-            if (bookingPriceId) {
+           
                 const booking = await bookingService.getBookingById(bookingId)
                 if (booking && booking.customerId) {
                     const userWithRole = await userService.findUserById(booking.customerId._id)
@@ -64,7 +64,7 @@ const handlePayOsSuccess = async (req, res) => {
                     const token = generateToken(userWithRole);
                     await generateCookie(token, res);
                 }
-            }
+            
         } catch (loginError) {
             console.error('Error during login on payment failure:', loginError);
         }
@@ -306,6 +306,29 @@ const handleExtendPayOsSuccess = async (req, res) => {
     }
 };
 
+const handleSubscriptionExtendCancel = async (req, res) => {
+  const { userId, packageId, days } = req.query;
+
+  try {
+    if (!userId || !packageId || !days) {
+      throw new Error('Thiếu thông tin để hủy gia hạn');
+    }
+
+    await paymentService.handleExtendSubscriptionCancel(userId, packageId, Number(days));
+
+    const user = await userService.findUserById(userId);
+    if (user) {
+      const token = generateToken(user);
+      await generateCookie(token, res);
+    }
+  } catch (error) {
+    console.error('Error in cancel subscription extension handler:', error);
+  } finally {
+    res.redirect(`${process.env.FRONT_END_URL}/technician/deposit`);
+  }
+};
+
+
 
 module.exports = {
     finalizeBooking,
@@ -318,5 +341,6 @@ module.exports = {
     handleSubscriptionPayOsSuccess,
     handleSubscriptionPayOsCancel,
     extendSubscription,
-    handleExtendPayOsSuccess
+    handleExtendPayOsSuccess,
+    handleSubscriptionExtendCancel
 };  

@@ -2,28 +2,47 @@ const Notification = require('../models/Notification');
 const { getIo } = require('../sockets/socketManager');
 
 exports.createNotification = async (notificationData, session) => {
-  // Validate referenceModel when referenceId is provided
-  if (notificationData.referenceId && !notificationData.referenceModel) {
-    throw new Error('referenceModel is required when referenceId is provided');
-  }
-  if (notificationData.referenceModel && !['User', 'Payment', 'Message', 'Booking', 'Contract', 'BookingPrice','BookingWarranty'].includes(notificationData.referenceModel)) {
-    throw new Error('Invalid referenceModel value');
-  }
+  try {
+    // Validate referenceModel when referenceId is provided
+    if (notificationData.referenceId && !notificationData.referenceModel) {
+      throw new Error('referenceModel is required when referenceId is provided');
+    }
+  
+    
+    if (
+      notificationData.referenceModel &&
+      ![
+        'User',
+        'Payment',
+        'Message',
+        'Booking',
+        'Contract',
+        'BookingWarranty'
+      ].includes(notificationData.referenceModel)
+    ) {
+      throw new Error('Invalid referenceModel value');
+    }
 
-  const notification = new Notification({
-    userId: notificationData.userId,
-    title: notificationData.title,
-    content: notificationData.content,
-    type: notificationData.type,
-    url: notificationData.url ?? null,
-    referenceId: notificationData.referenceId || null,
-    referenceModel: notificationData.referenceModel || null,
-    isRead: false,
-  });
+    const notification = new Notification({
+      userId: notificationData.userId,
+      title: notificationData.title,
+      content: notificationData.content,
+      type: notificationData.type,
+      url: notificationData.url ?? null,
+      referenceId: notificationData.referenceId || null,
+      referenceModel: notificationData.referenceModel || null,
+      isRead: false,
+    });
 
-  const savedNotification = await notification.save({ session });
-  return savedNotification;
+    const savedNotification = await notification.save({ session });
+    return savedNotification;
+
+  } catch (error) {
+    console.error('Error creating notification:', error.message);
+    throw error; // rethrow so caller can still handle it
+  }
 };
+
 
 exports.createAndSend = async (notificationData, session) => {
   const io = getIo();

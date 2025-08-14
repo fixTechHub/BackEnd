@@ -42,5 +42,7 @@ feedbackSchema.index({ bookingId: 1 });
 feedbackSchema.index({ toUser: 1 });
 feedbackSchema.index({ rating: -1 });
 feedbackSchema.index({ isVisible: 1 });
+feedbackSchema.index({ toUser: 1, isVisible: 1, createdAt: -1 });
+feedbackSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('Feedback', feedbackSchema);
