@@ -1,14 +1,5 @@
 const rateLimit = require('express-rate-limit');
 
-// Hàm tạo key cho rate limiting
-const createKeyGenerator = () => {
-    return (req) => {
-        // Sử dụng X-Forwarded-For nếu có, nếu không thì dùng IP trực tiếp
-        const clientIP = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || req.connection.remoteAddress;
-        return clientIP;
-    };
-};
-
 // Rate limiter cho API popular descriptions
 const popularDescriptionsLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 phút
@@ -19,7 +10,13 @@ const popularDescriptionsLimiter = rateLimit({
     },
     standardHeaders: true,
     legacyHeaders: false,
-    keyGenerator: createKeyGenerator(),
+    // Sử dụng ipKeyGenerator helper function để xử lý IPv6 đúng cách
+    keyGenerator: (req) => {
+        // Sử dụng X-Forwarded-For nếu có, nếu không thì dùng IP trực tiếp
+        const clientIP = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || req.connection.remoteAddress;
+        // Sử dụng ipKeyGenerator helper để xử lý IPv6
+        return rateLimit.ipKeyGenerator(req, clientIP);
+    },
     handler: (req, res) => {
         res.status(429).json({
             success: false,
@@ -38,7 +35,13 @@ const searchDescriptionsLimiter = rateLimit({
     },
     standardHeaders: true,
     legacyHeaders: false,
-    keyGenerator: createKeyGenerator(),
+    // Sử dụng ipKeyGenerator helper function để xử lý IPv6 đúng cách
+    keyGenerator: (req) => {
+        // Sử dụng X-Forwarded-For nếu có, nếu không thì dùng IP trực tiếp
+        const clientIP = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || req.connection.remoteAddress;
+        // Sử dụng ipKeyGenerator helper để xử lý IPv6
+        return rateLimit.ipKeyGenerator(req, clientIP);
+    },
     handler: (req, res) => {
         res.status(429).json({
             success: false,
