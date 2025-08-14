@@ -62,7 +62,6 @@ exports.handleTemporarySession = async (req, res, next) => {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === 'production',
                 sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax',
-                domain: process.env.COOKIE_DOMAIN || undefined,
                 maxAge: 24 * 60 * 60 * 1000 // 24 hours
             });
         }
