@@ -7,6 +7,7 @@ const initializeSocket = (server) => {
   const io = new Server(server, {
     cors: {
       origin: [
+        process.env.FRONT_END_ADMIN_URL,
         process.env.FRONT_END_URL,
         'https://fix-tech-six.vercel.app',
         'https://fix-tech-git-develop-tris-projects-f8fdb778.vercel.app',

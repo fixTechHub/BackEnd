@@ -162,7 +162,7 @@ const confirmWarrantySchedule = async (req, res) => {
 // New: list warranties of current user (customer)
 const listMyWarranties = async (req, res)=>{
     try{
-        const userId = req.user.id;
+        const userId = req.user.userId;
         const warranties = await bookingWarrantyService.getWarrantiesOfUser(userId);
         res.json(warranties);
     }catch(err){

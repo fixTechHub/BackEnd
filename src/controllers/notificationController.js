@@ -1,4 +1,8 @@
+const { default: mongoose } = require('mongoose');
 const notificationService = require('../services/notificationService');
+const { getIo } = require('../sockets/socketManager');
+const User = require('../models/User');
+const { sendWarningEmail } = require('../utils/mail');
 
 exports.getUserNotifications = async (req, res) => {
   try {
@@ -44,11 +48,20 @@ exports.getAllUserNotifications = async (req, res) => {
 };
 
 exports.sendNotification = async (req,res) => {
+  
   try {
-    const [ notifyData] = req.body
-    const notification = await notificationService.createAndSend(notifyData)
+    const  notificationData = req.body
+    
+    const io = getIo()
+    const notification = await notificationService.createNotification(notificationData)
+    const user = await User.findById(notification.userId)
+    await sendWarningEmail(user.email,notification.content)
+    io.to(`user:${notification.userId}`).emit('receiveNotification', notification);
+
     res.status(200).json(notification);
   } catch (error) {
+    console.log(error.message);
+   
     res.status(500).json({ message: error.message });
     
   }

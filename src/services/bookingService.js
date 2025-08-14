@@ -1019,7 +1019,7 @@ const getAcceptedBooking = async (bookingId) => {
             .populate('serviceId')
             .populate('customerId')
             .lean();
-
+        
         if (!booking) {
             throw new Error('Không tìm thấy đơn hàng đã được xác nhận');
         }
@@ -1045,16 +1045,13 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
             throw new Error('Không tìm thấy báo giá để cập nhật');
         }
         if (couponCode) {
-            
             update.discountCode = couponCode;
             update.discountValue = discountValue
             update.finalPrice = finalPrice;
-            // console.log(update.finalPrice);
         } else {
             update.discountCode = null;
             update.discountValue = 0;
             update.finalPrice = finalPrice;
-            // console.log(update.finalPrice);
             
             update.holdingAmount = finalPrice * 0.2;
         }
@@ -1070,7 +1067,7 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
 
         let paymentUrl = null;
         if (paymentMethod === 'PAYOS') {
-            paymentUrl = await paymentService.createPayOsPayment(bookingId);
+            paymentUrl = await paymentService.createPayOsPayment(updatedBooking._id, updatedBooking.finalPrice);
         } else if (paymentMethod === 'CASH') {
             // Handle cash payment:
             // 1. Update booking status and create receipt
@@ -1082,10 +1079,12 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
             updatedBooking.customerConfirmedDone = true
             updatedBooking.isVideoCallAllowed = false
             updatedBooking.completedAt = new Date();
-            // Set warrantyExpiresAt based on warrantiesDuration (in days)
-            updatedBooking.warrantyExpiresAt = new Date();
-            updatedBooking.warrantyExpiresAt.setDate(
-                updatedBooking.warrantyExpiresAt.getDate() + updatedBooking.quote.warrantiesDuration*30
+            updatedBooking.technicianEarning = booking.quote.totalAmount
+            updatedBooking.warrantyExpiresAt = new Date()
+            // Set warrantyExpiresAt based on warrantiesDuration (in months)
+            const warrantyMonths = Number(updatedBooking.quote?.warrantiesDuration) || 0;
+            updatedBooking.warrantyExpiresAt.setMonth(
+                updatedBooking.warrantyExpiresAt.getMonth() + warrantyMonths
             );
             await updatedBooking.save({ session });
             const technician = await technicianService.getTechnicianById(updatedBooking.technicianId)
