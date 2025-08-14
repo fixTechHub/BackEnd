@@ -91,10 +91,6 @@ const technicianSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
-    inspectionFee: {
-        type: Number,
-        required: true
-    },
     pricesLastUpdatedAt: {
         type: Date,
         default: null

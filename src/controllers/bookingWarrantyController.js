@@ -159,6 +159,18 @@ const confirmWarrantySchedule = async (req, res) => {
     }
 };
 
+// New: list warranties of current user (customer)
+const listMyWarranties = async (req, res)=>{
+    try{
+        const userId = req.user.id;
+        const warranties = await bookingWarrantyService.getWarrantiesOfUser(userId);
+        res.json(warranties);
+    }catch(err){
+        console.error('List warranties error:', err);
+        res.status(500).json({error: err.message || 'Server error'});
+    }
+};
+
 
 module.exports = {
     requestBookingWarranty,
@@ -168,4 +180,5 @@ module.exports = {
     confirmWarranty,
     proposeWarrantySchedule,
     confirmWarrantySchedule
+    ,listMyWarranties
 }; 

@@ -175,12 +175,12 @@ exports.logout = async (req, res) => {
         res.clearCookie('token', {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict'
+            sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax'
         });
         res.clearCookie('refreshToken', {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict'
+            sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax'
         });
 
         return res.status(200).json({ message: "Logged out successfully" });
@@ -308,12 +308,14 @@ const checkVerificationStatus = async (user) => {
 
             // Kiểm tra các trường bắt buộc
             const hasSpecialties = Array.isArray(technician.specialtiesCategories) && technician.specialtiesCategories.length > 0;
-            const hasCertificates = Array.isArray(technician.certificate) && technician.certificate.length > 0;
+            // Certificates are optional; remove from mandatory checks.
+            const hasCertificates = true;
+
             const hasIdentification = technician.identification && technician.identification.trim() !== '';
             const hasFrontIdImage = technician.frontIdImage && technician.frontIdImage.trim() !== '';
             const hasBackIdImage = technician.backIdImage && technician.backIdImage.trim() !== '';
 
-            if (!hasSpecialties || !hasCertificates || !hasIdentification || !hasFrontIdImage || !hasBackIdImage) {
+            if (!hasSpecialties || !hasIdentification || !hasFrontIdImage || !hasBackIdImage) {
                 return {
                     step: 'COMPLETE_PROFILE',
                     redirectTo: '/technician/complete-profile',
@@ -717,7 +719,7 @@ exports.refreshToken = async (req, res) => {
         res.cookie('token', accessToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
+            sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax',
             maxAge: 15 * 60 * 1000 // 15 phút
         });
 

@@ -61,6 +61,7 @@ exports.createReport = async (payload) => {
       warrantyId: payload.warrantyId || undefined,
       reporterId: payload.reporterId,
       reportedUserId: payload.reportedUserId,
+      type: payload.warrantyId ? 'WARRANTY' : 'BOOKING',
       title: payload.title,
       tag: payload.tag,
       description: payload.description,
