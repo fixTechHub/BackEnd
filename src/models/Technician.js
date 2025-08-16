@@ -94,6 +94,15 @@ const technicianSchema = new mongoose.Schema({
     pricesLastUpdatedAt: {
         type: Date,
         default: null
+    },
+    isSubscribe: {
+        type: Boolean,
+        default: false
+    },
+    subscriptionStatus: {
+        type: String,
+        enum: ['TRIAL', 'BASIC', 'STANDARD', 'PREMIUM', 'FREE'],
+        default: 'FREE'
     }
 }, {
     timestamps: true

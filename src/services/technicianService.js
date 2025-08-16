@@ -486,37 +486,8 @@ const getListBookingForTechnician = async (technicianId) => {
 
 
 const getEarningsAndCommissionList = async (technicianId) => {
-
-  //   const quotes = await BookingPrice.find(technicianId)
-  //     .sort({ createdAt: -1 })
-  //     .populate('commissionConfigId')
-  //     .populate({
-  //       path: 'bookingId',
-  //       populate: [
-  //         { path: 'customerId', select: 'fullName' },
-  //         { path: 'serviceId', select: 'serviceName' }
-  //       ]
-  //     })
-
-  //   const earningList = quotes.map(quote => ({
-  //     // bookingId: quote.bookingId._id,
-  //     bookingCode: quote.bookingId?.bookingCode,
-  //     bookingInfo: {
-  //       customerName: quote.bookingId?.customerId,
-  //       service: quote.bookingId?.serviceId,
-  //     },
-  //     finalPrice: quote.finalPrice || 0,
-  //     commissionAmount: quote.commissionAmount || 0,
-  //     holdingAmount: quote.holdingAmount || 0,
-  //     technicianEarning: quote.technicianEarning || 0,
-
-  //   }));
-
-  //   return earningList;
-  // };
   const quotes = await Booking.find({ technicianId })
     .sort({ createdAt: -1 })
-    .populate('quote.commissionConfigId')
     .populate('customerId', 'fullName')
     .populate('serviceId', 'serviceName');
   console.log("quotes", quotes);
@@ -532,24 +503,6 @@ const getEarningsAndCommissionList = async (technicianId) => {
     technicianEarning: quote?.technicianEarning || 0,
   }));
   return earningList;
-
-//   const earningList = quotes.map(item => ({
-//   bookingCode: item.bookingCode,
-//   bookingInfo: {
-//     customerName: item.customerId?.fullName ?? 'N/A',
-//     service: item.serviceId?.serviceName ?? 'N/A',
-//   },
-//   // finalPrice có thể nằm ở root hoặc trong item.quote
-//   finalPrice: item.finalPrice ?? item.quote?.totalAmount ?? item.quote?.laborPrice ?? 0,
-
-//   // holdingAmount có thể nằm ở root hoặc trong item.quote
-//   holdingAmount: item.holdingAmount ?? item.quote?.holdingAmount ?? 0,
-
-//   // technicianEarning có thể nằm ở root hoặc trong item.quote
-//   technicianEarning: finalPrice - holdingAmount,
-// }));
-
-return earningList;
 };
 
 const getAvailability = async (technicianId) => {

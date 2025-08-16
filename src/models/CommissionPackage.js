@@ -16,6 +16,11 @@ const commissionPackageSchema = new mongoose.Schema({
     isActive: {
         type: Boolean,
         default: true
+    },
+    type: {
+        type: String,
+        enum: ['BASIC', 'STANDARD', 'PREMIUM'],
+        required: true
     }
 }, { timestamps: true });
 

@@ -148,6 +148,21 @@ const getAllFeedback = async (req, res) => {
     }
 };
 
+const getFeedbacksByFromUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    console.log("Fetching feedbacks for user:", userId); 
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+
+    const result = await feedbackService.getFeedbacksByFromUser(userId, page, limit);
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ message: err.message || 'Server Error' });
+  }
+};
+
 const listFeedbacksForTechnician = async (req, res, next) => {
     try {
         const { technicianId } = req.params;
@@ -168,6 +183,17 @@ const feedbackStatsForTechnician = async (req, res, next) => {
     }
 };
 
+const fetchByBookingId = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const items = await feedbackService.getFeedbacksByBookingId(bookingId);
+    res.json({ items, total: items.length });
+  } catch (err) {
+    console.error('fetchByBookingId error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 module.exports = {
     submitFeedback,
     editFeedback,
@@ -177,5 +203,7 @@ module.exports = {
     getAllFeedback,
     listByTechnician,
     listFeedbacksForTechnician,
-    feedbackStatsForTechnician
+    feedbackStatsForTechnician,
+    getFeedbacksByFromUser,
+    fetchByBookingId
 };
