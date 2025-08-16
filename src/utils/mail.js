@@ -341,10 +341,69 @@ const sendDeletionReminderEmail = async (email, daysLeft, subject = 'Nhắc nh�
     }
 };
 
+
+const sendWarningEmail = async (email, warningContent, subject = 'CẢNH BÁO TÀI KHOẢN | FixTech') => {
+    const mailOptions = {
+        from: `"FixHub" <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: subject,
+        html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 2px solid #dc3545; border-radius: 8px; padding: 20px;">
+                <h2 style="color: #dc3545; text-align: center; font-weight: bold;">⚠️ CẢNH BÁO TỪ FIXTECH ⚠️</h2>
+                <p style="color: #333; font-size: 16px;">Chúng tôi phát hiện hành vi vi phạm liên quan đến tài khoản của bạn tại FixTech.</p>
+                <p style="font-weight: bold; color: #dc3545;">Chi tiết cảnh báo:</p>
+                <div style="background-color: #f8d7da; 
+                          border: 1px solid #dc3545; 
+                          padding: 20px; 
+                          border-radius: 8px; 
+                          margin: 20px 0; 
+                          text-align: center;">
+                    <p style="color: #721c24; margin: 0; font-size: 18px; font-weight: bold;">
+                        ${warningContent}
+                    </p>
+                </div>
+                
+                <div style="background-color: #fff3cd; 
+                          border-left: 4px solid #dc3545; 
+                          padding: 15px; 
+                          margin: 20px 0;">
+                    <p style="margin: 0; color: #721c24; font-weight: bold;">
+                        🚨 <strong>Hậu quả nếu tiếp tục vi phạm:</strong> Tài khoản của bạn có thể bị tạm khóa hoặc vô hiệu hóa vĩnh viễn.
+                    </p>
+                </div>
+                
+                <p style="font-weight: bold; color: #333;">Hành động cần thực hiện ngay:</p>
+              
+                
+                <p style="color: #721c24;">Nếu bạn tin rằng đây là một nhầm lẫn, vui lòng liên hệ ngay để được hỗ trợ. Hành động kịp thời sẽ giúp tránh các biện pháp nghiêm ngặt hơn.</p>
+                
+                <p style="color: #333;">Trân trọng,</p>
+                <p style="color: #333; font-weight: bold;">Đội ngũ FixTech</p>
+
+                <hr style="border: 1px solid #dc3545; margin: 20px 0;">
+                
+                <div style="color: #666; font-size: 12px; text-align: center;">
+                    <p>Email này được gửi tự động từ hệ thống FixTech. Vui lòng không trả lời email này.</p>
+                    <p>Vì lý do bảo mật, không chia sẻ thông tin này với bất kỳ ai.</p>
+                    <p>© 2025 FixTech. Tất cả các quyền được bảo lưu.</p>
+                </div>
+            </div>
+        `
+    };
+
+    try {
+        await transporter.sendMail(mailOptions);
+    } catch (error) {
+        throw new Error('Không thể gửi email cảnh báo tài khoản');
+    }
+};
+
+
 module.exports = {
     sendVerificationEmail,
     sendPasswordResetEmail,
     sendDeactivateVerificationEmail,
     sendDeleteVerificationEmail,
-    sendDeletionReminderEmail
+    sendDeletionReminderEmail,
+    sendWarningEmail
 };

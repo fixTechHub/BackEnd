@@ -3,14 +3,15 @@ const app = require('./src/app');
 const http = require('http');
 const connectDB = require('./src/config/connectDB');
 const { initializeSocket } = require('./src/sockets/socket');
-const { setIo } = require('./src/sockets/socketManager');
-const contractCronService = require('./src/cronjobs/contractCronJob');
+const { setIo } = require('./src/sockets/socketManager'); 
+
 const { startRequestExpirationCron } = require('./src/cronjobs/requestExpirationCron');
 
 // Import các cron jobs
 require('./src/cronjobs/ex');
 require('./src/cronjobs/technicianSearchCron.js');
-
+require('./src/cronjobs/contractCronJob');
+require('./src/cronjobs/warrantyCronJob.js');
 const PORT = process.env.PORT || 3000;
 
 // Create an HTTP server from the Express app

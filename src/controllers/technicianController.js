@@ -312,6 +312,14 @@ const completeTechnicianProfile = async (req, res) => {
     // Gom url để rollback nếu cần
     uploadedUrls.push(frontUrl, backUrl, ...certUrls);
 
+    // Debug: log received data
+    console.log('Received form data:', {
+        address: req.body.address,
+        currentLocation: req.body.currentLocation,
+        identification: req.body.identification,
+        experienceYears: req.body.experienceYears
+    });
+
     // Build data
     const technicianBody = {
       ...req.body,
@@ -341,8 +349,21 @@ const completeTechnicianProfile = async (req, res) => {
       }
     }
 
-    // Update user status
+    // Update user status and address
     user.status = 'ACTIVE';
+    
+    // Update user address if provided
+    if (req.body.address && req.body.address.trim()) {
+        // Parse address string into structured format
+        // For simplicity, store the full address as street for now
+        user.address = {
+            street: req.body.address.trim(),
+            city: 'Đà Nẵng', // Default city for this project
+            district: '' // Can be enhanced later
+        };
+        console.log('Updated user address:', user.address);
+    }
+    
     await user.save({ session });
 
     await session.commitTransaction();

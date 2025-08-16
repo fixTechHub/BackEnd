@@ -19,6 +19,7 @@ app.use(
     cors({
         origin: [
             process.env.FRONT_END_URL, // http://localhost:5173
+            process.env.FRONT_END_ADMIN_URL,
             'http://localhost:5173', // Explicitly include for safety
             'http://localhost:5174',
             'https://*.ngrok-free.app', // Allow all ngrok-free.app URLs
