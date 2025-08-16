@@ -13,7 +13,20 @@ router.patch('/:id/read',
 router.delete('/clear', authenticateToken, notificationController.clearAllNotifications);
 router.get('/all', authenticateToken, notificationController.getAllUserNotifications);
 
+
+router.get('/admin/:adminId',
+
+  notificationController.getAdminNotifications);
+router.patch('/:id/read/admin',
+
+  notificationController.markAsRead);
+
+router.delete('/clear/admin/:adminId', notificationController.clearAllAdminNotifications);
+
+
+
 router.post('/',
   // authenticateToken, 
+
   notificationController.sendNotification)
 module.exports = router;

@@ -66,3 +66,27 @@ exports.sendNotification = async (req,res) => {
     
   }
 }
+
+
+exports.clearAllAdminNotifications = async (req, res) => {
+  try {
+    const {adminId} = req.params
+    await notificationService.clearAllNotifications(adminId);
+    res.status(200).json({ message: 'All notifications cleared' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getAdminNotifications = async (req, res) => {
+  try {
+    const {adminId} = req.params
+
+    const notifications = await notificationService.getUserNotifications(
+      adminId
+    );
+    res.status(200).json(notifications);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
