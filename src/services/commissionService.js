@@ -18,10 +18,10 @@ const deductCommission = async (technicianId, amount, session) => {
 
         // Using a fixed 20% commission rate as per the example.
         // This could be made dynamic later by fetching from CommissionConfig.
-        const commissionRate = 0.20;
-        const commissionAmount = amount * commissionRate;
-        const earningAmount = amount - commissionAmount
-
+        const originalAmount = amount/1.08
+        const VATAmount = originalAmount*0.08
+        const commissionAmount = originalAmount * 0.20;
+        const earningAmount = originalAmount - commissionAmount + VATAmount
         if (earningAmount > technician.balance) {
             // If balance is insufficient, add the difference to debBalance
             const shortfall = earningAmount - technician.balance;
@@ -32,7 +32,7 @@ const deductCommission = async (technicianId, amount, session) => {
             technician.balance -= earningAmount;
         }
 
-        technician.totalEarning += amount
+        technician.totalEarning += originalAmount
         technician.totalHoldingAmount += commissionAmount
         technician.jobCompleted += 1
         // Use the provided session if it exists, otherwise save directly.
@@ -55,8 +55,6 @@ const creditCommission = async (technicianId, amount, session) => {
             throw new Error('Technician not found for commission deduction.');
         }
 
-        // Using a fixed 70% commission rate as per the example.
-        // This could be made dynamic later by fetching from CommissionConfig.
         const commissionRate = 0.80;
         const earningAmount = amount * commissionRate;
         const commissionAmount =amount - amount * commissionRate;

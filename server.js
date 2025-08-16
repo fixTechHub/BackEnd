@@ -12,6 +12,8 @@ require('./src/cronjobs/ex');
 require('./src/cronjobs/technicianSearchCron.js');
 require('./src/cronjobs/contractCronJob');
 require('./src/cronjobs/warrantyCronJob.js');
+require('./src/cronjobs/debCronJob.js');
+
 const PORT = process.env.PORT || 3000;
 
 // Create an HTTP server from the Express app

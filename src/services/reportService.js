@@ -84,7 +84,7 @@ exports.createReport = async (payload) => {
     for (const admin of admins) {
       const adminNotificationData = {
         userId: admin._id,
-        title: payload.title,
+        title: 'Báo cáo',
         content: `Thợ  đã bị báo cáo vì lí do ${payload.description}.`,
         referenceId: payload.reportedUserId,
         referenceModel: 'User',
