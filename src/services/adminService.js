@@ -77,6 +77,78 @@ const sendContractTechnician = async (technicianId) => {
     }
 };
 
+const getWithdrawLogs = async ({ page = 1, limit = 10, status, search }) => {
+  page = Number(page) || 1;
+  limit = Number(limit) || 10;
+
+  // base filter: chỉ WITHDRAW
+  const filter = { type: 'WITHDRAW' };
+  if (status) filter.status = status;
+
+  // Tìm theo search (fullName/email)
+  let techIds = null;
+  if (search && search.trim()) {
+    const regex = new RegExp(search.trim(), 'i');
+    const users = await User.find(
+      { $or: [{ fullName: regex }, { email: regex }] },
+      { _id: 1 }
+    ).lean();
+
+    if (users.length) {
+      const userIds = users.map((u) => u._id);
+      const techs = await Technician.find({ userId: { $in: userIds } }, { _id: 1 }).lean();
+      techIds = techs.map((t) => t._id);
+    } else {
+      techIds = []; // không ai match
+    }
+    if (techIds) filter.technicianId = { $in: techIds };
+  }
+
+  const total = await DepositLog.countDocuments(filter);
+  const items = await DepositLog.find(filter)
+    .sort({ createdAt: -1 })
+    .skip((page - 1) * limit)
+    .limit(limit)
+    .populate({
+      path: 'technicianId',
+      select: 'userId balance bankAccount',
+      populate: { path: 'userId', select: 'fullName email' },
+    })
+    .lean();
+
+  // Chuẩn hoá dữ liệu cho FE
+  const normalized = items.map((x) => ({
+    _id: x._id,
+    amount: x.amount,
+    status: x.status,
+    balanceAfter: x.balanceAfter ?? null,
+    createdAt: x.createdAt,
+    updatedAt: x.updatedAt,
+    technician: x.technicianId
+      ? {
+          _id: x.technicianId._id,
+          balance: x.technicianId.balance,
+          user: x.technicianId.userId
+            ? {
+                _id: x.technicianId.userId._id,
+                fullName: x.technicianId.userId.fullName,
+                email: x.technicianId.userId.email,
+              }
+            : null,
+            bankAccount: x.technicianId.bankAccount || null,
+        }
+      : null,
+  }));
+
+  return {
+    items: normalized,
+    page,
+    limit,
+    total,
+    totalPages: Math.ceil(total / limit) || 0,
+  };
+};
+
 
 
 const approveWithdrawRequest = async (logId) => {
@@ -114,5 +186,6 @@ const approveWithdrawRequest = async (logId) => {
 
 module.exports = {
   approveWithdrawRequest,
-  sendContractTechnician
+  sendContractTechnician,
+  getWithdrawLogs
 };

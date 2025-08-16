@@ -1,6 +1,6 @@
 const Certificate = require('../models/Certificate');
 const { deleteFileFromS3 } = require('../services/s3Service');
-const CertificateService = require('../services/certificateService');
+const certificateService = require('../services/CertificateService');
 
 
 const uploadCertificate = async (req, res) => {
@@ -56,7 +56,7 @@ const verifyCertificate = async (req, res) => {
   try {
     const { id } = req.params;
     const { status, reason } = req.body;
-    const data = await CertificateService.verifyCertificate({
+    const data = await certificateService.verifyCertificate({
       certificateId: id,
       status,
       reason,
@@ -74,7 +74,7 @@ const getAllCertificates = async (req, res) => {
     const limit = parseInt(req.query.limit || '10', 10);
     const status = req.query.status || null;
     const search = req.query.search || '';
-    const data = await CertificateService.listCertificates({ search, status, page, limit });
+    const data = await certificateService.listCertificates({ search, status, page, limit });
     res.status(200).json({ message: 'OK', ...data });
   } catch (e) {
     res.status(500).json({ message: e.message || 'Internal server error' });

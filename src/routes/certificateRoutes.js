@@ -14,7 +14,7 @@ router.post(
 );
 
 router.delete('/:id', deleteCertificate);
-router.patch('/:certificateId/verify',verifyCertificate);
+router.patch('/:id/verify',verifyCertificate);
 
 
 module.exports = router;
