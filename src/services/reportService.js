@@ -2,7 +2,9 @@ const mongoose = require('mongoose');
 const Report = require('../models/Report');
 const Booking = require('../models/Booking');
 const BookingWarranty = require('../models/BookingWarranty');
-
+const Role = require('../models/Role');
+const User = require('../models/User');
+const notificationService =require('./notificationService')
 /**
  * Create a new report by customer or technician
  * @param {Object} payload - report data from controller
@@ -73,7 +75,25 @@ exports.createReport = async (payload) => {
     };
 
     const report = await Report.create([reportData], { session });
+    const adminRole = await Role.findOne({ name: 'ADMIN' });
+    if (!adminRole) {
+      throw new Error('Admin role not found');
+    }
 
+    const admins = await User.find({ role: adminRole._id, status: 'ACTIVE' });
+    for (const admin of admins) {
+      const adminNotificationData = {
+        userId: admin._id,
+        title: payload.title,
+        content: `Thợ  đã bị báo cáo vì lí do ${payload.description}.`,
+        referenceId: payload.reportedUserId,
+        referenceModel: 'User',
+        type: 'NEW_REQUEST',
+        // url: 'warranty'
+      };
+      await notificationService.createAndSend(adminNotificationData, session);
+
+    }
     await session.commitTransaction();
     session.endSession();
 
