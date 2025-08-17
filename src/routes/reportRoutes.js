@@ -8,5 +8,6 @@ router.post('/', authenticateToken, reportController.createReport);
 
 // Get report detail
 router.get('/:id', authenticateToken, reportController.getReportById);
+router.get('/:technicianId/count-report', reportController.getReportsByTechnicianId);
 
 module.exports = router;

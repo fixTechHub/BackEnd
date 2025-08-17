@@ -1118,7 +1118,7 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
             // 2. Deduct commission from technician's balance
             await commissionService.deductCommission(
                 updatedBooking.technicianId,
-                updatedBooking.finalPrice+updatedBooking.discountValue,
+                updatedBooking.finalPrice,
                 session
             );
         }

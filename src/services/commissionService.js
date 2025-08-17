@@ -1,4 +1,5 @@
 const technicianService = require('./technicianService');
+const notificationService = require('./notificationService');
 const CommissionConfig = require('../models/CommissionConfig');
 
 const getAllCommissionConfigs = async () => {
@@ -18,21 +19,35 @@ const deductCommission = async (technicianId, amount, session) => {
 
         // Using a fixed 20% commission rate as per the example.
         // This could be made dynamic later by fetching from CommissionConfig.
-        const commissionRate = 0.20;
-        const commissionAmount = amount * commissionRate;
-        const earningAmount = amount - commissionAmount
+        const originalAmount = amount / 1.08
+        const VATAmount = originalAmount * 0.08
+        const commissionAmount = originalAmount * 0.20;
+        const earningAmount = originalAmount - commissionAmount + VATAmount
+        const debtThreshold = 300000;
 
         if (earningAmount > technician.balance) {
             // If balance is insufficient, add the difference to debBalance
             const shortfall = earningAmount - technician.balance;
             technician.debBalance += shortfall;
+            if (technician.debBalance >= debtThreshold) {
+                technician.isDebFree = true
+                const notificationData = {
+                    userId: technician.userId,
+                    title: 'Cảnh Báo Số Dư Nợ',
+                    content: `Số dư nợ của bạn ${technician.debBalance.toLocaleString('vi-VN')} VND đã vượt quá ngưỡng ${debtThreshold.toLocaleString('vi-VN')} VND. Trạng thái tài khoản của bạn đã được cập nhật thành không nợ.`,
+                    referenceId: technician.userId,
+                    referenceModel: 'User',
+                    type: 'PAYMENT'
+                };
+                await notificationService.createAndSend(notificationData, session);
+            }
             technician.balance = 0; // Set balance to 0 since it's insufficient
         } else {
             // If balance is sufficient, deduct normally
             technician.balance -= earningAmount;
         }
 
-        technician.totalEarning += amount
+        technician.totalEarning += originalAmount
         technician.totalHoldingAmount += commissionAmount
         technician.jobCompleted += 1
         // Use the provided session if it exists, otherwise save directly.
@@ -55,12 +70,10 @@ const creditCommission = async (technicianId, amount, session) => {
             throw new Error('Technician not found for commission deduction.');
         }
 
-        // Using a fixed 70% commission rate as per the example.
-        // This could be made dynamic later by fetching from CommissionConfig.
         const commissionRate = 0.80;
         const earningAmount = amount * commissionRate;
-        const commissionAmount =amount - amount * commissionRate;
- 
+        const commissionAmount = amount - amount * commissionRate;
+
         // Check if debBalance is greater than 0
         if (technician.debBalance > 0) {
             if (technician.debBalance >= earningAmount) {

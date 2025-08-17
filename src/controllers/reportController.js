@@ -47,3 +47,14 @@ exports.getReportById = async (req, res) => {
     return res.status(404).json({ success: false, message: error.message });
   }
 };
+
+exports.getReportsByTechnicianId = async (req, res) => {
+  try {
+    const { technicianId } = req.params;
+    const count = await reportService.countTechnicianReportsById(technicianId);
+    return res.status(200).json(count);
+  } catch (error) {
+    console.error('Get Report Error:', error);
+    return res.status(404).json({ success: false, message: error.message });
+  }
+};
