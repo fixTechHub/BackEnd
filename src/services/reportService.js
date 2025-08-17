@@ -85,7 +85,7 @@ exports.createReport = async (payload) => {
       const adminNotificationData = {
         userId: admin._id,
         title: 'Báo cáo',
-        content: `Thợ  đã bị báo cáo vì lí do ${payload.description}.`,
+        content: `Thợ  đã bị báo cáo vì lí do ${payload.description}, hãy kiểm tra những báo cáo.`,
         referenceId: payload.reportedUserId,
         referenceModel: 'User',
         type: 'NEW_REQUEST',
@@ -117,4 +117,14 @@ exports.getReportById = async (id) => {
     throw new Error('Không tìm thấy báo cáo');
   }
   return report;
+};
+
+exports.countTechnicianReportsById = async (technicianId) => {
+  if (!mongoose.Types.ObjectId.isValid(technicianId)) {
+    throw new Error('ID kỹ thuật viên không hợp lệ');
+  }
+
+  const count = await Report.countDocuments({ reportedUserId: technicianId });
+
+  return count;
 };
