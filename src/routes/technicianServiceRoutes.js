@@ -5,12 +5,16 @@ const { authenticateToken } = require('../middlewares/authMiddleware');
 
 // Middleware để kiểm tra quyền technician
 const checkTechnicianRole = (req, res, next) => {
-    if (req.user.role !== 'TECHNICIAN') {
+    // Handle both populated role object and string role
+    const roleName = req.user.role?.name || req.user.role;
+    
+    if (roleName !== 'TECHNICIAN') {
         return res.status(403).json({
             success: false,
             message: 'Chỉ kỹ thuật viên mới có quyền truy cập'
         });
     }
+    
     next();
 };
 

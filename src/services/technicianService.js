@@ -13,7 +13,14 @@ const TechnicianSchedule = require('../models/TechnicianSchedule');
 const createNewTechnician = async (userId, technicianData, session = null) => {
   const technician = new Technician({
     userId,
+    // Individual account fields
     identification: technicianData.identification,
+    frontIdImage: technicianData.frontIdImage || null,
+    backIdImage: technicianData.backIdImage || null,
+    // Business account fields
+    taxCode: technicianData.taxCode || null,
+    businessLicenseImage: technicianData.businessLicenseImage || null,
+    // Common fields
     experienceYears: technicianData.experienceYears || 0,
     currentLocation: technicianData.currentLocation || {
       type: 'Point',
@@ -21,8 +28,6 @@ const createNewTechnician = async (userId, technicianData, session = null) => {
     },
     specialtiesCategories: technicianData.specialtiesCategories || [],
     certificate: technicianData.certificate || [],
-    frontIdImage: technicianData.frontIdImage || null,
-    backIdImage: technicianData.backIdImage || null,
     inspectionFee: technicianData.inspectionFee || 0,  // phí kiểm tra (default 0)
     certificateVerificationStatus: false,
     jobCompleted: 0,

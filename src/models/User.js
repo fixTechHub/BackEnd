@@ -41,6 +41,11 @@ const userSchema = new mongoose.Schema({
         ref: 'Role',
         required: true
     },
+    accountType: {
+        type: String,
+        enum: ['INDIVIDUAL', 'BUSINESS'],
+        default: 'INDIVIDUAL'
+    },
     status: {
         type: String,
         enum: ['PENDING', 'ACTIVE', 'INACTIVE', 'INACTIVE_USER', 'INACTIVE_ADMIN', 'BLOCKED', 'DELETED', 'PENDING_DELETION'],
