@@ -22,6 +22,7 @@ router.use('/payments', require('./paymentRoutes'));
 router.use('/reports', require('./reportRoutes'));
 router.use('/services', require('./serviceRoutes'));
 router.use('/technicians', require('./technicianRoutes'));
+router.use('/technician-services', require('./technicianServiceRoutes'));
 router.use('/video-call', require('./videoCallRoutes'));
 router.use('/system-reports', require('./systemReportRoutes'));
 
