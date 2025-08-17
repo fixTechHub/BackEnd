@@ -121,7 +121,7 @@ const handleSuccessfulPayment = async (orderCode, bookingId) => {
     // Credit commission from technician's balance
     await commissionService.creditCommission(
       booking.technicianId,
-      booking.finalPrice + booking.discountValue,
+      booking.quote.totalAmount,
       session
     );
 
@@ -412,10 +412,11 @@ const handleSuccessfulDeposit = async (amount, userId) => {
     }
 
     const balanceBefore = technician.balance;
-    const balanceAfter = balanceBefore + amountNumber;
+    const balanceAfter = technician.balance;
 
     // Update balance
-    technician.balance = balanceAfter;
+    technician.debBalance -= amountNumber;
+    technician.isDebFree = false
     await technician.save({ session });
 
     // Create deposit log
@@ -427,7 +428,7 @@ const handleSuccessfulDeposit = async (amount, userId) => {
       paymentMethod: 'BANK', // Or dynamically set if you have it
       balanceBefore: balanceBefore,
       balanceAfter: balanceAfter,
-      note: `Nạp ${amount}đ thành công`,
+      note: `Trả ${amount}đ thành công`,
     });
 
     await depositLog.save({ session });
@@ -466,7 +467,7 @@ const handleCancelDeposit = async (amount, userId) => {
       paymentMethod: 'BANK', // Or dynamically set if you have it
       balanceBefore: balanceBefore,
       balanceAfter: balanceAfter,
-      note: `Hủy nạp ${amount}đ thành công`,
+      note: `Hủy trả ${amount}đ thành công`,
     });
 
     await depositLog.save({ session });

@@ -79,6 +79,10 @@ const technicianSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    isDebFree: {
+        type: Boolean,
+        default: false
+    },
     totalCommissionPaid: {
         type: Number,
         default: 0
@@ -94,6 +98,15 @@ const technicianSchema = new mongoose.Schema({
     pricesLastUpdatedAt: {
         type: Date,
         default: null
+    },
+    isSubscribe: {
+        type: Boolean,
+        default: false
+    },
+    subscriptionStatus: {
+        type: String,
+        enum: ['TRIAL', 'BASIC', 'STANDARD', 'PREMIUM', 'FREE'],
+        default: 'FREE'
     }
 }, {
     timestamps: true
