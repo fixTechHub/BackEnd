@@ -2,6 +2,92 @@ const mongoose = require('mongoose');
 const TechnicianSchedule = require('../models/TechnicianSchedule');
 
 /**
+ * Lấy danh sách lịch trình trùng với thời gian cụ thể
+ * @param {string} technicianId - ID của technician
+ * @param {string} startTime - Thời gian bắt đầu (ISO string)
+ * @param {string} endTime - Thời gian kết thúc (ISO string)
+ * @returns {Object} - Kết quả với conflicts và count
+ */
+const getConflictingSchedules = async (technicianId, startTime, endTime) => {
+    try {
+        console.log('🔍 DEBUG: getConflictingSchedules service được gọi');
+        console.log('  technicianId:', technicianId);
+        console.log('  startTime:', startTime);
+        console.log('  endTime:', endTime);
+
+        if (!technicianId || !startTime || !endTime) {
+            throw new Error('Thiếu thông tin: technicianId, startTime, endTime');
+        }
+
+        // Tạo buffer 1 tiếng trước startTime và 1 tiếng sau endTime
+        const bufferedStartTime = new Date(new Date(startTime).getTime() - 60 * 60 * 1000); // 1 tiếng trước
+        const bufferedEndTime = new Date(new Date(endTime).getTime() + 60 * 60 * 1000); // 1 tiếng sau
+
+        console.log('--- DEBUG CONFLICT DETECTION ---');
+        console.log('Original startTime:', new Date(startTime));
+        console.log('Original endTime:', new Date(endTime));
+        console.log('Buffered startTime:', bufferedStartTime);
+        console.log('Buffered endTime:', bufferedEndTime);
+
+        // Logic kiểm tra overlap với buffer
+        const conflictingSchedules = await TechnicianSchedule.find({
+            technicianId: technicianId,
+            scheduleStatus: 'UNAVAILABLE',
+            $or: [
+                // Lịch trình bắt đầu trong khoảng thời gian có buffer
+                {
+                    startTime: {
+                        $gte: bufferedStartTime,
+                        $lt: bufferedEndTime
+                    }
+                },
+                // Lịch trình kết thúc trong khoảng thời gian có buffer
+                {
+                    endTime: {
+                        $gt: bufferedStartTime,
+                        $lte: bufferedEndTime
+                    }
+                },
+                // Lịch trình bao trọn khoảng thời gian có buffer
+                {
+                    startTime: { $lte: bufferedStartTime },
+                    endTime: { $gte: bufferedEndTime }
+                }
+            ]
+        }).populate('bookingId', 'bookingCode startTime expectedEndTime');
+
+        console.log('Found conflicting schedules:', conflictingSchedules.length);
+        if (conflictingSchedules.length > 0) {
+            conflictingSchedules.forEach((schedule, index) => {
+                console.log(`Conflict ${index + 1}:`, {
+                    startTime: schedule.startTime,
+                    endTime: schedule.endTime,
+                    bookingCode: schedule.bookingId?.bookingCode
+                });
+            });
+        }
+
+        // Format dữ liệu trả về
+        const formattedConflicts = conflictingSchedules.map(schedule => ({
+            startTime: schedule.startTime,
+            endTime: schedule.endTime,
+            bookingCode: schedule.bookingId?.bookingCode || 'Không xác định',
+            note: schedule.note || ''
+        }));
+
+        return {
+            success: true,
+            conflicts: formattedConflicts,
+            count: formattedConflicts.length
+        };
+
+    } catch (error) {
+        console.error('❌ DEBUG: Lỗi trong getConflictingSchedules service:', error);
+        throw error;
+    }
+};
+
+/**
  * Tạo lịch hẹn cho technician
  * @param {Object} scheduleData - Dữ liệu lịch hẹn
  * @param {ObjectId} scheduleData.technicianId - ID của technician
@@ -144,6 +230,7 @@ const getSchedulesByTechnicianAndTimeRange = async (technicianId, startTime, end
 };
 
 module.exports = {
+    getConflictingSchedules,
     createTechnicianSchedule,
     createScheduleForBooking,
     deleteScheduleByBookingId,

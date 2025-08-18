@@ -2,7 +2,9 @@ const mongoose = require('mongoose');
 const Report = require('../models/Report');
 const Booking = require('../models/Booking');
 const BookingWarranty = require('../models/BookingWarranty');
-
+const Role = require('../models/Role');
+const User = require('../models/User');
+const notificationService =require('./notificationService')
 /**
  * Create a new report by customer or technician
  * @param {Object} payload - report data from controller
@@ -73,7 +75,25 @@ exports.createReport = async (payload) => {
     };
 
     const report = await Report.create([reportData], { session });
+    const adminRole = await Role.findOne({ name: 'ADMIN' });
+    if (!adminRole) {
+      throw new Error('Admin role not found');
+    }
 
+    const admins = await User.find({ role: adminRole._id, status: 'ACTIVE' });
+    for (const admin of admins) {
+      const adminNotificationData = {
+        userId: admin._id,
+        title: 'Báo cáo',
+        content: `Thợ  đã bị báo cáo vì lí do ${payload.description}, hãy kiểm tra những báo cáo.`,
+        referenceId: payload.reportedUserId,
+        referenceModel: 'User',
+        type: 'NEW_REQUEST',
+        // url: 'warranty'
+      };
+      await notificationService.createAndSend(adminNotificationData, session);
+
+    }
     await session.commitTransaction();
     session.endSession();
 
@@ -97,4 +117,14 @@ exports.getReportById = async (id) => {
     throw new Error('Không tìm thấy báo cáo');
   }
   return report;
+};
+
+exports.countTechnicianReportsById = async (technicianId) => {
+  if (!mongoose.Types.ObjectId.isValid(technicianId)) {
+    throw new Error('ID kỹ thuật viên không hợp lệ');
+  }
+
+  const count = await Report.countDocuments({ reportedUserId: technicianId });
+
+  return count;
 };
