@@ -3,6 +3,8 @@ const { addressToPoint } = require('../services/geocodingService');
 const User = require('../models/User');
 const { getIo } = require('../sockets/socketManager')
 const couponService = require('../services/couponService')
+const Booking = require('../models/Booking');
+const Technician = require('../models/Technician');
 
 const createBookingRequest = async (req, res) => {
     const io = getIo()
@@ -416,6 +418,36 @@ const searchDescriptions = async (req, res) => {
             message: 'Lỗi server khi tìm kiếm mô tả'
         });
     }
+};
+
+
+exports.markDone = async (req, res, next) => {
+  try {
+    const { bookingId } = req.params;
+    const booking = await Booking.findById(bookingId);
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+
+    // Nếu đã counted thì không cộng nữa
+    const wasCounted = booking.countedForTechJobCompleted === true;
+
+    booking.status = 'DONE';
+    if (!wasCounted) {
+      booking.countedForTechJobCompleted = true;
+    }
+    await booking.save();
+
+    // Chỉ increment khi lần đầu DONE
+    if (!wasCounted && booking.technicianId) {
+      await Technician.updateOne(
+        { _id: booking.technicianId },
+        { $inc: { jobCompleted: 1 } }
+      );
+    }
+
+    return res.json({ success: true, booking });
+  } catch (err) {
+    next(err);
+  }
 };
 
 module.exports = {

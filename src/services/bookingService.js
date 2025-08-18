@@ -501,37 +501,73 @@ const confirmJobDone = async (bookingId, userId, role) => {
         }
 
         // Cập nhật trạng thái booking với đầy đủ thông tin
-        await Booking.findByIdAndUpdate(
-            bookingId,
-            {
-                $set: {
-                    status: 'DONE',
-                    customerConfirmedDone: true,
-                    isChatAllowed: false,
-                    isVideoCallAllowed: false,
-                    completedAt: new Date(),
-                    finalPrice: finalPrice,
-                    // Tạm thời để null các trường này theo yêu cầu
-                    technicianEarning: null,
-                    commissionAmount: null,
-                    holdingAmount: null
-                }
-            },
-            { session }
-        );
+        // await Booking.findByIdAndUpdate(
+        //     bookingId,
+        //     {
+        //         $set: {
+        //             status: 'DONE',
+        //             customerConfirmedDone: true,
+        //             isChatAllowed: false,
+        //             isVideoCallAllowed: false,
+        //             completedAt: new Date(),
+        //             finalPrice: finalPrice,
+        //             // Tạm thời để null các trường này theo yêu cầu
+        //             technicianEarning: null,
+        //             commissionAmount: null,
+        //             holdingAmount: null
+        //         }
+        //     },
+        //     { session }
+        // );
+
+        // Cập nhật để count khi DONE
+         const setDoneAndCount = await Booking.updateOne(
+      { _id: bookingId, countedForTechJobCompleted: { $ne: true } },
+      {
+        $set: {
+          status: 'DONE',
+          customerConfirmedDone: true,
+          isChatAllowed: false,
+          isVideoCallAllowed: false,
+          completedAt: new Date(),
+          finalPrice,
+          technicianEarning: null,
+          commissionAmount: null,
+          holdingAmount: null,
+          countedForTechJobCompleted: true
+        }
+      },
+      { session }
+    );
 
         // Cập nhật trạng thái thợ về FREE nếu có
-        if (booking.technicianId) {
-            await Technician.findByIdAndUpdate(
-                booking.technicianId._id,
-                {
-                    $set: {
-                        availability: 'FREE'
-                    }
-                },
-                { session }
-            );
-        }
+        // if (booking.technicianId) {
+        //     await Technician.findByIdAndUpdate(
+        //         booking.technicianId._id,
+        //         {
+        //             $set: {
+        //                 availability: 'FREE'
+        //             }
+        //         },
+        //         { session }
+        //     );
+        // }
+
+        if (booking.technicianId?._id) {
+      if (setDoneAndCount.modifiedCount > 0) {
+        await Technician.updateOne(
+          { _id: booking.technicianId._id },
+          { $inc: { jobCompleted: 1 }, $set: { availability: 'FREE' } },
+          { session }
+        );
+      } else {
+        await Technician.updateOne(
+          { _id: booking.technicianId._id },
+          { $set: { availability: 'FREE' } },
+          { session }
+        );
+      }
+    }
 
         // Xóa TechnicianSchedule nếu có
         try {

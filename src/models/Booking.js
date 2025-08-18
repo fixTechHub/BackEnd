@@ -126,7 +126,9 @@ const bookingSchema = new mongoose.Schema({
         type: String,
         enum: ['PENDING', 'PAID', 'CANCELLED', 'FAILED', 'REFUNDED'],
         default: 'PENDING'
-    }
+    },
+    countedForTechJobCompleted: { type: Boolean, default: false }
+
 }, {
     timestamps: true
 }

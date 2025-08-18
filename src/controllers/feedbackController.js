@@ -50,8 +50,8 @@ const editFeedback = async (req, res) => {
     try {
         const { feedbackId } = req.params;
         const { rating, content, images } = req.body;
-        const fromUserId = req.user._id;
-        console.log(fromUserId);
+        const fromUserId = req.user._id || req.user.userId; 
+        console.log("id",fromUserId);
 
         const result = await feedbackService.editFeedback({ feedbackId, fromUserId, rating, content, images });
         res.status(200).json({ message: 'Feedback updated', data: result });
