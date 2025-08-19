@@ -106,7 +106,7 @@ const technicianSchema = new mongoose.Schema({
     subscriptionStatus: {
         type: String,
         enum: ['TRIAL', 'BASIC', 'STANDARD', 'PREMIUM', 'FREE'],
-        default: 'FREE'
+        default: 'TRIAL'
     }
 }, {
     timestamps: true

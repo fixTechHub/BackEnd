@@ -6,7 +6,7 @@ module.exports = async function trialGate(req, res, next) {
     // 1) Lấy tech theo thứ tự ưu tiên: params -> token.technicianId -> token.user._id
     const paramTechId = req.params.techId;
     const tokenTechId = req.user?.technicianId;
-    const tokenUserId = req.user?._id;
+    const tokenUserId = req.user?.userId || req.user?._id; 
 
     let tech = null;
 
