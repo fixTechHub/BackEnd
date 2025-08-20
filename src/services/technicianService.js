@@ -474,7 +474,7 @@ const getListBookingForTechnician = async (technicianId) => {
       path: 'serviceId',
       select: 'serviceName'
     });
-  console.log("bookings", bookings);
+  // console.log("bookings", bookings);
 
 
   // format dữ liệu trả về
@@ -491,37 +491,8 @@ const getListBookingForTechnician = async (technicianId) => {
 
 
 const getEarningsAndCommissionList = async (technicianId) => {
-
-  //   const quotes = await BookingPrice.find(technicianId)
-  //     .sort({ createdAt: -1 })
-  //     .populate('commissionConfigId')
-  //     .populate({
-  //       path: 'bookingId',
-  //       populate: [
-  //         { path: 'customerId', select: 'fullName' },
-  //         { path: 'serviceId', select: 'serviceName' }
-  //       ]
-  //     })
-
-  //   const earningList = quotes.map(quote => ({
-  //     // bookingId: quote.bookingId._id,
-  //     bookingCode: quote.bookingId?.bookingCode,
-  //     bookingInfo: {
-  //       customerName: quote.bookingId?.customerId,
-  //       service: quote.bookingId?.serviceId,
-  //     },
-  //     finalPrice: quote.finalPrice || 0,
-  //     commissionAmount: quote.commissionAmount || 0,
-  //     holdingAmount: quote.holdingAmount || 0,
-  //     technicianEarning: quote.technicianEarning || 0,
-
-  //   }));
-
-  //   return earningList;
-  // };
   const quotes = await Booking.find({ technicianId })
     .sort({ createdAt: -1 })
-    .populate('quote.commissionConfigId')
     .populate('customerId', 'fullName')
     .populate('serviceId', 'serviceName');
   console.log("quotes", quotes);
@@ -532,10 +503,9 @@ const getEarningsAndCommissionList = async (technicianId) => {
       customerName: quote.customerId?.fullName || 'N/A',
       service: quote.serviceId?.serviceName || 'N/A',
     },
-    finalPrice: quote.quote?.finalPrice || 0,
-    commissionAmount: quote.quote?.commissionAmount || 0,
-    holdingAmount: quote.quote?.holdingAmount || 0,
-    technicianEarning: quote.quote?.technicianEarning || 0,
+    finalPrice: quote?.finalPrice || 0,
+    holdingAmount: quote?.holdingAmount || 0,
+    technicianEarning: quote?.technicianEarning || 0,
   }));
   return earningList;
 };
