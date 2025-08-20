@@ -4,9 +4,11 @@ const Technician = require('../models/Technician');
 const Certificate = require('../models/Certificate');
 const { deleteFileFromS3, uploadFileToS3 } = require('../services/s3Service');
 const TechnicianService = require('../models/TechnicianService');
-const contractService = require('../services/contractService')
+const contractService = require('../services/contractService');
 const notificationService = require('../services/notificationService');
 const { getIo } = require('../sockets/socketManager');
+const { generateToken, generateRefreshToken } = require('../utils/jwt');
+const { generateCookie } = require('../utils/generateCode');
 // const sendQuotation = async (req, res) => {
 //   try {
 //     const userId = req.user.userId;
@@ -298,19 +300,43 @@ const completeTechnicianProfile = async (req, res) => {
     const fileObj = req.files || {};
     const frontArr = fileObj.frontIdImage || [];
     const backArr = fileObj.backIdImage || [];
+    const businessLicenseArr = fileObj.businessLicenseImage || [];
     const certArr = fileObj.certificates || [];
 
-    if (frontArr.length === 0 || backArr.length === 0) {
-      throw new Error('Thiếu ảnh CCCD bắt buộc');
+    // Handle different account types
+    let frontUrl = null, backUrl = null, businessLicenseUrl = null;
+    
+    if (user.accountType === 'BUSINESS') {
+      // Business account: require tax code and business license
+      if (!req.body.taxCode || req.body.taxCode.trim() === '') {
+        throw new Error('Mã số thuế là bắt buộc cho doanh nghiệp');
+      }
+      if (businessLicenseArr.length === 0) {
+        throw new Error('Giấy đăng ký kinh doanh là bắt buộc cho doanh nghiệp');
+      }
+      businessLicenseUrl = await uploadFileToS3(
+        businessLicenseArr[0].buffer, 
+        businessLicenseArr[0].originalname, 
+        businessLicenseArr[0].mimetype, 
+        'technicians'
+      );
+    } else {
+      // Individual account: require CCCD
+      if (frontArr.length === 0 || backArr.length === 0) {
+        throw new Error('Thiếu ảnh CCCD bắt buộc');
+      }
+      frontUrl = await uploadFileToS3(frontArr[0].buffer, frontArr[0].originalname, frontArr[0].mimetype, 'technicians');
+      backUrl = await uploadFileToS3(backArr[0].buffer, backArr[0].originalname, backArr[0].mimetype, 'technicians');
     }
 
-    // Upload lần lượt
-    const frontUrl = await uploadFileToS3(frontArr[0].buffer, frontArr[0].originalname, frontArr[0].mimetype, 'technicians');
-    const backUrl = await uploadFileToS3(backArr[0].buffer, backArr[0].originalname, backArr[0].mimetype, 'technicians');
+    // Upload certificates (common for both account types)
     const certUrls = await Promise.all(certArr.map(f => uploadFileToS3(f.buffer, f.originalname, f.mimetype, 'technicians')));
 
     // Gom url để rollback nếu cần
-    uploadedUrls.push(frontUrl, backUrl, ...certUrls);
+    if (frontUrl) uploadedUrls.push(frontUrl);
+    if (backUrl) uploadedUrls.push(backUrl);
+    if (businessLicenseUrl) uploadedUrls.push(businessLicenseUrl);
+    uploadedUrls.push(...certUrls);
 
     // Debug: log received data
     console.log('Received form data:', {
@@ -325,18 +351,42 @@ const completeTechnicianProfile = async (req, res) => {
       ...req.body,
       frontIdImage: frontUrl,
       backIdImage: backUrl,
+      businessLicenseImage: businessLicenseUrl,
+      taxCode: user.accountType === 'BUSINESS' ? req.body.taxCode : undefined,
       certificate: certUrls,
       specialtiesCategories: req.body.specialtiesCategories ? JSON.parse(req.body.specialtiesCategories) : [],
       bankAccount: req.body.bankAccount ? JSON.parse(req.body.bankAccount) : undefined,
+      currentLocation: req.body.currentLocation ? JSON.parse(req.body.currentLocation) : {
+        type: 'Point',
+        coordinates: [0, 0]
+      },
       // The front-end may omit inspectionFee; default to 0 in that case.
       inspectionFee: req.body.inspectionFee !== undefined ? Number(req.body.inspectionFee) : 0
     };
 
+    // Debug: Log data being sent to technicianService
+    console.log('📋 [Technician] Creating technician with data:', {
+      userId,
+      accountType: user.accountType,
+      hasIdentification: !!technicianBody.identification,
+      hasFrontIdImage: !!technicianBody.frontIdImage,
+      hasBackIdImage: !!technicianBody.backIdImage,
+      hasTaxCode: !!technicianBody.taxCode,
+      hasBusinessLicenseImage: !!technicianBody.businessLicenseImage,
+      taxCodeValue: technicianBody.taxCode,
+      businessLicenseUrl: technicianBody.businessLicenseImage,
+      specialtiesCount: technicianBody.specialtiesCategories?.length || 0,
+      hasBankAccount: !!technicianBody.bankAccount
+    });
+
     const technician = await technicianService.createNewTechnician(userId, technicianBody, session);
+    
+    console.log('✅ [Technician] Created technician with ID:', technician._id);
 
     // Lưu giá dịch vụ & thời gian bảo hành (TechnicianService)
     if (req.body.serviceDetails) {
       const parsedDetails = typeof req.body.serviceDetails === 'string' ? JSON.parse(req.body.serviceDetails) : req.body.serviceDetails;
+
       const serviceDocs = Object.entries(parsedDetails).map(([serviceId, detail]) => ({
         technicianId: technician._id,
         serviceId,
@@ -344,6 +394,7 @@ const completeTechnicianProfile = async (req, res) => {
         warrantyDuration: Number(detail.warranty) || 0,
         isActive: true,
       }));
+
       if (serviceDocs.length) {
         await TechnicianService.insertMany(serviceDocs, { session });
       }
@@ -368,6 +419,13 @@ const completeTechnicianProfile = async (req, res) => {
 
     await session.commitTransaction();
     session.endSession();
+
+    // Generate new JWT token with updated user data
+    await user.populate('role');
+    
+    const newToken = generateToken(user);
+    const newRefreshToken = generateRefreshToken(user);
+    generateCookie(newToken, res, newRefreshToken);
 
     res.status(201).json({ success: true, message: 'Hoàn thành hồ sơ kỹ thuật viên thành công', data: technician });
   } catch (error) {

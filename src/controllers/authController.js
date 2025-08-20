@@ -23,7 +23,7 @@ const oAuth2Client = new OAuth2Client(process.env.CLIENT_ID);
 // New controller for the final, staged registration
 exports.finalizeRegistration = async (req, res) => {
     try {
-        const { fullName, emailOrPhone, password, role } = req.body;
+        const { fullName, emailOrPhone, password, role, accountType } = req.body;
 
         // Validate required fields
         if (!fullName || !emailOrPhone || !password || !role) {
@@ -63,6 +63,7 @@ exports.finalizeRegistration = async (req, res) => {
             phone: !isEmail ? emailOrPhone : undefined,
             passwordHash: hashedPassword,
             role: roleDoc._id,
+            accountType: accountType || 'INDIVIDUAL', // Default to INDIVIDUAL if not provided
             emailVerified: false,
             phoneVerified: false,
             status: 'PENDING',
@@ -308,14 +309,25 @@ const checkVerificationStatus = async (user) => {
 
             // Kiểm tra các trường bắt buộc
             const hasSpecialties = Array.isArray(technician.specialtiesCategories) && technician.specialtiesCategories.length > 0;
-            // Certificates are optional; remove from mandatory checks.
-            const hasCertificates = true;
+            const hasBankAccount = technician.bankAccount?.bankName && technician.bankAccount?.accountNumber && technician.bankAccount?.accountHolder;
+            
+            // Different validation based on account type
+            let hasRequiredDocuments = false;
+            
+            if (user.accountType === 'BUSINESS') {
+                // Business account: require tax code and business license
+                const hasTaxCode = technician.taxCode && technician.taxCode.trim() !== '';
+                const hasBusinessLicense = technician.businessLicenseImage && technician.businessLicenseImage.trim() !== '';
+                hasRequiredDocuments = hasTaxCode && hasBusinessLicense;
+            } else {
+                // Individual account: require CCCD
+                const hasIdentification = technician.identification && technician.identification.trim() !== '';
+                const hasFrontIdImage = technician.frontIdImage && technician.frontIdImage.trim() !== '';
+                const hasBackIdImage = technician.backIdImage && technician.backIdImage.trim() !== '';
+                hasRequiredDocuments = hasIdentification && hasFrontIdImage && hasBackIdImage;
+            }
 
-            const hasIdentification = technician.identification && technician.identification.trim() !== '';
-            const hasFrontIdImage = technician.frontIdImage && technician.frontIdImage.trim() !== '';
-            const hasBackIdImage = technician.backIdImage && technician.backIdImage.trim() !== '';
-
-            if (!hasSpecialties || !hasIdentification || !hasFrontIdImage || !hasBackIdImage) {
+            if (!hasSpecialties || !hasRequiredDocuments || !hasBankAccount) {
                 return {
                     step: 'COMPLETE_PROFILE',
                     redirectTo: '/technician/complete-profile',
@@ -659,6 +671,39 @@ exports.updateUserRole = async (req, res) => {
 
         return res.status(200).json({
             message: "Role updated successfully",
+            user: user
+        });
+    } catch (error) {
+        res.status(error.statusCode || 500).json({ error: error.message });
+    }
+};
+
+exports.updateUserAccountType = async (req, res) => {
+    try {
+        const { accountType } = req.body;
+        const userId = req.user.userId;
+
+        // Validate account type
+        if (!['INDIVIDUAL', 'BUSINESS'].includes(accountType)) {
+            return res.status(400).json({ error: "Invalid account type" });
+        }
+
+        const user = await userService.findUserById(userId);
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
+        }
+
+        // Check if user is technician (only technicians can change account type)
+        await user.populate('role');
+        if (user.role.name !== 'TECHNICIAN') {
+            return res.status(403).json({ error: "Only technicians can set account type" });
+        }
+
+        user.accountType = accountType;
+        await user.save();
+
+        return res.status(200).json({
+            message: "Account type updated successfully",
             user: user
         });
     } catch (error) {

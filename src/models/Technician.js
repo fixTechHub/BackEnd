@@ -19,10 +19,19 @@ const technicianSchema = new mongoose.Schema({
     },
     identification: {
         type: String,
-        required: true
+        required: false // Only required for individual accounts
     },
     frontIdImage: { type: String },
     backIdImage: { type: String },
+    // Business account fields
+    taxCode: {
+        type: String,
+        required: false // Only required for business accounts
+    },
+    businessLicenseImage: {
+        type: String,
+        required: false // Only required for business accounts
+    },
     status: {
         type: String,
         enum: ['PENDING', 'APPROVED', 'REJECTED', 'INACTIVE', 'PENDING_DELETION', 'DELETED'],

@@ -7,6 +7,8 @@ const { sendVerificationSMS } = require('../utils/sms');
 const Booking = require('../models/Booking');
 const Receipt = require('../models/Receipt');
 const Feedback = require('../models/Feedback');
+const { addressToPoint } = require('../services/geocodingService');
+const Technician = require('../models/Technician');
 
 exports.getProfile = async (req, res) => {
     try {
@@ -55,7 +57,7 @@ exports.updateProfile = async (req, res) => {
         const userId = req.user.userId;
         const { fullName, phone, address } = req.body;
 
-        const user = await User.findById(userId);
+        const user = await User.findById(userId).populate('role', 'name');
         if (!user) {
             return res.status(404).json({ message: 'Không tìm thấy thông tin người dùng' });
         }
@@ -64,6 +66,41 @@ exports.updateProfile = async (req, res) => {
         if (fullName) user.fullName = fullName;
         if (phone) user.phone = phone;
         if (address) user.address = address;
+
+        // Nếu cập nhật địa chỉ và user là kỹ thuật viên, thực hiện geocoding
+        if (address && user.role?.name === 'TECHNICIAN') {
+            try {
+                // Tạo địa chỉ đầy đủ từ address object
+                const fullAddress = [
+                    address.street,
+                    address.district,
+                    address.city
+                ].filter(Boolean).join(', ');
+
+                console.log(`[Update Profile] Geocoding địa chỉ cho technician: "${fullAddress}"`);
+
+                if (fullAddress.trim()) {
+                    // Chuyển đổi địa chỉ thành tọa độ
+                    const locationPoint = await addressToPoint(fullAddress);
+                    
+                    if (locationPoint) {
+                        // Cập nhật currentLocation trong Technician model
+                        const technician = await Technician.findOne({ userId: userId });
+                        if (technician) {
+                            technician.currentLocation = locationPoint;
+                            await technician.save();
+                            console.log(`[Update Profile] Cập nhật currentLocation thành công:`, locationPoint.coordinates);
+                        }
+                    } else {
+                        console.warn(`[Update Profile] Không thể geocode địa chỉ: "${fullAddress}"`);
+                        // Vẫn tiếp tục cập nhật địa chỉ text
+                    }
+                }
+            } catch (geocodingError) {
+                console.error('[Update Profile] Lỗi khi geocoding:', geocodingError.message);
+                // Vẫn tiếp tục cập nhật địa chỉ text, không fail toàn bộ request
+            }
+        }
 
         await user.save();
 
