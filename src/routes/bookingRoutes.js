@@ -3,7 +3,6 @@ const bookingController = require('../controllers/bookingController');
 const { handleMulter, processAndUploadToS3 } = require('../middlewares/uploadMiddleware');
 const { authenticateToken } = require('../middlewares/authMiddleware');
 const { popularDescriptionsLimiter, searchDescriptionsLimiter, } = require('../middlewares/rateLimitMiddleware');
-const trialGate = require('../middlewares/trialGate');
 const router = express.Router();
 
 router.get('/user', authenticateToken, bookingController.getUserBookingHistory)
@@ -22,7 +21,7 @@ router.post('/:bookingId/quote', authenticateToken, bookingController.technician
 router.post('/:bookingId/quote/accept', authenticateToken, bookingController.customerAcceptQuote);
 router.post('/:bookingId/quote/reject', authenticateToken, bookingController.customerRejectQuote);
 router.post('/:bookingId/select-technician', authenticateToken, bookingController.selectTechnicianForBooking);
-router.post('/:bookingId/technician-accept', authenticateToken, trialGate, bookingController.technicianAcceptBooking);
+router.post('/:bookingId/technician-accept', authenticateToken, bookingController.technicianAcceptBooking);
 router.post('/:bookingId/technician-reject', authenticateToken, bookingController.technicianRejectBooking);
 router.get('/:bookingId/technician-requests', authenticateToken, bookingController.getBookingTechnicianRequests);
 router.get('/:bookingId/technicians-found', authenticateToken, bookingController.getTechniciansFoundByBookingId);

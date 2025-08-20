@@ -21,31 +21,12 @@ const findTechniciansWithExpandingRadiusAndSave = async (searchParams, bookingId
     const currentFoundByUserId = new Map();
     let foundTechnicianIds = new Set();
 
-    // Lấy trạng thái tìm kiếm hiện tại với retry logic
-    let searchState = null;
-    let retryCount = 0;
-    const maxRetries = 3;
-
-    while (retryCount < maxRetries) {
-        try {
-            searchState = await BookingTechnicianSearch.findOne({ bookingId });
-            if (searchState) {
-                foundTechnicianIds = new Set(searchState.foundTechnicianIds.map(id => String(id)));
-            } else {
-                searchState = new BookingTechnicianSearch({ bookingId, foundTechnicianIds: [] });
-            }
-            break; // Thành công, thoát khỏi vòng lặp
-        } catch (error) {
-            retryCount++;
-            console.error(`Error fetching search state (attempt ${retryCount}):`, error.message);
-            
-            if (retryCount >= maxRetries) {
-                throw new Error(`Failed to fetch search state after ${maxRetries} attempts: ${error.message}`);
-            }
-            
-            // Đợi một chút trước khi thử lại
-            await new Promise(resolve => setTimeout(resolve, 100 * retryCount));
-        }
+    // Lấy trạng thái tìm kiếm hiện tại
+    let searchState = await BookingTechnicianSearch.findOne({ bookingId });
+    if (searchState) {
+        foundTechnicianIds = new Set(searchState.foundTechnicianIds.map(id => String(id)));
+    } else {
+        searchState = new BookingTechnicianSearch({ bookingId, foundTechnicianIds: [] });
     }
 
     for (const radius of SEARCH_RADII) {
@@ -65,50 +46,11 @@ const findTechniciansWithExpandingRadiusAndSave = async (searchParams, bookingId
     const refreshedList = Array.from(currentFoundByUserId.values());
     // Cắt giới hạn tối đa nếu cần
     const limitedList = refreshedList.slice(0, MAX_TECHNICIANS);
-    
-    // Cập nhật search state với retry logic
-    retryCount = 0;
-    while (retryCount < maxRetries) {
-        try {
-            searchState.foundTechniciansDetail = limitedList;
-            searchState.foundTechnicianIds = limitedList.map(t => t.userId);
-            searchState.lastSearchAt = new Date();
-            if (searchState.foundTechniciansDetail.length >= MAX_TECHNICIANS) {
-                searchState.completed = true;
-            }
-            
-            await searchState.save();
-            break; // Thành công, thoát khỏi vòng lặp
-        } catch (error) {
-            retryCount++;
-            console.error(`Error saving search state (attempt ${retryCount}):`, error.message);
-            
-            if (retryCount >= maxRetries) {
-                throw new Error(`Failed to save search state after ${maxRetries} attempts: ${error.message}`);
-            }
-            
-            // Nếu là lỗi version conflict, thử fetch lại document mới nhất
-            if (error.message.includes('No matching document found') || 
-                error.message.includes('version') ||
-                error.message.includes('modifiedPaths')) {
-                console.log(`Version conflict detected, refreshing search state...`);
-                try {
-                    const refreshedSearchState = await BookingTechnicianSearch.findOne({ bookingId });
-                    if (refreshedSearchState) {
-                        searchState = refreshedSearchState;
-                    } else {
-                        // Tạo mới nếu không tìm thấy
-                        searchState = new BookingTechnicianSearch({ bookingId, foundTechnicianIds: [] });
-                    }
-                } catch (refreshError) {
-                    console.error(`Error refreshing search state:`, refreshError.message);
-                }
-            }
-            
-            // Đợi một chút trước khi thử lại
-            await new Promise(resolve => setTimeout(resolve, 100 * retryCount));
-        }
-    }
+    searchState.foundTechniciansDetail = limitedList;
+    searchState.foundTechnicianIds = limitedList.map(t => t.userId);
+    searchState.lastSearchAt = new Date();
+    if (searchState.foundTechniciansDetail.length >= MAX_TECHNICIANS) searchState.completed = true;
+    await searchState.save();
 
     // Emit socket cập nhật danh sách thợ cho khách hàng (màn hình chọn thợ)
     if (io) {
@@ -501,73 +443,37 @@ const confirmJobDone = async (bookingId, userId, role) => {
         }
 
         // Cập nhật trạng thái booking với đầy đủ thông tin
-        // await Booking.findByIdAndUpdate(
-        //     bookingId,
-        //     {
-        //         $set: {
-        //             status: 'DONE',
-        //             customerConfirmedDone: true,
-        //             isChatAllowed: false,
-        //             isVideoCallAllowed: false,
-        //             completedAt: new Date(),
-        //             finalPrice: finalPrice,
-        //             // Tạm thời để null các trường này theo yêu cầu
-        //             technicianEarning: null,
-        //             commissionAmount: null,
-        //             holdingAmount: null
-        //         }
-        //     },
-        //     { session }
-        // );
-
-        // Cập nhật để count khi DONE
-         const setDoneAndCount = await Booking.updateOne(
-      { _id: bookingId, countedForTechJobCompleted: { $ne: true } },
-      {
-        $set: {
-          status: 'DONE',
-          customerConfirmedDone: true,
-          isChatAllowed: false,
-          isVideoCallAllowed: false,
-          completedAt: new Date(),
-          finalPrice,
-          technicianEarning: null,
-          commissionAmount: null,
-          holdingAmount: null,
-          countedForTechJobCompleted: true
-        }
-      },
-      { session }
-    );
+        await Booking.findByIdAndUpdate(
+            bookingId,
+            {
+                $set: {
+                    status: 'DONE',
+                    customerConfirmedDone: true,
+                    isChatAllowed: false,
+                    isVideoCallAllowed: false,
+                    completedAt: new Date(),
+                    finalPrice: finalPrice,
+                    // Tạm thời để null các trường này theo yêu cầu
+                    technicianEarning: null,
+                    commissionAmount: null,
+                    holdingAmount: null
+                }
+            },
+            { session }
+        );
 
         // Cập nhật trạng thái thợ về FREE nếu có
-        // if (booking.technicianId) {
-        //     await Technician.findByIdAndUpdate(
-        //         booking.technicianId._id,
-        //         {
-        //             $set: {
-        //                 availability: 'FREE'
-        //             }
-        //         },
-        //         { session }
-        //     );
-        // }
-
-        if (booking.technicianId?._id) {
-      if (setDoneAndCount.modifiedCount > 0) {
-        await Technician.updateOne(
-          { _id: booking.technicianId._id },
-          { $inc: { jobCompleted: 1 }, $set: { availability: 'FREE' } },
-          { session }
-        );
-      } else {
-        await Technician.updateOne(
-          { _id: booking.technicianId._id },
-          { $set: { availability: 'FREE' } },
-          { session }
-        );
-      }
-    }
+        if (booking.technicianId) {
+            await Technician.findByIdAndUpdate(
+                booking.technicianId._id,
+                {
+                    $set: {
+                        availability: 'FREE'
+                    }
+                },
+                { session }
+            );
+        }
 
         // Xóa TechnicianSchedule nếu có
         try {
@@ -1212,7 +1118,7 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
             // 2. Deduct commission from technician's balance
             await commissionService.deductCommission(
                 updatedBooking.technicianId,
-                updatedBooking.finalPrice,
+                updatedBooking.finalPrice+updatedBooking.discountValue,
                 session
             );
         }
