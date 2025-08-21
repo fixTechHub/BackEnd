@@ -28,7 +28,8 @@ app.use(
             'https://fixtech.id.vn',
             'https://www.fixtech.id.vn',
             'https://fix-tech-git-bop-tris-projects-f8fdb778.vercel.app',
-            'https://fix-tech-git-develop-tris-projects-f8fdb778.vercel.app'
+            'https://fix-tech-git-develop-tris-projects-f8fdb778.vercel.app',
+            'https://front-end-phi-two-10.vercel.app'
         ],
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
