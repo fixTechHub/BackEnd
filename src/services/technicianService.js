@@ -522,7 +522,7 @@ const getAvailability = async (technicianId) => {
 
 const updateTechnicianAvailability = async (technicianId) => {
 
-  const onJobStatuses = ['PENDING', 'QUOTED', 'IN_PROGRESS', 'WAITING_CONFIRM'];
+  const onJobStatuses = ['PENDING', 'AWAITING_CONFIRM', 'IN_PROGRESS', 'WAITING_CUSTOMER_CONFIRM_ADDITIONAL', 'CONFIRM_ADDITIONAL', 'AWAITING_DONE'];
   const hasOngoing = await Booking.exists({
     technicianId,
     status: { $in: onJobStatuses }
