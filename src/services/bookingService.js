@@ -1111,7 +1111,7 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
             update.discountValue = 0;
             update.finalPrice = finalPrice;
             
-            update.holdingAmount = finalPrice * 0.2;
+            update.holdingAmount = booking.quote.holdingAmount * 0.2;
         }
         const updatedBooking = await Booking.findByIdAndUpdate(
             booking._id,
