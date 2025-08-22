@@ -91,10 +91,9 @@ const handleSuccessfulPayment = async (orderCode, bookingId) => {
     }
     // Find userId from booking
    
-    const receiptTotalAmount = booking.finalPrice + booking.discountValue;
-    console.log(booking.finalPrice);
+    const holdingAmount = booking.quote.totalAmount
     
-    booking.holdingAmount = receiptTotalAmount * 0.2;
+    booking.holdingAmount = holdingAmount * 0.2;
     await booking.save({ session });
     const TechnicianService = require('../models/TechnicianService');
     const technicianServiceModel = await TechnicianService.findOne({
