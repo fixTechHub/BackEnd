@@ -1172,7 +1172,7 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
                 paidAmount: updatedBooking.finalPrice,
                 paymentMethod: 'CASH',
                 paymentStatus: 'PAID',
-                holdingAmount: updatedBooking.finalPrice * 0.2,
+                holdingAmount: updatedBooking.quote.totalAmount * 0.2,
 
             };
             await receiptService.createReceipt(receiptData, session);
