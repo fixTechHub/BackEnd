@@ -6,8 +6,10 @@ const reportController = require('../controllers/reportController');
 // Create a report
 router.post('/', authenticateToken, reportController.createReport);
 
+// Get user reports count
+router.get('/user/count', authenticateToken, reportController.getReportsByUserId);
+
 // Get report detail
 router.get('/:id', authenticateToken, reportController.getReportById);
-router.get('/:technicianId/count-report', reportController.getReportsByTechnicianId);
 
 module.exports = router;
