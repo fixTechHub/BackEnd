@@ -114,6 +114,7 @@ const handleSuccessfulPayment = async (orderCode, bookingId) => {
       paidAmount: booking.finalPrice,
       paymentMethod: 'BANK',
       paymentStatus: 'PAID',
+      // holdingAmount: receiptTotalAmount * 0.2,
       holdingAmount: holdingAmount * 0.2,
     };
     await receiptService.createReceipt(receiptData, session);
