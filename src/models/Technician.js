@@ -19,10 +19,19 @@ const technicianSchema = new mongoose.Schema({
     },
     identification: {
         type: String,
-        required: true
+        required: false // Only required for individual accounts
     },
     frontIdImage: { type: String },
     backIdImage: { type: String },
+    // Business account fields
+    taxCode: {
+        type: String,
+        required: false // Only required for business accounts
+    },
+    businessLicenseImage: {
+        type: String,
+        required: false // Only required for business accounts
+    },
     status: {
         type: String,
         enum: ['PENDING', 'APPROVED', 'REJECTED', 'INACTIVE', 'PENDING_DELETION', 'DELETED'],
@@ -79,6 +88,10 @@ const technicianSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    isDebFree: {
+        type: Boolean,
+        default: false
+    },
     totalCommissionPaid: {
         type: Number,
         default: 0
@@ -94,6 +107,15 @@ const technicianSchema = new mongoose.Schema({
     pricesLastUpdatedAt: {
         type: Date,
         default: null
+    },
+    isSubscribe: {
+        type: Boolean,
+        default: false
+    },
+    subscriptionStatus: {
+        type: String,
+        enum: ['TRIAL', 'BASIC', 'STANDARD', 'PREMIUM', 'FREE'],
+        default: 'TRIAL'
     }
 }, {
     timestamps: true
@@ -107,6 +129,6 @@ technicianSchema.index({ ratingAverage: -1 });
 technicianSchema.index({ specialtiesCategories: 1 });
 technicianSchema.index({ createdAt: -1 });
 
-technicianSchema.index({ currentLocation: '2dsphere', availability: 1, status: 1, specialtiesCategories: 1, ratingAverage: -1 });
+technicianSchema.index({ currentLocation: '2dsphere', availability: 1, status: 1, specialtiesCategories: 1, ratingAverage: -1, isSubscribe: 1, subscriptionStatus: 1 });
 
 module.exports = mongoose.model('Technician', technicianSchema);

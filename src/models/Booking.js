@@ -102,11 +102,11 @@ const bookingSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
-    status: {
-        type: String,
-        enum: ['PENDING', 'AWAITING_CONFIRM', 'IN_PROGRESS', 'WAITING_CUSTOMER_CONFIRM_ADDITIONAL', 'CONFIRM_ADDITIONAL', 'AWAITING_DONE', 'DONE', 'CANCELLED'],
-        default: 'PENDING'
-    },
+        status: {
+            type: String,
+            enum: ['PENDING', 'AWAITING_CONFIRM', 'IN_PROGRESS', 'WAITING_CUSTOMER_CONFIRM_ADDITIONAL', 'CONFIRM_ADDITIONAL', 'AWAITING_DONE', 'DONE', 'CANCELLED'],
+            default: 'PENDING'
+        },
     isChatAllowed: {
         type: Boolean,
         default: false
@@ -126,7 +126,9 @@ const bookingSchema = new mongoose.Schema({
         type: String,
         enum: ['PENDING', 'PAID', 'CANCELLED', 'FAILED', 'REFUNDED'],
         default: 'PENDING'
-    }
+    },
+    countedForTechJobCompleted: { type: Boolean, default: false }
+
 }, {
     timestamps: true
 }

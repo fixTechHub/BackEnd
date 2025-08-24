@@ -22,6 +22,7 @@ router.get('/me', authenticateToken, authController.getAuthenticatedUser)
 router.post('/forgot-password', authController.forgotPassword)
 router.post('/reset-password', authController.resetPassword)
 router.post('/update-role', authenticateToken, authController.updateUserRole)
+router.post('/update-account-type', authenticateToken, authController.updateUserAccountType)
 router.post('/refresh-token', authController.refreshToken)
 router.post('/verify-password', authenticateToken, authController.verifyPassword)
 

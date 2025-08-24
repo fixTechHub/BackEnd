@@ -21,12 +21,31 @@ const findTechniciansWithExpandingRadiusAndSave = async (searchParams, bookingId
     const currentFoundByUserId = new Map();
     let foundTechnicianIds = new Set();
 
-    // Lấy trạng thái tìm kiếm hiện tại
-    let searchState = await BookingTechnicianSearch.findOne({ bookingId });
-    if (searchState) {
-        foundTechnicianIds = new Set(searchState.foundTechnicianIds.map(id => String(id)));
-    } else {
-        searchState = new BookingTechnicianSearch({ bookingId, foundTechnicianIds: [] });
+    // Lấy trạng thái tìm kiếm hiện tại với retry logic
+    let searchState = null;
+    let retryCount = 0;
+    const maxRetries = 3;
+
+    while (retryCount < maxRetries) {
+        try {
+            searchState = await BookingTechnicianSearch.findOne({ bookingId });
+            if (searchState) {
+                foundTechnicianIds = new Set(searchState.foundTechnicianIds.map(id => String(id)));
+            } else {
+                searchState = new BookingTechnicianSearch({ bookingId, foundTechnicianIds: [] });
+            }
+            break; // Thành công, thoát khỏi vòng lặp
+        } catch (error) {
+            retryCount++;
+            console.error(`Error fetching search state (attempt ${retryCount}):`, error.message);
+            
+            if (retryCount >= maxRetries) {
+                throw new Error(`Failed to fetch search state after ${maxRetries} attempts: ${error.message}`);
+            }
+            
+            // Đợi một chút trước khi thử lại
+            await new Promise(resolve => setTimeout(resolve, 100 * retryCount));
+        }
     }
 
     for (const radius of SEARCH_RADII) {
@@ -46,11 +65,50 @@ const findTechniciansWithExpandingRadiusAndSave = async (searchParams, bookingId
     const refreshedList = Array.from(currentFoundByUserId.values());
     // Cắt giới hạn tối đa nếu cần
     const limitedList = refreshedList.slice(0, MAX_TECHNICIANS);
-    searchState.foundTechniciansDetail = limitedList;
-    searchState.foundTechnicianIds = limitedList.map(t => t.userId);
-    searchState.lastSearchAt = new Date();
-    if (searchState.foundTechniciansDetail.length >= MAX_TECHNICIANS) searchState.completed = true;
-    await searchState.save();
+    
+    // Cập nhật search state với retry logic
+    retryCount = 0;
+    while (retryCount < maxRetries) {
+        try {
+            searchState.foundTechniciansDetail = limitedList;
+            searchState.foundTechnicianIds = limitedList.map(t => t.userId);
+            searchState.lastSearchAt = new Date();
+            if (searchState.foundTechniciansDetail.length >= MAX_TECHNICIANS) {
+                searchState.completed = true;
+            }
+            
+            await searchState.save();
+            break; // Thành công, thoát khỏi vòng lặp
+        } catch (error) {
+            retryCount++;
+            console.error(`Error saving search state (attempt ${retryCount}):`, error.message);
+            
+            if (retryCount >= maxRetries) {
+                throw new Error(`Failed to save search state after ${maxRetries} attempts: ${error.message}`);
+            }
+            
+            // Nếu là lỗi version conflict, thử fetch lại document mới nhất
+            if (error.message.includes('No matching document found') || 
+                error.message.includes('version') ||
+                error.message.includes('modifiedPaths')) {
+                console.log(`Version conflict detected, refreshing search state...`);
+                try {
+                    const refreshedSearchState = await BookingTechnicianSearch.findOne({ bookingId });
+                    if (refreshedSearchState) {
+                        searchState = refreshedSearchState;
+                    } else {
+                        // Tạo mới nếu không tìm thấy
+                        searchState = new BookingTechnicianSearch({ bookingId, foundTechnicianIds: [] });
+                    }
+                } catch (refreshError) {
+                    console.error(`Error refreshing search state:`, refreshError.message);
+                }
+            }
+            
+            // Đợi một chút trước khi thử lại
+            await new Promise(resolve => setTimeout(resolve, 100 * retryCount));
+        }
+    }
 
     // Emit socket cập nhật danh sách thợ cho khách hàng (màn hình chọn thợ)
     if (io) {
@@ -123,7 +181,11 @@ const createRequestAndNotify = async (bookingData, io) => {
             serviceId: serviceId,
             availability: ['FREE', 'ONJOB'],
             status: 'APPROVED',
-            minBalance: 0
+            minBalance: 0,
+            isSubscribe: true,
+            subscriptionStatus: ['BASIC', 'TRIAL', 'STANDARD', 'PREMIUM'],
+            isUrgent: bookingData.isUrgent || false,
+            customerId: bookingData.customerId // Thêm customerId để có thông tin favorite
         };
 
         // Tìm thợ lần đầu và lưu trạng thái
@@ -1053,7 +1115,7 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
             update.discountValue = 0;
             update.finalPrice = finalPrice;
             
-            update.holdingAmount = finalPrice * 0.2;
+            update.holdingAmount = booking.quote.holdingAmount * 0.2;
         }
         const updatedBooking = await Booking.findByIdAndUpdate(
             booking._id,
@@ -1118,7 +1180,7 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
             // 2. Deduct commission from technician's balance
             await commissionService.deductCommission(
                 updatedBooking.technicianId,
-                updatedBooking.finalPrice+updatedBooking.discountValue,
+                updatedBooking.finalPrice,
                 session
             );
         }
@@ -1603,11 +1665,90 @@ const getRequestStatusInfo = async (bookingId, technicianId) => {
 };
 
 const getTechniciansFoundByBookingId = async (bookingId) => {
-    const search = await BookingTechnicianSearch.findOne({ bookingId });
-    if (!search || !search.foundTechniciansDetail || search.foundTechniciansDetail.length === 0) return [];
+    try {
+        const search = await BookingTechnicianSearch.findOne({ bookingId });
+        if (!search || !search.foundTechniciansDetail || search.foundTechniciansDetail.length === 0) {
+            console.log(`Không tìm thấy dữ liệu tìm kiếm cho booking ${bookingId}`);
+            return [];
+        }
 
-    // Trả về dữ liệu đã lưu sẵn thay vì query lại
-    return search.foundTechniciansDetail;
+        // Kiểm tra xem dữ liệu có đầy đủ không
+        const hasCompleteData = search.foundTechniciansDetail.every(tech => 
+            tech.estimatedArrivalTime && 
+            tech.isSubscribe !== undefined && 
+            tech.subscriptionStatus &&
+            tech.isFavorite !== undefined &&
+            tech.favoritePriority !== undefined
+        );
+
+        if (!hasCompleteData) {
+            console.log(`Dữ liệu tìm kiếm cho booking ${bookingId} chưa đầy đủ, chạy lại tìm kiếm...`);
+            // console.log('--- DEBUG: Dữ liệu cũ ---', search.foundTechniciansDetail.map(tech => ({
+            //     id: tech._id,
+            //     name: tech.userInfo?.fullName,
+            //     isFavorite: tech.isFavorite,
+            //     favoritePriority: tech.favoritePriority,
+            //     subscriptionStatus: tech.subscriptionStatus
+            // })));
+            
+            // Lấy thông tin booking để chạy lại tìm kiếm
+            const booking = await Booking.findById(bookingId);
+            if (!booking) {
+                console.log(`Không tìm thấy booking ${bookingId}`);
+                return search.foundTechniciansDetail; // Trả về dữ liệu cũ nếu không tìm thấy booking
+            }
+
+            // Chạy lại tìm kiếm để có dữ liệu đầy đủ
+            const searchParams = {
+                latitude: booking.location.geojson.coordinates[1],
+                longitude: booking.location.geojson.coordinates[0],
+                serviceId: booking.serviceId,
+                availability: ['FREE', 'ONJOB'],
+                status: 'APPROVED',
+                minBalance: 0,
+                isSubscribe: true,
+                subscriptionStatus: ['BASIC', 'TRIAL', 'STANDARD', 'PREMIUM'],
+                isUrgent: booking.isUrgent || false,
+                customerId: booking.customerId // Thêm customerId để có thông tin favorite
+            };
+
+            const result = await findTechniciansWithExpandingRadiusAndSave(
+                searchParams,
+                bookingId,
+                null // Không cần io ở đây
+            );
+
+            // Cập nhật lại dữ liệu trong database
+            if (result && result.data && result.data.length > 0) {
+                await BookingTechnicianSearch.findOneAndUpdate(
+                    { bookingId },
+                    {
+                        $set: {
+                            foundTechniciansDetail: result.data,
+                            lastSearchAt: new Date()
+                        }
+                    }
+                );
+                console.log(`Đã cập nhật lại dữ liệu tìm kiếm cho booking ${bookingId}`);
+                // console.log('--- DEBUG: Dữ liệu mới ---', result.data.map(tech => ({
+                //     id: tech._id,
+                //     name: tech.userInfo?.fullName,
+                //     isFavorite: tech.isFavorite,
+                //     favoritePriority: tech.favoritePriority,
+                //     subscriptionStatus: tech.subscriptionStatus
+                // })));
+                return result.data;
+            }
+        }
+
+        console.log(`Trả về dữ liệu tìm kiếm đầy đủ cho booking ${bookingId}:`, search.foundTechniciansDetail.length, 'thợ');
+        return search.foundTechniciansDetail;
+    } catch (error) {
+        console.error(`Lỗi khi lấy danh sách thợ cho booking ${bookingId}:`, error.message);
+        // Trả về dữ liệu cũ nếu có lỗi
+        const search = await BookingTechnicianSearch.findOne({ bookingId });
+        return search?.foundTechniciansDetail || [];
+    }
 };
 
 // Lấy các mô tả booking phổ biến nhất với Redis cache

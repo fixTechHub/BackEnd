@@ -10,6 +10,7 @@ const getAvailablePackages = async () => {
 
 // 📌 Đăng ký gói
 const subscribePackage = async (technicianId, packageId, paymentMethod = 'BALANCE') => {
+    console.log("🚀 subscribePackage called with:", { technicianId, packageId, paymentMethod });
     const selectedPackage = await CommissionPackage.findById(packageId);
     if (!selectedPackage || !selectedPackage.isActive) {
         throw new HttpError(400, 'Package not available');
@@ -31,8 +32,14 @@ const subscribePackage = async (technicianId, packageId, paymentMethod = 'BALANC
             throw new HttpError(400, 'Insufficient balance to purchase this package');
         }
         technician.balance -= selectedPackage.price;
-        await technician.save();
+        // await technician.save();
     }
+
+    console.log('selectedPackage:', selectedPackage);
+    console.log('selectedPackage.type:', selectedPackage.type);
+    technician.isSubscribe = true;
+    technician.subscriptionStatus = selectedPackage.type;
+    await technician.save();
 
     // ✅ Tạo subscription
     const startDate = new Date();
@@ -93,9 +100,54 @@ const getCurrentSubscription = async (technicianId) => {
     return await TechnicianSubscription.findOne({ technician: technicianId, status: 'ACTIVE' }).populate('package');
 };
 
+// ✅ Helper: cập nhật nếu đã có ACTIVE, còn không thì tạo mới (UP SERT)
+const upsertActiveSubscription = async ({
+  technicianId,
+  packageId,
+  amount,                 // số tiền đã thanh toán
+  method = 'BANK',        // 'BANK' | 'BALANCE' ...
+  durationDays = 30,      // số ngày hiệu lực
+  session,
+}) => {
+  const startDate = new Date();
+  const endDate = new Date(startDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
+
+  // ⚠️ Chú ý: dùng findOneAndUpdate + upsert:true
+  // - Nếu tồn tại ACTIVE => cập nhật
+  // - Nếu chưa tồn tại => chèn mới với technician + status lấy từ filter
+  const sub = await TechnicianSubscription.findOneAndUpdate(
+    { technician: technicianId, status: 'ACTIVE' },   // filter
+    {
+      $set: {
+        package: packageId,
+        startDate,
+        endDate,
+        status: 'ACTIVE',
+      },
+      $push: {
+        paymentHistory: {
+          amount: Number(amount) || 0,
+          paidAt: new Date(),
+          method,
+        },
+      },
+    },
+    {
+      upsert: true,
+      new: true,
+      setDefaultsOnInsert: true,
+      session,
+    }
+  );
+
+  return sub;
+};
+
+
 module.exports = {
     getAvailablePackages,
     subscribePackage,
     renewSubscription,
-    getCurrentSubscription
+    getCurrentSubscription,
+    upsertActiveSubscription
 };

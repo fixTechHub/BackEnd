@@ -68,40 +68,40 @@ const httpError = (status, message) => {
 };
 
 const replyToFeedback = async ({ feedbackId, userId, replyText }) => {
-  if (!mongoose.Types.ObjectId.isValid(feedbackId)) {
-    throw new Error('feedbackId không hợp lệ');
-  }
+    if (!mongoose.Types.ObjectId.isValid(feedbackId)) {
+        throw new Error('feedbackId không hợp lệ');
+    }
 
-  const fb = await Feedback.findById(feedbackId);
-  if (!fb) throw new Error('Feedback not found');
+    const fb = await Feedback.findById(feedbackId);
+    if (!fb) throw new Error('Feedback not found');
 
-  const tech = await Technician.findOne({ userId: userId }).select('_id').lean();
-  console.log(tech);
-  
-   // 👇 DEBUG log trước khi so sánh
-  console.log('[reply] tokenUserId   =', String(userId));
-//   console.log('[reply] technicianId  =', String(tech._id));
-  console.log('[reply] feedback.toUser=', String(fb.toUser));
+    const tech = await Technician.findOne({ userId: userId }).select('_id').lean();
+    console.log(tech);
 
-  // Map userId -> technicianId
-  
-  if (!tech) throw new Error('Không tìm thấy technician cho user hiện tại');
+    // 👇 DEBUG log trước khi so sánh
+    console.log('[reply] tokenUserId   =', String(userId));
+    //   console.log('[reply] technicianId  =', String(tech._id));
+    console.log('[reply] feedback.toUser=', String(fb.toUser));
+
+    // Map userId -> technicianId
+
+    if (!tech) throw new Error('Không tìm thấy technician cho user hiện tại');
 
 
-  // ✅ So sánh technicianId với fb.toUser (vì fb.toUser đang là technicianId)
-  if (String(fb.toUser) !== String(tech._id)) {
-    throw new Error('Bạn không có quyền trả lời feedback này');
-  }
+    // ✅ So sánh technicianId với fb.toUser (vì fb.toUser đang là technicianId)
+    if (String(fb.toUser) !== String(tech._id)) {
+        throw new Error('Bạn không có quyền trả lời feedback này');
+    }
 
-  const now = new Date();
-  fb.reply = {
-    content: String(replyText || '').trim(),
-    createdAt: fb.reply?.createdAt || now,
-    updatedAt: now
-  };
+    const now = new Date();
+    fb.reply = {
+        content: String(replyText || '').trim(),
+        createdAt: fb.reply?.createdAt || now,
+        updatedAt: now
+    };
 
-  await fb.save();
-  return fb;
+    await fb.save();
+    return fb;
 };
 
 const moderateFeedback = async ({ feedbackId, isVisible, reason }) => {
@@ -128,55 +128,55 @@ const getFeedbackList = async (filter = {}) => {
 };
 
 const findByTechnician = async ({
-  technicianId,
-  page = 1,
-  limit = 10,
-  rating,               // 1..5 (optional)
-  sort = 'recent',      // 'recent' | 'rating_desc' | 'rating_asc'
-  from,                 // 'YYYY-MM-DD' (optional)
-  to,                   // 'YYYY-MM-DD' (optional)
-  visible = true,       // default: chỉ lấy feedback hiển thị
+    technicianId,
+    page = 1,
+    limit = 10,
+    rating,               // 1..5 (optional)
+    sort = 'recent',      // 'recent' | 'rating_desc' | 'rating_asc'
+    from,                 // 'YYYY-MM-DD' (optional)
+    to,                   // 'YYYY-MM-DD' (optional)
+    visible = true,       // default: chỉ lấy feedback hiển thị
 }) => {
-  if (!mongoose.Types.ObjectId.isValid(technicianId)) {
-    throw new Error('technicianId không hợp lệ');
-  }
+    if (!mongoose.Types.ObjectId.isValid(technicianId)) {
+        throw new Error('technicianId không hợp lệ');
+    }
 
-  const filter = {
-    toUser: technicianId,               // ⚠️ fb.toUser = technicianId
-    ...(typeof visible === 'boolean' ? { isVisible: visible } : {}),
-    ...(rating ? { rating: Number(rating) } : {}),
-  };
+    const filter = {
+        toUser: technicianId,               // ⚠️ fb.toUser = technicianId
+        ...(typeof visible === 'boolean' ? { isVisible: visible } : {}),
+        ...(rating ? { rating: Number(rating) } : {}),
+    };
 
-  if (from || to) {
-    filter.createdAt = {};
-    if (from) filter.createdAt.$gte = new Date(from);
-    if (to)   filter.createdAt.$lte = new Date(to);
-  }
+    if (from || to) {
+        filter.createdAt = {};
+        if (from) filter.createdAt.$gte = new Date(from);
+        if (to) filter.createdAt.$lte = new Date(to);
+    }
 
-  const sortObj =
-    sort === 'rating_desc' ? { rating: -1, createdAt: -1 } :
-    sort === 'rating_asc'  ? { rating:  1, createdAt: -1 } :
-                             { createdAt: -1 };
+    const sortObj =
+        sort === 'rating_desc' ? { rating: -1, createdAt: -1 } :
+            sort === 'rating_asc' ? { rating: 1, createdAt: -1 } :
+                { createdAt: -1 };
 
-  const skip = (page - 1) * limit;
+    const skip = (page - 1) * limit;
 
-  const [items, total] = await Promise.all([
-    Feedback.find(filter)
-      .populate('fromUser', 'fullName email avatar')
-      .sort(sortObj)
-      .skip(skip)
-      .limit(limit)
-      .lean(),
-    Feedback.countDocuments(filter),
-  ]);
+    const [items, total] = await Promise.all([
+        Feedback.find(filter)
+            .populate('fromUser', 'fullName email avatar')
+            .sort(sortObj)
+            .skip(skip)
+            .limit(limit)
+            .lean(),
+        Feedback.countDocuments(filter),
+    ]);
 
-  return {
-    items,
-    page,
-    limit,
-    total,
-    totalPages: Math.ceil(total / limit),
-  };
+    return {
+        items,
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+    };
 };
 
 
@@ -215,6 +215,62 @@ const getFeedbackListAdmin = async (filter = {}) => {
         .populate('fromUser', 'fullName') // chỉ lấy tên người gửi
         .populate('toUser', 'fullName')   // chỉ lấy tên người nhận
         .populate('bookingId', 'serviceId address appointmentTime'); // lấy thông tin cơ bản của booking
+};
+
+const getFeedbacksByFromUser = async (userId, page = 1, limit = 10) => {
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await Promise.all([
+        Feedback.find({ fromUser: userId })
+            .populate('fromUser', 'name email')
+            .populate({
+                path: 'toUser', // ở đây đang lưu technicianId
+                model: 'Technician',
+                populate: {
+                    path: 'userId', // userId trong Technician
+                    model: 'User',
+                    select: 'fullName email'
+                }
+            })
+            .populate({
+                path: 'bookingId',
+                model: 'Booking',
+                select: 'status description'
+            })
+            // .populate('bookingId', 'status date')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit),
+        Feedback.countDocuments({ fromUser: userId }),
+
+    ]);
+    console.log(JSON.stringify(items, null, 2))
+
+    return {
+        items,
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+    };
+};
+
+const getFeedbacksByBookingId = async (bookingId) => {
+    const items = await Feedback.find({ bookingId })
+        .populate('fromUser', 'name email')
+        .populate({
+            path: 'toUser', // ở đây đang lưu technicianId
+            model: 'Technician',
+            populate: {
+                path: 'userId', // userId trong Technician
+                model: 'User',
+                select: 'fullName email'
+            }
+        })
+        .populate('bookingId', 'status date service')
+        .sort({ createdAt: -1 });
+
+    return items;
 };
 
 // Helper: parse bool từ query (?visible=true/false)
@@ -328,4 +384,6 @@ module.exports = {
     listFeedbacksByTechnician,
     getFeedbackStatsByTechnician,
     getTechnicianUserId,
+    getFeedbacksByFromUser,
+    getFeedbacksByBookingId
 };

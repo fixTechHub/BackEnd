@@ -159,6 +159,16 @@ exports.sendContractTechnician = async (req, res) => {
     }
 };
 
+exports.listWithdraws = async (req, res) => {
+  try {
+    const { page, limit, status, search } = req.query;
+    const result = await adminService.getWithdrawLogs({ page, limit, status, search });
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
 exports.approveWithdraw = async (req, res) => {
   try {
     const logId = req.params.logId;
