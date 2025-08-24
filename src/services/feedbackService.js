@@ -122,9 +122,16 @@ const getFeedbackList = async (filter = {}) => {
 
     return await Feedback.find(query)
         .sort({ createdAt: -1 })
-        .populate('fromUser', 'fullName')
+        .populate('fromUser', 'fullName avatar address') // ✅ Thêm avatar và address
         .populate('toUser', 'fullName')
-        .populate('bookingId', 'serviceId address appointmentTime');
+        .populate({
+          path: 'bookingId', 
+          select: 'serviceId address appointmentTime finalPrice quote',
+          populate: {
+            path: 'serviceId',
+            select: 'serviceName'
+          }
+        }); // ✅ Lấy service name và price thật
 };
 
 const findByTechnician = async ({
@@ -162,7 +169,7 @@ const findByTechnician = async ({
 
   const [items, total] = await Promise.all([
     Feedback.find(filter)
-      .populate('fromUser', 'fullName email avatar')
+      .populate('fromUser', 'fullName email avatar address') // ✅ Thêm address
       .sort(sortObj)
       .skip(skip)
       .limit(limit)
@@ -212,9 +219,16 @@ const getFeedbackListAdmin = async (filter = {}) => {
     // ✅ Query feedback
     return await Feedback.find(query)
         .sort({ createdAt: -1 }) // feedback mới nhất trước
-        .populate('fromUser', 'fullName') // chỉ lấy tên người gửi
+        .populate('fromUser', 'fullName avatar address') // ✅ Lấy đầy đủ thông tin người gửi
         .populate('toUser', 'fullName')   // chỉ lấy tên người nhận
-        .populate('bookingId', 'serviceId address appointmentTime'); // lấy thông tin cơ bản của booking
+        .populate({
+          path: 'bookingId', 
+          select: 'serviceId address appointmentTime finalPrice quote',
+          populate: {
+            path: 'serviceId',
+            select: 'serviceName'
+          }
+        }); // ✅ Lấy service name và price thật
 };
 
 // Helper: parse bool từ query (?visible=true/false)
@@ -276,8 +290,15 @@ async function listFeedbacksByTechnician(technicianId, query = {}) {
             .sort(sort)
             .skip((page - 1) * limit)
             .limit(limit)
-            .populate({ path: 'fromUser', select: 'name avatar _id' })
-            .populate({ path: 'bookingId', select: 'bookingCode serviceName schedule _id' })
+            .populate({ path: 'fromUser', select: 'fullName avatar address _id' }) // ✅ Fix field name và thêm address
+            .populate({
+              path: 'bookingId', 
+              select: 'bookingCode serviceId schedule finalPrice quote _id',
+              populate: {
+                path: 'serviceId',
+                select: 'serviceName'
+              }
+            }) // ✅ Lấy service name và price thật
             .lean(),
         Feedback.countDocuments(filter),
     ]);
