@@ -9,6 +9,8 @@ router.get('/:technicianId', feedbackController.getFeedbackList);
 router.get('/by-technician/:technicianId', feedbackController.listByTechnician);
 router.get('/:technicianId/feedbacks', feedbackController.listFeedbacksForTechnician);
 router.get('/:technicianId/feedbacks/stats', feedbackController.feedbackStatsForTechnician);
+router.get('/from/:userId', feedbackController.getFeedbacksByFromUser);
+router.get('/booking/:bookingId', feedbackController.fetchByBookingId);
 // thêm verifyCustomer
 router.post(
   '/:bookingId',

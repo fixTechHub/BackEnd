@@ -115,7 +115,7 @@ const technicianSchema = new mongoose.Schema({
     subscriptionStatus: {
         type: String,
         enum: ['TRIAL', 'BASIC', 'STANDARD', 'PREMIUM', 'FREE'],
-        default: 'FREE'
+        default: 'TRIAL'
     }
 }, {
     timestamps: true
@@ -129,6 +129,6 @@ technicianSchema.index({ ratingAverage: -1 });
 technicianSchema.index({ specialtiesCategories: 1 });
 technicianSchema.index({ createdAt: -1 });
 
-technicianSchema.index({ currentLocation: '2dsphere', availability: 1, status: 1, specialtiesCategories: 1, ratingAverage: -1 });
+technicianSchema.index({ currentLocation: '2dsphere', availability: 1, status: 1, specialtiesCategories: 1, ratingAverage: -1, isSubscribe: 1, subscriptionStatus: 1 });
 
 module.exports = mongoose.model('Technician', technicianSchema);

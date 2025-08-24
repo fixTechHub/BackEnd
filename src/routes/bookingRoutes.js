@@ -2,7 +2,7 @@ const express = require('express');
 const bookingController = require('../controllers/bookingController');
 const { handleMulter, processAndUploadToS3 } = require('../middlewares/uploadMiddleware');
 const { authenticateToken } = require('../middlewares/authMiddleware');
-const { popularDescriptionsLimiter, searchDescriptionsLimiter } = require('../middlewares/rateLimitMiddleware');
+const { popularDescriptionsLimiter, searchDescriptionsLimiter, } = require('../middlewares/rateLimitMiddleware');
 const router = express.Router();
 
 router.get('/user', authenticateToken, bookingController.getUserBookingHistory)

@@ -13,6 +13,7 @@ const TechnicianSubscription = require('../models/TechnicianSubscription');
 const SubscriptionPackage = require('../models/CommissionPackage');
 const CouponUsage = require('../models/CouponUsage');
 const couponService = require('./couponService')
+const { upsertActiveSubscription } = require('../services/technicianSubscriptionService');
 const payOs = new PayOs(
   process.env.PAYOS_CLIENT_ID,
   process.env.PAYOS_API_KEY,
@@ -90,10 +91,9 @@ const handleSuccessfulPayment = async (orderCode, bookingId) => {
     }
     // Find userId from booking
    
-    const receiptTotalAmount = booking.finalPrice + booking.discountValue;
-    console.log(booking.finalPrice);
+    const holdingAmount = booking.quote.totalAmount
     
-    booking.holdingAmount = receiptTotalAmount * 0.2;
+    booking.holdingAmount = holdingAmount * 0.2;
     await booking.save({ session });
     const TechnicianService = require('../models/TechnicianService');
     const technicianServiceModel = await TechnicianService.findOne({
@@ -136,26 +136,6 @@ const handleSuccessfulPayment = async (orderCode, bookingId) => {
   }
 };
 
-// const createPayOsSubscription = async (userId, amount) => {
-//   try {
-//     // PayOS requires a unique integer for orderCode.
-//     const orderCode = await generateOrderCode();
-//     const paymentData = {
-//       orderCode: orderCode,
-//       amount: amount,
-//       description: `Nap tien vao tai khoan`,
-//       returnUrl: `${process.env.BACK_END_URL}/payments/subscription/success?userId=${userId}&amount=${amount}`,
-//       cancelUrl: `${process.env.BACK_END_URL}/payments/subscription/cancel?userId=${userId}&amount=${amount}`
-//     };
-
-//     const paymentLink = await payOs.createPaymentLink(paymentData);
-//     return paymentLink.checkoutUrl;
-
-//   } catch (error) {
-//     console.error('Error creating PayOS payment link:', error);
-//     throw new Error('Failed to create payment link');
-//   }
-// };
 
 const createPayOsSubscription = async (userId, { amount, packageId }) => {
   try {
@@ -186,38 +166,52 @@ const createPayOsSubscription = async (userId, { amount, packageId }) => {
 };
 
 
-// const handleSuccessfulSubscription = async (amount, userId) => {
+// const handleSuccessfulSubscription = async (amount, userId, packageId) => {
 //   const session = await mongoose.startSession();
 //   session.startTransaction();
-//   const amountNumber = Number(amount);
-//   try {
-//     if (!amount) {
-//       throw new Error('Không có tiền để nạp');
-//     }
 
-//     if (!userId) {
-//       throw new Error('Thiếu ID người dùng');
-//     }
+//   try {
+//     if (!amount) throw new Error('Không có tiền để nạp');
+//     if (!userId) throw new Error('Thiếu ID người dùng');
+//     if (!packageId) throw new Error('Thiếu ID gói nâng cấp');
 
 //     const technician = await Technician.findOne({ userId }).session(session);
-//     if (!technician) {
-//       throw new Error('Không tìm thấy kỹ thuật viên');
-//     }
+//     if (!technician) throw new Error('Không tìm thấy kỹ thuật viên');
 
 //     const balanceBefore = technician.balance;
-//     const balanceAfter = balanceBefore + amountNumber;
+//     const balanceAfter = balanceBefore;
 
-//     // Update balance
-//     technician.balance = balanceAfter;
-//     await technician.save({ session });
+//     // ✅ 1. Update balance
+//     // technician.balance = balanceAfter;
 
-//     // Create deposit log
+//     // ✅ 2. Update subscriptionPackage
+//     // technician.subscriptionPackage = packageId;
+//     // technician.subscriptionStartDate = new Date(); // nếu bạn dùng
+//     // // Optional: nếu gói có thời hạn, bạn có thể cộng thêm 30 ngày chẳng hạn
+//     // technician.subscriptionExpireDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); 
+
+//     // await technician.save({ session });
+
+//     const startDate = new Date();
+//     const endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // +30 ngày
+
+//     await TechnicianSubscription.findOneAndUpdate(
+//       { technician: technician._id, status: 'ACTIVE' },
+//       {
+//         package: packageId,
+//         startDate: startDate,
+//         endDate: endDate,
+//       },
+//       { session, new: true }
+//     );
+
+//     // ✅ 3. Create deposit log
 //     const depositLog = new DepositLog({
 //       technicianId: technician._id,
-//       type: 'DEPOSIT',
+//       type: 'SUBSCRIPTION',
 //       amount: amount,
 //       status: 'COMPLETED',
-//       paymentMethod: 'BANK', // Or dynamically set if you have it
+//       paymentMethod: 'BANK',
 //       balanceBefore: balanceBefore,
 //       balanceAfter: balanceAfter,
 //       note: `Nạp ${amount}đ thành công`,
@@ -225,7 +219,7 @@ const createPayOsSubscription = async (userId, { amount, packageId }) => {
 
 //     await depositLog.save({ session });
 
-//     // Commit transaction
+//     // ✅ 4. Commit
 //     await session.commitTransaction();
 //     session.endSession();
 //   } catch (error) {
@@ -238,7 +232,6 @@ const createPayOsSubscription = async (userId, { amount, packageId }) => {
 const handleSuccessfulSubscription = async (amount, userId, packageId) => {
   const session = await mongoose.startSession();
   session.startTransaction();
-
   try {
     if (!amount) throw new Error('Không có tiền để nạp');
     if (!userId) throw new Error('Thiếu ID người dùng');
@@ -247,89 +240,51 @@ const handleSuccessfulSubscription = async (amount, userId, packageId) => {
     const technician = await Technician.findOne({ userId }).session(session);
     if (!technician) throw new Error('Không tìm thấy kỹ thuật viên');
 
-    const balanceBefore = technician.balance;
-    const balanceAfter = balanceBefore;
+    const pkgDoc = await SubscriptionPackage.findById(packageId).session(session);
+    if (!pkgDoc || !pkgDoc.isActive) throw new Error('Gói không khả dụng');
 
-    // ✅ 1. Update balance
-    // technician.balance = balanceAfter;
+    // (khuyến nghị) xác thực số tiền đúng giá gói
+    if (Number(amount) !== Number(pkgDoc.price)) {
+      throw new Error('Số tiền không khớp giá gói');
+    }
 
-    // ✅ 2. Update subscriptionPackage
-    // technician.subscriptionPackage = packageId;
-    // technician.subscriptionStartDate = new Date(); // nếu bạn dùng
-    // // Optional: nếu gói có thời hạn, bạn có thể cộng thêm 30 ngày chẳng hạn
-    // technician.subscriptionExpireDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); 
-
-    // await technician.save({ session });
-
-    const startDate = new Date();
-    const endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // +30 ngày
-
-    await TechnicianSubscription.findOneAndUpdate(
-      { technician: technician._id, status: 'ACTIVE' },
-      {
-        package: packageId,
-        startDate: startDate,
-        endDate: endDate,
-      },
-      { session, new: true }
-    );
-
-    // ✅ 3. Create deposit log
-    const depositLog = new DepositLog({
+    // ✅ Upsert ACTIVE (cập nhật nếu có, tạo nếu chưa có)
+    const sub = await upsertActiveSubscription({
       technicianId: technician._id,
-      type: 'SUBSCRIPTION',
-      amount: amount,
-      status: 'COMPLETED',
-      paymentMethod: 'BANK',
-      balanceBefore: balanceBefore,
-      balanceAfter: balanceAfter,
-      note: `Nạp ${amount}đ thành công`,
+      packageId,
+      amount,
+      method: 'BANK',
+      durationDays: 30,
+      session,
     });
 
-    await depositLog.save({ session });
+    // ✅ Cập nhật flag trên Technician (nếu bạn dùng để hiển thị)
+    technician.isSubscribe = true;
+    technician.subscriptionStatus = pkgDoc.type; // ví dụ: BASIC/PRO/...
+    await technician.save({ session });
 
-    // ✅ 4. Commit
+    // ✅ Log (không đổi balance vì thanh toán qua cổng)
+    await new DepositLog({
+      technicianId: technician._id,
+      type: 'SUBSCRIPTION',
+      amount: Number(amount),
+      status: 'COMPLETED',
+      paymentMethod: 'BANK',
+      balanceBefore: technician.balance,
+      balanceAfter:  technician.balance,
+      note: `Đăng ký/Update gói ${pkgDoc.name}`,
+    }).save({ session });
+
     await session.commitTransaction();
     session.endSession();
-  } catch (error) {
+    return sub;
+  } catch (err) {
     await session.abortTransaction();
     session.endSession();
-    throw error;
+    throw err;
   }
 };
 
-// const extendSubscription = async (req, res) => {
-//   try {
-//     const { days, technicianId, packageId } = req.body;
-
-//     if (!days || !technicianId || !packageId) {
-//       return res.status(400).json({ message: 'Thiếu thông tin!' });
-//     }
-
-//     const subscriptionPackage = await SubscriptionPackage.findById(packageId);
-//     if (!subscriptionPackage) {
-//       return res.status(404).json({ message: 'Không tìm thấy gói!' });
-//     }
-
-//     const pricePer30Days = subscriptionPackage.price; // giả sử giá trong DB là theo 30 ngày
-//     const amount = Math.ceil((days / 30) * pricePer30Days);
-
-//     const paymentPayload = {
-//       amount,
-//       description: `Gia hạn gói ${packageId} thêm ${days} ngày`,
-//       technicianId,
-//       packageId,
-//       days,
-//     };
-
-//     const checkoutUrl = await createPayOsPayment(paymentPayload);
-
-//     res.json({ checkoutUrl });
-//   } catch (err) {
-//     console.error('Extend subscription error:', err);
-//     res.status(500).json({ message: 'Lỗi tạo thanh toán' });
-//   }
-// };
 
 
 const handleCancelSubscription = async (amount, userId) => {

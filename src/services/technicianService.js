@@ -10,6 +10,52 @@ const notificationService = require('../services/notificationService');
 const TechnicianService = require('../models/TechnicianService');
 const TechnicianSchedule = require('../models/TechnicianSchedule');
 
+// Hàm tính thời gian di chuyển dự tính (tính bằng phút)
+const calculateEstimatedArrivalTime = (distanceInKm, isUrgent = false) => {
+  // Tốc độ di chuyển trung bình (km/h)
+  // - Trong thành phố: 20-30 km/h (giao thông đông đúc)
+  // - Đường ngoại ô: 40-50 km/h
+  // - Đường cao tốc: 60-80 km/h
+  
+  let averageSpeed = 25; // km/h mặc định (trong thành phố)
+  
+  // Nếu là đặt ngay (urgent), thợ sẽ di chuyển nhanh hơn
+  if (isUrgent) {
+    averageSpeed = 35; // km/h cho đặt ngay
+  }
+  
+  // Tính thời gian di chuyển (giờ)
+  const travelTimeInHours = distanceInKm / averageSpeed;
+  
+  // Chuyển đổi sang phút
+  const travelTimeInMinutes = Math.round(travelTimeInHours * 60);
+  
+  // Thêm thời gian chuẩn bị (5-15 phút)
+  const preparationTime = isUrgent ? 5 : 10;
+  
+  return {
+    travelTimeInMinutes: travelTimeInMinutes + preparationTime,
+    travelTimeInHours: travelTimeInHours + (preparationTime / 60),
+    averageSpeed: averageSpeed,
+    preparationTime: preparationTime
+  };
+};
+
+// Hàm format thời gian di chuyển thành chuỗi dễ đọc
+const formatEstimatedTime = (travelTimeInMinutes) => {
+  if (travelTimeInMinutes < 60) {
+    return `${travelTimeInMinutes} phút`;
+  } else {
+    const hours = Math.floor(travelTimeInMinutes / 60);
+    const minutes = travelTimeInMinutes % 60;
+    if (minutes === 0) {
+      return `${hours} giờ`;
+    } else {
+      return `${hours} giờ ${minutes} phút`;
+    }
+  }
+};
+
 const createNewTechnician = async (userId, technicianData, session = null) => {
   const technician = new Technician({
     userId,
@@ -50,239 +96,357 @@ const findTechnicianByUserId = async (userId) => {
   return await Technician.findOne({ userId })
 };
 
-const findNearbyTechnicians = async (searchParams, radiusInKm) => {
-  const { latitude, longitude, serviceId, status, minBalance, scheduleDate, availability } = searchParams;
-
-  const service = await Service.findById(serviceId).select('categoryId serviceName').lean();
-  // console.log('--- Service for technician search ---', service);
-
-  if (!service) {
-    console.log(`Không tìm thấy service nào với ID: ${serviceId}`);
-    return null;
+// Tách logic tạo match query
+const buildMatchQuery = (searchParams, categoryId) => {
+  const { status, minBalance, isSubscribe, subscriptionStatus, availability } = searchParams;
+  
+  let matchQuery = {};
+  
+  // Chỉ thêm filter status nếu được cung cấp
+  if (status) {
+    matchQuery.status = status;
   }
-  const categoryId = service.categoryId;
-  // console.log('--- Category ID for technician search ---', categoryId);
+  
+  // Chỉ thêm filter balance nếu minBalance được cung cấp và hợp lệ
+  if (minBalance !== undefined && minBalance !== null && !isNaN(minBalance)) {
+    matchQuery.balance = { $gte: minBalance };
+  }
+  
+  if (isSubscribe !== undefined) {
+    matchQuery.isSubscribe = isSubscribe;
+  }
+  
+  if (subscriptionStatus && Array.isArray(subscriptionStatus) && subscriptionStatus.length > 0) {
+    matchQuery.subscriptionStatus = { $in: subscriptionStatus };
+  }
+  
+  if (availability) {
+    if (Array.isArray(availability) && availability.length > 0) {
+      matchQuery.availability = { $in: availability };
+    } else if (typeof availability === 'string') {
+      matchQuery.availability = availability;
+    }
+  }
+  
+  if (categoryId) {
+    matchQuery.specialtiesCategories = new mongoose.Types.ObjectId(categoryId);
+  }
+  
+  return matchQuery;
+};
 
-  const maxDistanceInMeters = radiusInKm * 1000;
-
-  try {
-    // Tạo query object
-    let matchQuery = {
-      status: status,
-      balance: { $gte: minBalance },
-    };
-    // Filter by availability if provided. Accepts a string or an array (handled as $in)
-    if (availability) {
-      if (Array.isArray(availability) && availability.length > 0) {
-        matchQuery.availability = { $in: availability };
-      } else if (typeof availability === 'string') {
-        matchQuery.availability = availability;
+// Tách logic tạo aggregation pipeline
+const buildAggregationPipeline = (searchParams, matchQuery, customerId) => {
+  const { latitude, longitude, serviceId, scheduleDate, radiusInKm } = searchParams;
+  
+  // Kiểm tra và đảm bảo radiusInKm là số dương
+  const validRadius = Math.max(0.1, radiusInKm || 10); // Mặc định 10km nếu không có
+  const maxDistanceInMeters = validRadius * 1000;
+  
+  const pipeline = [
+    {
+      $geoNear: {
+        near: {
+          type: "Point",
+          coordinates: [longitude, latitude]
+        },
+        distanceField: "distance",
+        maxDistance: maxDistanceInMeters,
+        spherical: true,
+        key: "currentLocation",
+        query: matchQuery
       }
-    }
-    if (categoryId) {
-      matchQuery.specialtiesCategories = new mongoose.Types.ObjectId(categoryId);
-    }
-
-    // Sử dụng currentLocation và chỉ định index cụ thể
-    // console.log('--- $geoNear input ---', { longitude, latitude, maxDistanceInMeters, matchQuery });
-    const technicians = await Technician.aggregate([
-      {
-        $geoNear: {
-          near: {
-            type: "Point",
-            coordinates: [longitude, latitude]
+    },
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'userId',
+        foreignField: '_id',
+        as: 'userInfo'
+      }
+    },
+    {
+      $lookup: {
+        from: 'categories',
+        localField: 'specialtiesCategories',
+        foreignField: '_id',
+        as: 'category'
+      }
+    },
+    {
+      $lookup: {
+        from: 'technicianservices',
+        let: { technicianId: '$_id', serviceId: new mongoose.Types.ObjectId(serviceId) },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ['$technicianId', '$$technicianId'] },
+                  { $eq: ['$serviceId', '$$serviceId'] },
+                  { $eq: ['$isActive', true] }
+                ]
+              }
+            }
+          }
+        ],
+        as: 'technicianService'
+      }
+    },
+    {
+      $lookup: {
+        from: 'technicianschedules',
+        let: { technicianId: '$_id' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ['$technicianId', '$$technicianId'] },
+                  { $eq: ['$scheduleType', 'AVAILABLE'] },
+                  scheduleDate ? {
+                    $and: [
+                      { $lte: ['$startTime', new Date(scheduleDate)] },
+                      { $gte: ['$endTime', new Date(scheduleDate)] }
+                    ]
+                  } : {}
+                ]
+              }
+            }
+          }
+        ],
+        as: 'availableSchedules'
+      }
+    },
+    {
+      $lookup: {
+        from: 'feedbacks',
+        let: { technicianId: '$_id' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ['$toUser', '$$technicianId'] },
+                  { $eq: ['$isVisible', true] }
+                ]
+              }
+            }
+          }
+        ],
+        as: 'allFeedbacks'
+      }
+    },
+    {
+      $lookup: {
+        from: 'feedbacks',
+        let: { technicianId: '$_id' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ['$toUser', '$$technicianId'] },
+                  { $eq: ['$isVisible', true] }
+                ]
+              }
+            }
           },
-          distanceField: "distance",
-          maxDistance: maxDistanceInMeters,
-          spherical: true,
-          key: "currentLocation",
-          query: matchQuery
-        }
-      },
-      {
-        $lookup: {
-          from: 'users',
-          localField: 'userId',
-          foreignField: '_id',
-          as: 'userInfo'
-        }
-      },
-      {
-        $lookup: {
-          from: 'categories',
-          localField: 'specialtiesCategories',
-          foreignField: '_id',
-          as: 'category'
-        }
-      },
-      {
-        $lookup: {
-          from: 'technicianservices',
-          let: { technicianId: '$_id', serviceId: new mongoose.Types.ObjectId(serviceId) },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $eq: ['$technicianId', '$$technicianId'] },
-                    { $eq: ['$serviceId', '$$serviceId'] },
-                    { $eq: ['$isActive', true] }
-                  ]
-                }
-              }
-            }
-          ],
-          as: 'technicianService'
-        }
-      },
-      {
-        $lookup: {
-          from: 'technicianschedules',
-          let: { technicianId: '$_id' },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $eq: ['$technicianId', '$$technicianId'] },
-                    { $eq: ['$scheduleType', 'AVAILABLE'] },
-                    // Kiểm tra xem có lịch trống trong ngày được chọn không
-                    scheduleDate ? {
-                      $and: [
-                        { $lte: ['$startTime', new Date(scheduleDate)] },
-                        { $gte: ['$endTime', new Date(scheduleDate)] }
-                      ]
-                    } : {}
-                  ]
-                }
-              }
-            }
-          ],
-          as: 'availableSchedules'
-        }
-      },
-      {
-        $lookup: {
-          from: 'feedbacks',
-          let: { technicianId: '$_id' },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $eq: ['$toUser', '$$technicianId'] },
-                    { $eq: ['$isVisible', true] }
-                  ]
-                }
-              }
-            }
-          ],
-          as: 'allFeedbacks'
-        }
-      },
-      {
-        $lookup: {
-          from: 'feedbacks',
-          let: { technicianId: '$_id' },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $eq: ['$toUser', '$$technicianId'] },
-                    { $eq: ['$isVisible', true] }
-                  ]
-                }
-              }
-            },
-            {
-              $lookup: {
-                from: 'users',
-                let: { fromUserId: '$fromUser' },
-                pipeline: [
-                  {
-                    $match: {
-                      $expr: { $eq: ['$_id', '$$fromUserId'] }
-                    }
+          {
+            $lookup: {
+              from: 'users',
+              let: { fromUserId: '$fromUser' },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: { $eq: ['$_id', '$$fromUserId'] }
                   }
-                ],
-                as: 'customerInfo'
-              }
-            },
-            {
-              $project: {
-                _id: 1,
-                rating: 1,
-                content: 1,
-                createdAt: 1,
-                customerName: { $arrayElemAt: ['$customerInfo.fullName', 0] },
-                customerAvatar: { $arrayElemAt: ['$customerInfo.avatar', 0] }
-              }
-            },
-            {
-              $sort: { createdAt: -1 }
+                }
+              ],
+              as: 'customerInfo'
             }
-          ],
-          as: 'recentFeedbacks'
-        }
-      },
-      {
-        $project: {
-          _id: 1,
-          userId: 1,
-          currentLocation: 1,
-          status: 1,
-          ratingAverage: 1,
-          jobCompleted: 1,
-          experienceYears: 1,
-          specialtiesCategories: 1,
-          availability: 1,
-          balance: 1,
-          distance: 1,
-          // Chuyển đổi distance từ meters sang km
-          distanceInKm: { $round: [{ $divide: ["$distance", 1000] }, 2] },
-          // Thêm thông tin user
-          userInfo: { $arrayElemAt: ["$userInfo", 0] },
-          category: 1,
-          servicePrice: { $arrayElemAt: ["$technicianService.price", 0] },
-          warrantyDuration: { $arrayElemAt: ["$technicianService.warrantyDuration", 0] },
-          hasCustomPrice: { $gt: [{ $size: "$technicianService" }, 0] },
-          isAvailableOnSchedule: { $gt: [{ $size: "$availableSchedules" }, 0] },
-          inspectionFee: 1, // Lấy trực tiếp từ technician document
-          // Thông tin đánh giá
-          totalFeedbacks: { $size: "$allFeedbacks" },
-          recentFeedbacks: 1
-        }
-      },
-      {
-        $sort: {
-          distance: 1
-        }
-      },
-      {
-        $limit: 10
+          },
+          {
+            $project: {
+              _id: 1,
+              rating: 1,
+              content: 1,
+              createdAt: 1,
+              customerName: { $arrayElemAt: ['$customerInfo.fullName', 0] },
+              customerAvatar: { $arrayElemAt: ['$customerInfo.avatar', 0] }
+            }
+          },
+          {
+            $sort: { createdAt: -1 }
+          }
+        ],
+        as: 'recentFeedbacks'
       }
-    ]);
-    // Log toạ độ của từng technician
-    // if (Array.isArray(technicians)) {
-    //   technicians.forEach(t => {
-    //     console.log('--- Technician location ---', t.currentLocation?.coordinates);
-    //   });
-    // }
+    },
+    {
+      $match: {
+        $expr: { $gt: [{ $size: { $ifNull: ["$technicianService", []] } }, 0] }
+      }
+    }
+  ];
 
-    const techniciansWithPricing = technicians.map(technician => {
-      let servicePrice = null;
-
-      // Lấy giá từ TechnicianService
-      servicePrice = technician.hasCustomPrice ? technician.servicePrice : null;
-
-      return {
-        ...technician,
-        servicePrice,
-        warrantyDuration: technician.warrantyDuration || 0,
-        serviceName: service.serviceName
-      };
+  // Thêm favorite lookup nếu có customerId
+  if (customerId) {
+    pipeline.push({
+      $lookup: {
+        from: 'favoritetechnicians',
+        let: { technicianId: '$_id' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ['$technicianId', '$$technicianId'] },
+                  { $eq: ['$customerId', new mongoose.Types.ObjectId(customerId)] }
+                ]
+              }
+            }
+          }
+        ],
+        as: 'favoriteInfo'
+      }
     });
+  }
+
+  // Project stage
+  pipeline.push({
+    $project: {
+      _id: 1,
+      userId: 1,
+      currentLocation: 1,
+      status: 1,
+      ratingAverage: 1,
+      jobCompleted: 1,
+      experienceYears: 1,
+      specialtiesCategories: 1,
+      availability: 1,
+      balance: 1,
+      distance: 1,
+      distanceInKm: { $round: [{ $divide: ["$distance", 1000] }, 2] },
+      userInfo: { $arrayElemAt: ["$userInfo", 0] },
+      category: 1,
+      servicePrice: { $arrayElemAt: ["$technicianService.price", 0] },
+      warrantyDuration: { $arrayElemAt: ["$technicianService.warrantyDuration", 0] },
+      serviceName: { $arrayElemAt: ["$technicianService.serviceName", 0] },
+      hasCustomPrice: { $gt: [{ $size: { $ifNull: ["$technicianService", []] } }, 0] },
+      isAvailableOnSchedule: { $gt: [{ $size: { $ifNull: ["$availableSchedules", []] } }, 0] },
+      inspectionFee: 1,
+      totalFeedbacks: { $size: { $ifNull: ["$allFeedbacks", []] } },
+      recentFeedbacks: 1,
+      isSubscribe: 1,
+      subscriptionStatus: 1,
+      subscriptionPriority: {
+        $switch: {
+          branches: [
+            { case: { $eq: ["$subscriptionStatus", "PREMIUM"] }, then: 1 }
+          ],
+          default: 2
+        }
+      },
+      isFavorite: customerId ? { $gt: [{ $size: { $ifNull: ['$favoriteInfo', []] } }, 0] } : false,
+      favoritePriority: customerId ? {
+        $cond: {
+          if: { $gt: [{ $size: { $ifNull: ['$favoriteInfo', []] } }, 0] },
+          then: 1,
+          else: 2
+        }
+      } : 2
+    }
+  });
+
+  // Sort stage
+  pipeline.push({
+    $sort: customerId ? {
+      subscriptionPriority: 1,
+      favoritePriority: 1,
+      distance: 1
+    } : {
+      subscriptionPriority: 1,
+      distance: 1
+    }
+  });
+
+  // Limit stage
+  pipeline.push({
+    $limit: 10
+  });
+
+  return pipeline;
+};
+
+// Tách logic xử lý kết quả
+const processTechnicianResults = (technicians, service, isUrgent) => {
+  return technicians.map(technician => {
+    const servicePrice = technician.hasCustomPrice ? technician.servicePrice : null;
+    const estimatedTime = calculateEstimatedArrivalTime(technician.distanceInKm, isUrgent);
+    
+    return {
+      ...technician,
+      servicePrice,
+      warrantyDuration: technician.warrantyDuration || 0,
+      serviceName: technician.serviceName || service.serviceName || 'Dịch vụ không xác định',
+      estimatedArrivalTime: {
+        travelTimeInMinutes: estimatedTime.travelTimeInMinutes,
+        travelTimeInHours: estimatedTime.travelTimeInHours,
+        formattedTime: formatEstimatedTime(estimatedTime.travelTimeInMinutes),
+        averageSpeed: estimatedTime.averageSpeed,
+        preparationTime: estimatedTime.preparationTime
+      }
+    };
+  });
+};
+
+const findNearbyTechnicians = async (searchParams, radiusInKm) => {
+  const { serviceId, customerId, latitude, longitude } = searchParams;
+  
+  try {
+    // Debug logging
+    console.log('=== DEBUG findNearbyTechnicians ===');
+    console.log('searchParams:', JSON.stringify(searchParams, null, 2));
+    console.log('radiusInKm:', radiusInKm, 'type:', typeof radiusInKm);
+    console.log('latitude:', latitude, 'longitude:', longitude);
+    
+    // Validation các tham số bắt buộc
+    if (!serviceId) {
+      throw new Error('serviceId là bắt buộc');
+    }
+    
+    if (!latitude || !longitude) {
+      throw new Error('latitude và longitude là bắt buộc');
+    }
+    
+    // Đảm bảo radiusInKm là số dương
+    if (radiusInKm && (radiusInKm <= 0 || isNaN(radiusInKm))) {
+      throw new Error('radiusInKm phải là số dương');
+    }
+    
+    // Lấy thông tin service
+    const service = await Service.findById(serviceId).select('categoryId serviceName').lean();
+    if (!service) {
+      console.log(`Không tìm thấy service nào với ID: ${serviceId}`);
+      return null;
+    }
+
+    // Xây dựng query và pipeline
+    const matchQuery = buildMatchQuery(searchParams, service.categoryId);
+    const pipeline = buildAggregationPipeline(searchParams, matchQuery, customerId);
+    
+    // Debug logging cho pipeline
+    console.log('=== DEBUG Pipeline ===');
+    console.log('matchQuery:', JSON.stringify(matchQuery, null, 2));
+    console.log('Pipeline length:', pipeline.length);
+    console.log('First stage:', JSON.stringify(pipeline[0], null, 2));
+    
+    // Thực hiện aggregation
+    const technicians = await Technician.aggregate(pipeline);
+    
+    // Xử lý kết quả
+    const techniciansWithPricing = processTechnicianResults(technicians, service, searchParams.isUrgent);
 
     return {
       success: true,
@@ -474,7 +638,7 @@ const getListBookingForTechnician = async (technicianId) => {
       path: 'serviceId',
       select: 'serviceName'
     });
-  console.log("bookings", bookings);
+  // console.log("bookings", bookings);
 
 
   // format dữ liệu trả về
@@ -491,37 +655,8 @@ const getListBookingForTechnician = async (technicianId) => {
 
 
 const getEarningsAndCommissionList = async (technicianId) => {
-
-  //   const quotes = await BookingPrice.find(technicianId)
-  //     .sort({ createdAt: -1 })
-  //     .populate('commissionConfigId')
-  //     .populate({
-  //       path: 'bookingId',
-  //       populate: [
-  //         { path: 'customerId', select: 'fullName' },
-  //         { path: 'serviceId', select: 'serviceName' }
-  //       ]
-  //     })
-
-  //   const earningList = quotes.map(quote => ({
-  //     // bookingId: quote.bookingId._id,
-  //     bookingCode: quote.bookingId?.bookingCode,
-  //     bookingInfo: {
-  //       customerName: quote.bookingId?.customerId,
-  //       service: quote.bookingId?.serviceId,
-  //     },
-  //     finalPrice: quote.finalPrice || 0,
-  //     commissionAmount: quote.commissionAmount || 0,
-  //     holdingAmount: quote.holdingAmount || 0,
-  //     technicianEarning: quote.technicianEarning || 0,
-
-  //   }));
-
-  //   return earningList;
-  // };
   const quotes = await Booking.find({ technicianId })
     .sort({ createdAt: -1 })
-    .populate('quote.commissionConfigId')
     .populate('customerId', 'fullName')
     .populate('serviceId', 'serviceName');
   console.log("quotes", quotes);
@@ -532,10 +667,9 @@ const getEarningsAndCommissionList = async (technicianId) => {
       customerName: quote.customerId?.fullName || 'N/A',
       service: quote.serviceId?.serviceName || 'N/A',
     },
-    finalPrice: quote.quote?.finalPrice || 0,
-    commissionAmount: quote.quote?.commissionAmount || 0,
-    holdingAmount: quote.quote?.holdingAmount || 0,
-    technicianEarning: quote.quote?.technicianEarning || 0,
+    finalPrice: quote?.finalPrice || 0,
+    holdingAmount: quote?.holdingAmount || 0,
+    technicianEarning: quote?.technicianEarning || 0,
   }));
   return earningList;
 };
@@ -769,5 +903,7 @@ module.exports = {
   requestWithdraw,
   getTechnicianDepositLogs,
   searchTechnicians,
-  getScheduleByTechnicianId
+  getScheduleByTechnicianId,
+  calculateEstimatedArrivalTime,
+  formatEstimatedTime
 };

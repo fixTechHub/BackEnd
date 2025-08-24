@@ -11,7 +11,7 @@ const SEARCH_TIMEOUT_MINUTES = 60;
 const processTechnicianSearch = async () => {
     try {
         const now = new Date();
-        
+
         // Lấy các booking đang tìm thợ, chưa đủ 10 thợ, chưa quá 60 phút
         const searches = await BookingTechnicianSearch.find({
             createdAt: { $gte: new Date(now.getTime() - SEARCH_TIMEOUT_MINUTES * 60 * 1000) }
@@ -43,7 +43,7 @@ const processTechnicianSearch = async () => {
                     }
                     continue;
                 }
-                
+
                 // Chỉ tiếp tục quét khi booking còn ở trạng thái chọn thợ
                 if (!['PENDING', 'AWAITING_CONFIRM'].includes(booking.status)) {
                     console.log(`Booking ${search.bookingId} status is ${booking.status}, marking search as completed...`);
@@ -51,8 +51,8 @@ const processTechnicianSearch = async () => {
                     try {
                         await BookingTechnicianSearch.findByIdAndUpdate(
                             search._id,
-                            { 
-                                $set: { 
+                            {
+                                $set: {
                                     completed: true,
                                     lastSearchAt: new Date()
                                 }
@@ -71,7 +71,11 @@ const processTechnicianSearch = async () => {
                     serviceId: booking.serviceId,
                     availability: ['FREE', 'ONJOB'],
                     status: 'APPROVED',
-                    minBalance: 0
+                    minBalance: 0,
+                    isSubscribe: true,
+                    subscriptionStatus: ['BASIC', 'TRIAL', 'STANDARD', 'PREMIUM'],
+                    isUrgent: booking.isUrgent || false,
+                    customerId: booking.customerId // Thêm customerId để có thông tin favorite
                 };
 
                 // Gọi lại hàm tìm thợ và lưu trạng thái
@@ -85,13 +89,13 @@ const processTechnicianSearch = async () => {
 
             } catch (error) {
                 console.error(`Error processing search ${search._id}:`, error.message);
-                
+
                 // Xử lý các loại lỗi cụ thể
-                if (error.message.includes('No matching document found') || 
+                if (error.message.includes('No matching document found') ||
                     error.message.includes('version') ||
                     error.message.includes('modifiedPaths')) {
                     console.log(`Version conflict detected for search ${search._id}, attempting to refresh...`);
-                    
+
                     try {
                         // Thử refresh search document
                         const refreshedSearch = await BookingTechnicianSearch.findById(search._id);
@@ -104,7 +108,7 @@ const processTechnicianSearch = async () => {
                         console.error(`Error refreshing search document ${search._id}:`, refreshError.message);
                     }
                 }
-                
+
                 // Tiếp tục xử lý các search khác thay vì dừng toàn bộ
                 continue;
             }
