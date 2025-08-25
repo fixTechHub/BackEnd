@@ -146,7 +146,7 @@ const createContract = async (contractData, session = null) => {
     const envelopesApi = new docusign.EnvelopesApi(dsApiClient);
 
     const viewRequest = new docusign.RecipientViewRequest();
-    viewRequest.returnUrl = `${process.env.BACK_END_URL}/contracts/status/${envelopeId}`;
+    viewRequest.returnUrl = `https://fixtech.id.vn/api/contracts/status/${envelopeId}`;
     viewRequest.authenticationMethod = 'none';
     viewRequest.email = contractData.email;
     viewRequest.userName = contractData.fullName;
