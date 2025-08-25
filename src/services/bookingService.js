@@ -181,7 +181,11 @@ const createRequestAndNotify = async (bookingData, io) => {
             serviceId: serviceId,
             availability: ['FREE', 'ONJOB'],
             status: 'APPROVED',
-            minBalance: 0
+            minBalance: 0,
+            isSubscribe: true,
+            subscriptionStatus: ['BASIC', 'TRIAL', 'STANDARD', 'PREMIUM'],
+            isUrgent: bookingData.isUrgent || false,
+            customerId: bookingData.customerId // Thêm customerId để có thông tin favorite
         };
 
         // Tìm thợ lần đầu và lưu trạng thái
@@ -1097,8 +1101,8 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
             throw new Error('ID báo giá không hợp lệ');
         }
         const update = {};
-        let booking = await getBookingById(bookingId)
-
+        let booking = await Booking.findById(bookingId)
+     
         if (!booking) {
             throw new Error('Không tìm thấy báo giá để cập nhật');
         }
@@ -1111,7 +1115,7 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
             update.discountValue = 0;
             update.finalPrice = finalPrice;
             
-            update.holdingAmount = finalPrice * 0.2;
+            update.holdingAmount = booking.quote.totalAmount * 0.2;
         }
         const updatedBooking = await Booking.findByIdAndUpdate(
             booking._id,
@@ -1168,7 +1172,7 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
                 paidAmount: updatedBooking.finalPrice,
                 paymentMethod: 'CASH',
                 paymentStatus: 'PAID',
-                holdingAmount: updatedBooking.finalPrice * 0.2,
+                holdingAmount: updatedBooking.quote.totalAmount * 0.2,
 
             };
             await receiptService.createReceipt(receiptData, session);
@@ -1661,11 +1665,90 @@ const getRequestStatusInfo = async (bookingId, technicianId) => {
 };
 
 const getTechniciansFoundByBookingId = async (bookingId) => {
-    const search = await BookingTechnicianSearch.findOne({ bookingId });
-    if (!search || !search.foundTechniciansDetail || search.foundTechniciansDetail.length === 0) return [];
+    try {
+        const search = await BookingTechnicianSearch.findOne({ bookingId });
+        if (!search || !search.foundTechniciansDetail || search.foundTechniciansDetail.length === 0) {
+            console.log(`Không tìm thấy dữ liệu tìm kiếm cho booking ${bookingId}`);
+            return [];
+        }
 
-    // Trả về dữ liệu đã lưu sẵn thay vì query lại
-    return search.foundTechniciansDetail;
+        // Kiểm tra xem dữ liệu có đầy đủ không
+        const hasCompleteData = search.foundTechniciansDetail.every(tech => 
+            tech.estimatedArrivalTime && 
+            tech.isSubscribe !== undefined && 
+            tech.subscriptionStatus &&
+            tech.isFavorite !== undefined &&
+            tech.favoritePriority !== undefined
+        );
+
+        if (!hasCompleteData) {
+            console.log(`Dữ liệu tìm kiếm cho booking ${bookingId} chưa đầy đủ, chạy lại tìm kiếm...`);
+            // console.log('--- DEBUG: Dữ liệu cũ ---', search.foundTechniciansDetail.map(tech => ({
+            //     id: tech._id,
+            //     name: tech.userInfo?.fullName,
+            //     isFavorite: tech.isFavorite,
+            //     favoritePriority: tech.favoritePriority,
+            //     subscriptionStatus: tech.subscriptionStatus
+            // })));
+            
+            // Lấy thông tin booking để chạy lại tìm kiếm
+            const booking = await Booking.findById(bookingId);
+            if (!booking) {
+                console.log(`Không tìm thấy booking ${bookingId}`);
+                return search.foundTechniciansDetail; // Trả về dữ liệu cũ nếu không tìm thấy booking
+            }
+
+            // Chạy lại tìm kiếm để có dữ liệu đầy đủ
+            const searchParams = {
+                latitude: booking.location.geojson.coordinates[1],
+                longitude: booking.location.geojson.coordinates[0],
+                serviceId: booking.serviceId,
+                availability: ['FREE', 'ONJOB'],
+                status: 'APPROVED',
+                minBalance: 0,
+                isSubscribe: true,
+                subscriptionStatus: ['BASIC', 'TRIAL', 'STANDARD', 'PREMIUM'],
+                isUrgent: booking.isUrgent || false,
+                customerId: booking.customerId // Thêm customerId để có thông tin favorite
+            };
+
+            const result = await findTechniciansWithExpandingRadiusAndSave(
+                searchParams,
+                bookingId,
+                null // Không cần io ở đây
+            );
+
+            // Cập nhật lại dữ liệu trong database
+            if (result && result.data && result.data.length > 0) {
+                await BookingTechnicianSearch.findOneAndUpdate(
+                    { bookingId },
+                    {
+                        $set: {
+                            foundTechniciansDetail: result.data,
+                            lastSearchAt: new Date()
+                        }
+                    }
+                );
+                console.log(`Đã cập nhật lại dữ liệu tìm kiếm cho booking ${bookingId}`);
+                // console.log('--- DEBUG: Dữ liệu mới ---', result.data.map(tech => ({
+                //     id: tech._id,
+                //     name: tech.userInfo?.fullName,
+                //     isFavorite: tech.isFavorite,
+                //     favoritePriority: tech.favoritePriority,
+                //     subscriptionStatus: tech.subscriptionStatus
+                // })));
+                return result.data;
+            }
+        }
+
+        console.log(`Trả về dữ liệu tìm kiếm đầy đủ cho booking ${bookingId}:`, search.foundTechniciansDetail.length, 'thợ');
+        return search.foundTechniciansDetail;
+    } catch (error) {
+        console.error(`Lỗi khi lấy danh sách thợ cho booking ${bookingId}:`, error.message);
+        // Trả về dữ liệu cũ nếu có lỗi
+        const search = await BookingTechnicianSearch.findOne({ bookingId });
+        return search?.foundTechniciansDetail || [];
+    }
 };
 
 // Lấy các mô tả booking phổ biến nhất với Redis cache

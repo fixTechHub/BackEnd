@@ -119,12 +119,24 @@ exports.getReportById = async (id) => {
   return report;
 };
 
-exports.countTechnicianReportsById = async (technicianId) => {
-  if (!mongoose.Types.ObjectId.isValid(technicianId)) {
-    throw new Error('ID kỹ thuật viên không hợp lệ');
+exports.countUserReportsById = async (userId) => {
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    throw new Error('ID người dùng không hợp lệ');
   }
 
-  const count = await Report.countDocuments({ reportedUserId: technicianId });
+  const count = await Report.countDocuments({ reporterId: userId });
+
+  return count;
+};
+
+exports.countReportedUserById = async (userId) => {
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    throw new Error('ID người dùng không hợp lệ');
+  }
+  const count = await Report.countDocuments({
+    reportedUserId: userId,
+    status: 'RESOLVED'
+  });
 
   return count;
 };

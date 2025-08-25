@@ -13,7 +13,9 @@ const initializeSocket = (server) => {
         'https://fix-tech-git-develop-tris-projects-f8fdb778.vercel.app',
         'http://localhost:5174',
         'https://fixtech.id.vn', // Domain chính của bạn
-        'https://www.fixtech.id.vn' // Cả www và non-www
+        'https://www.fixtech.id.vn', // Cả www và non-www,
+        'https://front-end-phi-two-10.vercel.app',
+        'https://fix-tech-git-duy-tris-projects-f8fdb778.vercel.app'
       ],
       methods: ["GET", "POST"],
       credentials: true,

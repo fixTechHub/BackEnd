@@ -48,13 +48,31 @@ exports.getReportById = async (req, res) => {
   }
 };
 
+exports.getReportsByUserId = async (req, res) => {
+  try {
+    const userId = req.user.userId; // Lấy từ token thay vì params
+    const count = await reportService.countUserReportsById(userId);
+    return res.status(200).json({ 
+      success: true, 
+      data: { count },
+      message: 'Lấy số lượng báo cáo thành công'
+    });
+  } catch (error) {
+    console.error('Get User Reports Error:', error);
+    return res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+
 exports.getReportsByTechnicianId = async (req, res) => {
   try {
-    const { technicianId } = req.params;
-    const count = await reportService.countTechnicianReportsById(technicianId);
-    return res.status(200).json(count);
+    const {technicianId} = req.params;
+    const count = await reportService.countReportedUserById(technicianId);
+    return res.status(200).json(
+ count
+    );
   } catch (error) {
-    console.error('Get Report Error:', error);
-    return res.status(404).json({ success: false, message: error.message });
+    console.error('Get User Reports Error:', error);
+    return res.status(400).json({ success: false, message: error.message });
   }
 };

@@ -30,8 +30,8 @@ const createPayOsPayment = async (bookingId, finalPrice) => {
       amount: amount,
       // amount: 3000,
       description: `Thanh toan don hang `,
-      returnUrl: `${process.env.BACK_END_URL}/payments/success?orderCode=${orderCode}&bookingId=${bookingId}`,
-      cancelUrl: `${process.env.BACK_END_URL}/payments/cancel?bookingId=${bookingId}`
+      returnUrl: `https://fixtech.id.vn/api/payments/success?orderCode=${orderCode}&bookingId=${bookingId}`,
+      cancelUrl: `https://fixtech.id.vn/api/payments/cancel?bookingId=${bookingId}`
     };
 
     const paymentLink = await payOs.createPaymentLink(paymentData);
@@ -91,10 +91,9 @@ const handleSuccessfulPayment = async (orderCode, bookingId) => {
     }
     // Find userId from booking
    
-    const receiptTotalAmount = booking.finalPrice + booking.discountValue;
-    console.log(booking.finalPrice);
+    const holdingAmount = booking.quote.totalAmount
     
-    booking.holdingAmount = receiptTotalAmount * 0.2;
+    booking.holdingAmount = holdingAmount * 0.2;
     await booking.save({ session });
     const TechnicianService = require('../models/TechnicianService');
     const technicianServiceModel = await TechnicianService.findOne({
@@ -115,7 +114,8 @@ const handleSuccessfulPayment = async (orderCode, bookingId) => {
       paidAmount: booking.finalPrice,
       paymentMethod: 'BANK',
       paymentStatus: 'PAID',
-      holdingAmount: receiptTotalAmount * 0.2,
+      // holdingAmount: receiptTotalAmount * 0.2,
+      holdingAmount: holdingAmount * 0.2,
     };
     await receiptService.createReceipt(receiptData, session);
 
@@ -153,8 +153,8 @@ const createPayOsSubscription = async (userId, { amount, packageId }) => {
       orderCode: orderCode,
       amount: amountNumber,
       description: `Đăng kí gói thành viên`,
-      returnUrl: `${process.env.BACK_END_URL}/payments/subscription/success?userId=${userId}&amount=${amountNumber}&packageId=${packageId}`,
-      cancelUrl: `${process.env.BACK_END_URL}/payments/subscription/cancel?userId=${userId}&amount=${amountNumber}&packageId=${packageId}`
+      returnUrl: `https://fixtech.id.vn/api/payments/subscription/success?userId=${userId}&amount=${amountNumber}&packageId=${packageId}`,
+      cancelUrl: `https://fixtech.id.vn/api/payments/subscription/cancel?userId=${userId}&amount=${amountNumber}&packageId=${packageId}`
     };
 
     const paymentLink = await payOs.createPaymentLink(paymentData);
@@ -336,8 +336,8 @@ const createPayOsDeposit = async (userId, amount) => {
       orderCode: orderCode,
       amount: amount,
       description: `Nap tien vao tai khoan`,
-      returnUrl: `${process.env.BACK_END_URL}/payments/deposit/success?userId=${userId}&amount=${amount}`,
-      cancelUrl: `${process.env.BACK_END_URL}/payments/deposit/cancel?userId=${userId}&amount=${amount}`
+      returnUrl: `https://fixtech.id.vn/api/payments/deposit/success?userId=${userId}&amount=${amount}`,
+      cancelUrl: `https://fixtech.id.vn/api/payments/deposit/cancel?userId=${userId}&amount=${amount}`
     };
 
     const paymentLink = await payOs.createPaymentLink(paymentData);
@@ -515,8 +515,8 @@ const createExtendPayOsPayment = async (technicianId, { amount, packageId, days 
       orderCode: orderCode,
       amount: amountNumber,
       description: `Gia hạn gói thành viên`,
-      returnUrl: `${process.env.BACK_END_URL}/payments/subscription/extend/success?userId=${userId}&amount=${amountNumber}&packageId=${packageId}&days=${days}`,
-      cancelUrl: `${process.env.BACK_END_URL}/payments/subscription/extend/cancel?userId=${userId}&amount=${amountNumber}&packageId=${packageId}&days=${days}`,
+      returnUrl: `https://fixtech.id.vn/api/payments/subscription/extend/success?userId=${userId}&amount=${amountNumber}&packageId=${packageId}&days=${days}`,
+      cancelUrl: `https://fixtech.id.vn/api/payments/subscription/extend/cancel?userId=${userId}&amount=${amountNumber}&packageId=${packageId}&days=${days}`,
     };
     console.log('📤 Dữ liệu gửi tới PayOS:', paymentData);
     console.log('🌍 BACK_END_URL:', process.env.BACK_END_URL);
