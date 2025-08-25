@@ -22,12 +22,11 @@ const deductCommission = async (technicianId, amount, session) => {
         const originalAmount = amount / 1.08
         const VATAmount = originalAmount * 0.08
         const commissionAmount = originalAmount * 0.20;
-        const earningAmount = originalAmount - commissionAmount + VATAmount
         const debtThreshold = 300000;
 
-        if (earningAmount > technician.balance) {
+        if (VATAmount > technician.balance) {
             // If balance is insufficient, add the difference to debBalance
-            const shortfall = earningAmount - technician.balance;
+            const shortfall = VATAmount - technician.balance;
             technician.debBalance += shortfall;
             if (technician.debBalance >= debtThreshold) {
                 technician.isDebFree = true
@@ -44,7 +43,7 @@ const deductCommission = async (technicianId, amount, session) => {
             technician.balance = 0; // Set balance to 0 since it's insufficient
         } else {
             // If balance is sufficient, deduct normally
-            technician.balance -= earningAmount;
+            technician.balance -= VATAmount;
         }
 
         technician.totalEarning += originalAmount
