@@ -128,3 +128,13 @@ exports.countUserReportsById = async (userId) => {
 
   return count;
 };
+
+exports.countReportedUserById = async (userId) => {
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    throw new Error('ID người dùng không hợp lệ');
+  }
+
+  const count = await Report.countDocuments({ reportedUserId: userId });
+
+  return count;
+};
