@@ -147,7 +147,7 @@ class BookingWarrantyCronService {
                     warranty.status = 'EXPIRED';
                     await warranty.save({ session });
                 })
-                const refundAmount = (warranty.bookingId.finalPrice + warranty.bookingId.discountValue) * 0.2;
+                const refundAmount = (warranty.bookingId.quote.totalAmount) * 0.2;
                 const technician = await Technician.findById(warranty.technicianId._id).session(session);
                 // technician.balance -= refundAmount
                 technician.totalHoldingAmount -= refundAmount
