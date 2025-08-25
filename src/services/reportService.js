@@ -133,8 +133,10 @@ exports.countReportedUserById = async (userId) => {
   if (!mongoose.Types.ObjectId.isValid(userId)) {
     throw new Error('ID người dùng không hợp lệ');
   }
-
-  const count = await Report.countDocuments({ reportedUserId: userId });
+  const count = await Report.countDocuments({
+    reportedUserId: userId,
+    status: 'RESOLVED'
+  });
 
   return count;
 };
