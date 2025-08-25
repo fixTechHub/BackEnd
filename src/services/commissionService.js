@@ -43,7 +43,7 @@ const deductCommission = async (technicianId, amount, session) => {
             technician.balance = 0; // Set balance to 0 since it's insufficient
         } else {
             // If balance is sufficient, deduct normally
-            technician.balance -= VATAmount;
+            technician.balance -= debAmount;
         }
 
         technician.totalEarning += originalAmount
