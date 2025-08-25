@@ -667,6 +667,10 @@ const getEarningsAndCommissionList = async (technicianId) => {
       customerName: quote.customerId?.fullName || 'N/A',
       service: quote.serviceId?.serviceName || 'N/A',
     },
+    schedule: {
+    start: quote.schedule?.startTime || null,
+    expectedEnd: quote.schedule?.expectedEndTime || null,
+  },
     finalPrice: quote?.finalPrice || 0,
     holdingAmount: quote?.holdingAmount || 0,
     technicianEarning: quote?.technicianEarning || 0,
