@@ -82,7 +82,7 @@ const generateContractOnRegistration = async (technicianId, session = null) => {
     const { dsApiClient, accountId } = await getApiClient();
     const envelopesApi = new docusign.EnvelopesApi(dsApiClient);
     const viewRequest = new docusign.RecipientViewRequest();
-    viewRequest.returnUrl = `${process.env.BACK_END_URL}/contracts/docusign/callback/${envelopeId}`; // Redirect after signing
+    viewRequest.returnUrl = `https://fixtech.id.vn/api/contracts/docusign/callback/${envelopeId}`; // Redirect after signing
     viewRequest.authenticationMethod = 'none';
     viewRequest.email = contractData.email;
     viewRequest.userName = contractData.fullName;
@@ -135,9 +135,7 @@ const generateContractOnRegistration = async (technicianId, session = null) => {
 
 const createContract = async (contractData, session = null) => {
   try {
-    if (!process.env.FRONT_END_URL || !process.env.FRONT_END_URL.startsWith('http')) {
-      throw new Error('FRONTEND_URL must be an absolute URL (e.g., https://yourapp.com)');
-    }
+    
 
     const contractCode = await generateContractCode();
     const envelopeId = await _createDocusignEnvelope(contractData, contractCode);

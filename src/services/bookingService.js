@@ -1101,8 +1101,8 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
             throw new Error('ID báo giá không hợp lệ');
         }
         const update = {};
-        let booking = await getBookingById(bookingId)
-
+        let booking = await Booking.findById(bookingId)
+     
         if (!booking) {
             throw new Error('Không tìm thấy báo giá để cập nhật');
         }
@@ -1115,7 +1115,7 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
             update.discountValue = 0;
             update.finalPrice = finalPrice;
             
-            update.holdingAmount = booking.quote.holdingAmount * 0.2;
+            update.holdingAmount = booking.quote.totalAmount * 0.2;
         }
         const updatedBooking = await Booking.findByIdAndUpdate(
             booking._id,
