@@ -31,7 +31,7 @@ const _createDocusignEnvelope = async (contractData, contractCode) => {
     docusign.Text.constructFromObject({ tabLabel: 'Full Name', value: contractData.fullName }),
     docusign.Text.constructFromObject({ tabLabel: 'Address', value: contractData.address }),
     docusign.Text.constructFromObject({ tabLabel: 'Email', value: contractData.email }),
-    docusign.Text.constructFromObject({ tabLabel: 'Phone', value: contractData.phone }),
+    docusign.Text.constructFromObject({ tabLabel: 'Phone', value: 'Cập nhật sau' }),
     docusign.Text.constructFromObject({ tabLabel: 'Identification', value: contractData.idNumber }),
     docusign.Text.constructFromObject({ tabLabel: 'Duration', value: "6" }),
   ];
