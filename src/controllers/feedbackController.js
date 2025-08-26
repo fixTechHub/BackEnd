@@ -8,9 +8,9 @@ const submitFeedback = async (req, res) => {
         const { rating, content } = req.body;
         console.log('✅ req.body full:', req.body);
         // console.log("userId tech", req.user);
-
-
         const { bookingId } = req.params;
+        console.log(bookingId);
+        
         // const images = req.uploadedFiles || [];
         const images = req.s3FileUrls || [];
 
@@ -42,8 +42,10 @@ const submitFeedback = async (req, res) => {
             data: feedback
         });
     } catch (err) {
-        res.status(400).json({ message: err.message });
-    }
+  console.error('Submit feedback error:', err);
+  const code = err.statusCode || err.code || err.status || 400;
+  return res.status(code).json({ message: err.message || 'Bad Request' });
+}
 };
 
 const editFeedback = async (req, res) => {

@@ -667,6 +667,10 @@ const getEarningsAndCommissionList = async (technicianId) => {
       customerName: quote.customerId?.fullName || 'N/A',
       service: quote.serviceId?.serviceName || 'N/A',
     },
+    schedule: {
+    start: quote.schedule?.startTime || null,
+    expectedEnd: quote.schedule?.expectedEndTime || null,
+  },
     finalPrice: quote?.finalPrice || 0,
     holdingAmount: quote?.holdingAmount || 0,
     technicianEarning: quote?.technicianEarning || 0,
@@ -686,7 +690,7 @@ const getAvailability = async (technicianId) => {
 
 const updateTechnicianAvailability = async (technicianId) => {
 
-  const onJobStatuses = ['PENDING', 'QUOTED', 'IN_PROGRESS', 'WAITING_CONFIRM'];
+  const onJobStatuses = ['PENDING', 'AWAITING_CONFIRM', 'IN_PROGRESS', 'WAITING_CUSTOMER_CONFIRM_ADDITIONAL', 'CONFIRM_ADDITIONAL', 'AWAITING_DONE'];
   const hasOngoing = await Booking.exists({
     technicianId,
     status: { $in: onJobStatuses }

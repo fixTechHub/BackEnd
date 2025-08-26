@@ -62,3 +62,17 @@ exports.getReportsByUserId = async (req, res) => {
     return res.status(400).json({ success: false, message: error.message });
   }
 };
+
+
+exports.getReportsByTechnicianId = async (req, res) => {
+  try {
+    const {technicianId} = req.params;
+    const count = await reportService.countReportedUserById(technicianId);
+    return res.status(200).json(
+ count
+    );
+  } catch (error) {
+    console.error('Get User Reports Error:', error);
+    return res.status(400).json({ success: false, message: error.message });
+  }
+};

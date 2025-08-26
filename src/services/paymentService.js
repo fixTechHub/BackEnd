@@ -30,8 +30,8 @@ const createPayOsPayment = async (bookingId, finalPrice) => {
       amount: amount,
       // amount: 3000,
       description: `Thanh toan don hang `,
-      returnUrl: `${process.env.BACK_END_URL}/payments/success?orderCode=${orderCode}&bookingId=${bookingId}`,
-      cancelUrl: `${process.env.BACK_END_URL}/payments/cancel?bookingId=${bookingId}`
+      returnUrl: `https://fixtech.id.vn/api/payments/success?orderCode=${orderCode}&bookingId=${bookingId}`,
+      cancelUrl: `https://fixtech.id.vn/api/payments/cancel?bookingId=${bookingId}`
     };
 
     const paymentLink = await payOs.createPaymentLink(paymentData);
@@ -69,30 +69,30 @@ const handleSuccessfulPayment = async (orderCode, bookingId) => {
     booking.warrantyExpiresAt.setMonth(
       booking.warrantyExpiresAt.getMonth() + warrantyMonths
     );
- 
-    // Find coupon document
-    if(booking.discountCode) {
-      const couponDoc = await couponService.getCouponByCouponCode(booking.discountCode)
-    if (!couponDoc) {
-      throw new Error('Không tìm thấy mã giảm giá');
-    }
-    couponDoc.usedCount += 1;
-    await couponDoc.save({ session });
-    const customerId = booking.customerId
 
-    if (!customerId) {
-      throw new Error('Không tìm thấy userId để lưu CouponUsage');
-    }
-    // Create CouponUsage if not already used
-    const existingUsage = await CouponUsage.findOne({ couponId: couponDoc._id, userId: booking.customerId }).session(session);
-    if (!existingUsage) {
-      await CouponUsage.create([{ couponId: couponDoc._id, userId: booking.customerId, bookingId: booking._id }], { session });
-    }
+    // Find coupon document
+    if (booking.discountCode) {
+      const couponDoc = await couponService.getCouponByCouponCode(booking.discountCode)
+      if (!couponDoc) {
+        throw new Error('Không tìm thấy mã giảm giá');
+      }
+      couponDoc.usedCount += 1;
+      await couponDoc.save({ session });
+      const customerId = booking.customerId
+
+      if (!customerId) {
+        throw new Error('Không tìm thấy userId để lưu CouponUsage');
+      }
+      // Create CouponUsage if not already used
+      const existingUsage = await CouponUsage.findOne({ couponId: couponDoc._id, userId: booking.customerId }).session(session);
+      if (!existingUsage) {
+        await CouponUsage.create([{ couponId: couponDoc._id, userId: booking.customerId, bookingId: booking._id }], { session });
+      }
     }
     // Find userId from booking
-   
+
     const holdingAmount = booking.quote.totalAmount
-    
+
     booking.holdingAmount = holdingAmount * 0.2;
     await booking.save({ session });
     const TechnicianService = require('../models/TechnicianService');
@@ -153,8 +153,8 @@ const createPayOsSubscription = async (userId, { amount, packageId }) => {
       orderCode: orderCode,
       amount: amountNumber,
       description: `Đăng kí gói thành viên`,
-      returnUrl: `${process.env.BACK_END_URL}/payments/subscription/success?userId=${userId}&amount=${amountNumber}&packageId=${packageId}`,
-      cancelUrl: `${process.env.BACK_END_URL}/payments/subscription/cancel?userId=${userId}&amount=${amountNumber}&packageId=${packageId}`
+      returnUrl: `https://fixtech.id.vn/api/payments/subscription/success?userId=${userId}&amount=${amountNumber}&packageId=${packageId}`,
+      cancelUrl: `https://fixtech.id.vn/api/payments/subscription/cancel?userId=${userId}&amount=${amountNumber}&packageId=${packageId}`
     };
 
     const paymentLink = await payOs.createPaymentLink(paymentData);
@@ -272,7 +272,7 @@ const handleSuccessfulSubscription = async (amount, userId, packageId) => {
       status: 'COMPLETED',
       paymentMethod: 'BANK',
       balanceBefore: technician.balance,
-      balanceAfter:  technician.balance,
+      balanceAfter: technician.balance,
       note: `Đăng ký/Update gói ${pkgDoc.name}`,
     }).save({ session });
 
@@ -336,8 +336,8 @@ const createPayOsDeposit = async (userId, amount) => {
       orderCode: orderCode,
       amount: amount,
       description: `Nap tien vao tai khoan`,
-      returnUrl: `${process.env.BACK_END_URL}/payments/deposit/success?userId=${userId}&amount=${amount}`,
-      cancelUrl: `${process.env.BACK_END_URL}/payments/deposit/cancel?userId=${userId}&amount=${amount}`
+      returnUrl: `https://fixtech.id.vn/api/payments/deposit/success?userId=${userId}&amount=${amount}`,
+      cancelUrl: `https://fixtech.id.vn/api/payments/deposit/cancel?userId=${userId}&amount=${amount}`
     };
 
     const paymentLink = await payOs.createPaymentLink(paymentData);
@@ -515,8 +515,8 @@ const createExtendPayOsPayment = async (technicianId, { amount, packageId, days 
       orderCode: orderCode,
       amount: amountNumber,
       description: `Gia hạn gói thành viên`,
-      returnUrl: `${process.env.BACK_END_URL}/payments/subscription/extend/success?userId=${userId}&amount=${amountNumber}&packageId=${packageId}&days=${days}`,
-      cancelUrl: `${process.env.BACK_END_URL}/payments/subscription/extend/cancel?userId=${userId}&amount=${amountNumber}&packageId=${packageId}&days=${days}`,
+      returnUrl: `https://fixtech.id.vn/api/payments/subscription/extend/success?userId=${userId}&amount=${amountNumber}&packageId=${packageId}&days=${days}`,
+      cancelUrl: `https://fixtech.id.vn/api/payments/subscription/extend/cancel?userId=${userId}&amount=${amountNumber}&packageId=${packageId}&days=${days}`,
     };
     console.log('📤 Dữ liệu gửi tới PayOS:', paymentData);
     console.log('🌍 BACK_END_URL:', process.env.BACK_END_URL);
