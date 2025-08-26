@@ -310,6 +310,7 @@ const checkVerificationStatus = async (user) => {
             // Kiểm tra các trường bắt buộc
             const hasSpecialties = Array.isArray(technician.specialtiesCategories) && technician.specialtiesCategories.length > 0;
             const hasBankAccount = technician.bankAccount?.bankName && technician.bankAccount?.accountNumber && technician.bankAccount?.accountHolder;
+            const hasAvatar = user.avatar && user.avatar.trim() !== '';
             
             // Different validation based on account type
             let hasRequiredDocuments = false;
@@ -327,7 +328,7 @@ const checkVerificationStatus = async (user) => {
                 hasRequiredDocuments = hasIdentification && hasFrontIdImage && hasBackIdImage;
             }
 
-            if (!hasSpecialties || !hasRequiredDocuments || !hasBankAccount) {
+            if (!hasSpecialties || !hasRequiredDocuments || !hasBankAccount || !hasAvatar) {
                 return {
                     step: 'COMPLETE_PROFILE',
                     redirectTo: '/technician/complete-profile',
