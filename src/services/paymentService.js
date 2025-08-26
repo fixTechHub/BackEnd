@@ -69,30 +69,30 @@ const handleSuccessfulPayment = async (orderCode, bookingId) => {
     booking.warrantyExpiresAt.setMonth(
       booking.warrantyExpiresAt.getMonth() + warrantyMonths
     );
- 
-    // Find coupon document
-    if(booking.discountCode) {
-      const couponDoc = await couponService.getCouponByCouponCode(booking.discountCode)
-    if (!couponDoc) {
-      throw new Error('Không tìm thấy mã giảm giá');
-    }
-    couponDoc.usedCount += 1;
-    await couponDoc.save({ session });
-    const customerId = booking.customerId
 
-    if (!customerId) {
-      throw new Error('Không tìm thấy userId để lưu CouponUsage');
-    }
-    // Create CouponUsage if not already used
-    const existingUsage = await CouponUsage.findOne({ couponId: couponDoc._id, userId: booking.customerId }).session(session);
-    if (!existingUsage) {
-      await CouponUsage.create([{ couponId: couponDoc._id, userId: booking.customerId, bookingId: booking._id }], { session });
-    }
+    // Find coupon document
+    if (booking.discountCode) {
+      const couponDoc = await couponService.getCouponByCouponCode(booking.discountCode)
+      if (!couponDoc) {
+        throw new Error('Không tìm thấy mã giảm giá');
+      }
+      couponDoc.usedCount += 1;
+      await couponDoc.save({ session });
+      const customerId = booking.customerId
+
+      if (!customerId) {
+        throw new Error('Không tìm thấy userId để lưu CouponUsage');
+      }
+      // Create CouponUsage if not already used
+      const existingUsage = await CouponUsage.findOne({ couponId: couponDoc._id, userId: booking.customerId }).session(session);
+      if (!existingUsage) {
+        await CouponUsage.create([{ couponId: couponDoc._id, userId: booking.customerId, bookingId: booking._id }], { session });
+      }
     }
     // Find userId from booking
-   
+
     const holdingAmount = booking.quote.totalAmount
-    
+
     booking.holdingAmount = holdingAmount * 0.2;
     await booking.save({ session });
     const TechnicianService = require('../models/TechnicianService');
@@ -272,7 +272,7 @@ const handleSuccessfulSubscription = async (amount, userId, packageId) => {
       status: 'COMPLETED',
       paymentMethod: 'BANK',
       balanceBefore: technician.balance,
-      balanceAfter:  technician.balance,
+      balanceAfter: technician.balance,
       note: `Đăng ký/Update gói ${pkgDoc.name}`,
     }).save({ session });
 
