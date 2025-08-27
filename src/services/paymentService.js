@@ -65,7 +65,12 @@ const handleSuccessfulPayment = async (orderCode, bookingId) => {
     booking.customerConfirmedDone = true
     booking.technicianEarning = booking.quote.totalAmount
     booking.warrantyExpiresAt = new Date()
-    const warrantyMonths = Number(booking.quote?.warrantiesDuration) || 0;
+    const TechnicianService = require('../models/TechnicianService');
+    const technicianServiceModel = await TechnicianService.findOne({
+      serviceId: booking.serviceId,
+      technicianId: booking.technicianId
+    });
+    const warrantyMonths = Number(booking.quote?.warrantiesDuration + technicianServiceModel.warrantyDuration) || 0;
     booking.warrantyExpiresAt.setMonth(
       booking.warrantyExpiresAt.getMonth() + warrantyMonths
     );
@@ -95,11 +100,7 @@ const handleSuccessfulPayment = async (orderCode, bookingId) => {
 
     booking.holdingAmount = holdingAmount * 0.2;
     await booking.save({ session });
-    const TechnicianService = require('../models/TechnicianService');
-    const technicianServiceModel = await TechnicianService.findOne({
-      serviceId: booking.serviceId,
-      technicianId: booking.technicianId
-    });
+    
     const technician = await Technician.findById(booking.technicianId)
     technician.availability = 'FREE'
     await technician.save({ session })
