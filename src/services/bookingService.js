@@ -1144,22 +1144,23 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
             updatedBooking.technicianEarning = booking.quote.totalAmount
             updatedBooking.warrantyExpiresAt = new Date()
             // Set warrantyExpiresAt based on warrantiesDuration (in months)
-            const warrantyMonths = Number(updatedBooking.quote?.warrantiesDuration) || 0;
-            updatedBooking.warrantyExpiresAt.setMonth(
-                updatedBooking.warrantyExpiresAt.getMonth() + warrantyMonths
-            );
-            await updatedBooking.save({ session });
-            const technician = await technicianService.getTechnicianById(updatedBooking.technicianId)
-            technician.availability = 'FREE'
-            await technician.save({ session })
-           
             const TechnicianService = require('../models/TechnicianService');
             const technicianServiceModel = await TechnicianService.findOne({ 
                 serviceId: updatedBooking.serviceId,
                 technicianId: updatedBooking.technicianId
               });
             console.log(technicianServiceModel);
-
+            const warrantyMonths = Number(updatedBooking.quote?.warrantiesDuration + technicianServiceModel.warrantyDuration) || 0;
+           
+            await updatedBooking.save({ session });
+            const technician = await technicianService.getTechnicianById(updatedBooking.technicianId)
+            technician.availability = 'FREE'
+            await technician.save({ session })
+           
+           
+            updatedBooking.warrantyExpiresAt.setMonth(
+                updatedBooking.warrantyExpiresAt.getMonth() + warrantyMonths
+            );
             const receiptData = {
                 bookingId: updatedBooking._id,
                 customerId: updatedBooking.customerId,
