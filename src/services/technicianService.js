@@ -406,10 +406,10 @@ const findNearbyTechnicians = async (searchParams, radiusInKm) => {
   
   try {
     // Debug logging
-    console.log('=== DEBUG findNearbyTechnicians ===');
-    console.log('searchParams:', JSON.stringify(searchParams, null, 2));
-    console.log('radiusInKm:', radiusInKm, 'type:', typeof radiusInKm);
-    console.log('latitude:', latitude, 'longitude:', longitude);
+    // console.log('=== DEBUG findNearbyTechnicians ===');
+    // console.log('searchParams:', JSON.stringify(searchParams, null, 2));
+    // console.log('radiusInKm:', radiusInKm, 'type:', typeof radiusInKm);
+    // console.log('latitude:', latitude, 'longitude:', longitude);
     
     // Validation các tham số bắt buộc
     if (!serviceId) {
@@ -437,10 +437,10 @@ const findNearbyTechnicians = async (searchParams, radiusInKm) => {
     const pipeline = buildAggregationPipeline(searchParams, matchQuery, customerId);
     
     // Debug logging cho pipeline
-    console.log('=== DEBUG Pipeline ===');
-    console.log('matchQuery:', JSON.stringify(matchQuery, null, 2));
-    console.log('Pipeline length:', pipeline.length);
-    console.log('First stage:', JSON.stringify(pipeline[0], null, 2));
+    // console.log('=== DEBUG Pipeline ===');
+    // console.log('matchQuery:', JSON.stringify(matchQuery, null, 2));
+    // console.log('Pipeline length:', pipeline.length);
+    // console.log('First stage:', JSON.stringify(pipeline[0], null, 2));
     
     // Thực hiện aggregation
     const technicians = await Technician.aggregate(pipeline);
@@ -561,7 +561,7 @@ const getTechnicianProfile = async (technicianId) => {
     .populate('specialtiesCategories');  // Nếu muốn lấy luôn categories (nếu có)
 
 
-  console.log("technicianId:", technicianId, "type:", typeof technicianId);
+  // console.log("technicianId:", technicianId, "type:", typeof technicianId);
   if (!technician) {
     throw new Error('Technician not found');
   }

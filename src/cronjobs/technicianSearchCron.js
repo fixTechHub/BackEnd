@@ -14,7 +14,8 @@ const processTechnicianSearch = async () => {
 
         // Lấy các booking đang tìm thợ, chưa đủ 10 thợ, chưa quá 60 phút
         const searches = await BookingTechnicianSearch.find({
-            createdAt: { $gte: new Date(now.getTime() - SEARCH_TIMEOUT_MINUTES * 60 * 1000) }
+            createdAt: { $gte: new Date(now.getTime() - SEARCH_TIMEOUT_MINUTES * 60 * 1000) },
+            completed: false // Chỉ xử lý những search chưa hoàn thành
         })
 
         if (searches.length === 0) {
@@ -29,6 +30,26 @@ const processTechnicianSearch = async () => {
                 const existingSearch = await BookingTechnicianSearch.findById(search._id);
                 if (!existingSearch) {
                     console.log(`Search document ${search._id} no longer exists, skipping...`);
+                    continue;
+                }
+
+                // Kiểm tra nếu đã tìm đủ thợ thì bỏ qua
+                if (existingSearch.foundTechnicianIds && existingSearch.foundTechnicianIds.length >= MAX_TECHNICIANS) {
+                    console.log(`Search ${search._id} already has ${existingSearch.foundTechnicianIds.length} technicians, marking as completed...`);
+                    try {
+                        await BookingTechnicianSearch.findByIdAndUpdate(
+                            search._id,
+                            {
+                                $set: {
+                                    completed: true,
+                                    lastSearchAt: new Date()
+                                }
+                            },
+                            { new: true }
+                        );
+                    } catch (updateError) {
+                        console.error(`Error updating search status for ${search._id}:`, updateError.message);
+                    }
                     continue;
                 }
 
