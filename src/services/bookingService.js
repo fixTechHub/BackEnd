@@ -1150,17 +1150,17 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
                 technicianId: updatedBooking.technicianId
               });
             console.log(technicianServiceModel);
-            const warrantyMonths = Number(updatedBooking.quote?.warrantiesDuration + technicianServiceModel.warrantyDuration) || 0;
-           
+            const warrantyMonths = Number(updatedBooking.quote?.warrantiesDuration) || 0;
+               
+            updatedBooking.warrantyExpiresAt.setMonth(
+                updatedBooking.warrantyExpiresAt.getMonth() + warrantyMonths
+            );
             await updatedBooking.save({ session });
             const technician = await technicianService.getTechnicianById(updatedBooking.technicianId)
             technician.availability = 'FREE'
             await technician.save({ session })
            
-           
-            updatedBooking.warrantyExpiresAt.setMonth(
-                updatedBooking.warrantyExpiresAt.getMonth() + warrantyMonths
-            );
+       
             const receiptData = {
                 bookingId: updatedBooking._id,
                 customerId: updatedBooking.customerId,
