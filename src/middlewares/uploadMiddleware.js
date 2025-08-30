@@ -17,14 +17,21 @@ const processAndUploadToS3 = (destinationFolder) => {
         }
 
         try {
+            console.log('--- S3 MIDDLEWARE ENTER ---');
+            console.log('req.files?', Array.isArray(req.files), 'len:', req.files?.length);
+            console.log('req.file?', !!req.file);
+
             // Xử lý nhiều file
             if (req.files && req.files.length > 0) {
+                console.log('Uploading multiple files to S3...');
                 const uploadPromises = req.files.map(file =>
+                    
                     uploadFileToS3(file.buffer, file.originalname, file.mimetype, destinationFolder)
                 );
 
                 // Chờ tất cả các file được upload xong
                 const s3Urls = await Promise.all(uploadPromises);
+                 console.log('S3 URLs (multiple):', s3Urls);
                 // console.log('--- DEBUG: URLs generated in middleware ---', s3Urls);
 
                 // Gắn kết quả vào request CHO BƯỚC TIẾP THEO.
@@ -34,7 +41,9 @@ const processAndUploadToS3 = (destinationFolder) => {
 
             // Xử lý một file (nếu có)
             if (req.file) {
+                  console.log('Uploading single file to S3...', req.file.originalname);
                 const s3Url = await uploadFileToS3(req.file.buffer, req.file.originalname, req.file.mimetype, destinationFolder);
+                 console.log('S3 URL (single):', s3Url);
                 req.s3FileUrl = s3Url;
             }
 

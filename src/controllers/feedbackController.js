@@ -3,16 +3,14 @@ const bookingService = require('../services/bookingService');
 
 const submitFeedback = async (req, res) => {
     try {
+        if (!req.user?.userId) {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
         const fromUserId = req.user.userId;
-        console.log('req.user:', req.user.userId);
         const { rating, content } = req.body;
-        console.log('✅ req.body full:', req.body);
-        // console.log("userId tech", req.user);
         const { bookingId } = req.params;
-        console.log(bookingId);
-        
-        // const images = req.uploadedFiles || [];
-        const images = req.s3FileUrls || [];
+        const filesMeta = Array.isArray(req.uploadedFiles) ? req.uploadedFiles : [];
+        const images = filesMeta.length ? filesMeta.map(f => f.url) : (req.s3FileUrls || []);
 
         // 🔍 Lấy thông tin booking
         const booking = await bookingService.getBookingById(bookingId);
@@ -22,7 +20,6 @@ const submitFeedback = async (req, res) => {
 
         // 🔗 Lấy toUserId (tức technician's userId)
         const toUserId = booking.technicianId?.userId?._id;
-        console.log("userId tech " + toUserId);
 
         if (!toUserId) {
             return res.status(400).json({ message: 'Technician not found in booking' });
@@ -42,18 +39,18 @@ const submitFeedback = async (req, res) => {
             data: feedback
         });
     } catch (err) {
-  console.error('Submit feedback error:', err);
-  const code = err.statusCode || err.code || err.status || 400;
-  return res.status(code).json({ message: err.message || 'Bad Request' });
-}
+        console.error('Submit feedback error:', err);
+        const code = err.statusCode || err.code || err.status || 400;
+        return res.status(code).json({ message: err.message || 'Bad Request' });
+    }
 };
 
 const editFeedback = async (req, res) => {
     try {
         const { feedbackId } = req.params;
         const { rating, content, images } = req.body;
-        const fromUserId = req.user._id || req.user.userId; 
-        console.log("id",fromUserId);
+        const fromUserId = req.user._id || req.user.userId;
+        console.log("id", fromUserId);
 
         const result = await feedbackService.editFeedback({ feedbackId, fromUserId, rating, content, images });
         res.status(200).json({ message: 'Feedback updated', data: result });
@@ -63,22 +60,22 @@ const editFeedback = async (req, res) => {
 };
 
 const replyToFeedbackController = async (req, res) => {
-  try {
-    const { feedbackId } = req.params;
-    const replyText =
-      (req.body?.reply && req.body.reply.content) ??
-      req.body?.reply ??
-      req.body?.content ?? '';
+    try {
+        const { feedbackId } = req.params;
+        const replyText =
+            (req.body?.reply && req.body.reply.content) ??
+            req.body?.reply ??
+            req.body?.content ?? '';
 
-    const userId = req.user?._id || req.user?.userId; // userId trong token
-    if (!userId) return res.status(401).json({ message: 'Chưa đăng nhập' });
+        const userId = req.user?._id || req.user?.userId; // userId trong token
+        if (!userId) return res.status(401).json({ message: 'Chưa đăng nhập' });
 
-    const data = await feedbackService.replyToFeedback({ feedbackId, userId, replyText });
-    return res.status(200).json({ message: 'Reply submitted', data });
-  } catch (err) {
-    console.error('replyToFeedback error:', err);
-    return res.status(err.status || 500).json({ message: err.message || 'Server error' });
-  }
+        const data = await feedbackService.replyToFeedback({ feedbackId, userId, replyText });
+        return res.status(200).json({ message: 'Reply submitted', data });
+    } catch (err) {
+        console.error('replyToFeedback error:', err);
+        return res.status(err.status || 500).json({ message: err.message || 'Server error' });
+    }
 };
 
 const moderateFeedback = async (req, res) => {
@@ -151,18 +148,18 @@ const getAllFeedback = async (req, res) => {
 };
 
 const getFeedbacksByFromUser = async (req, res) => {
-  try {
-    const { userId } = req.params;
-    console.log("Fetching feedbacks for user:", userId); 
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    try {
+        const { userId } = req.params;
+        console.log("Fetching feedbacks for user:", userId);
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
 
-    const result = await feedbackService.getFeedbacksByFromUser(userId, page, limit);
+        const result = await feedbackService.getFeedbacksByFromUser(userId, page, limit);
 
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ message: err.message || 'Server Error' });
-  }
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ message: err.message || 'Server Error' });
+    }
 };
 
 const listFeedbacksForTechnician = async (req, res, next) => {
@@ -186,14 +183,14 @@ const feedbackStatsForTechnician = async (req, res, next) => {
 };
 
 const fetchByBookingId = async (req, res) => {
-  try {
-    const { bookingId } = req.params;
-    const items = await feedbackService.getFeedbacksByBookingId(bookingId);
-    res.json({ items, total: items.length });
-  } catch (err) {
-    console.error('fetchByBookingId error:', err);
-    res.status(500).json({ message: 'Server error' });
-  }
+    try {
+        const { bookingId } = req.params;
+        const items = await feedbackService.getFeedbacksByBookingId(bookingId);
+        res.json({ items, total: items.length });
+    } catch (err) {
+        console.error('fetchByBookingId error:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
 };
 
 module.exports = {

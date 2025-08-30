@@ -7,10 +7,12 @@ const { handleMulter, processAndUploadToS3 } = require('../middlewares/uploadMid
 
 router.post('/', authenticateToken,handleMulter.array('images', 5), processAndUploadToS3('bookingWarranties'), bookingWarrantyController.requestBookingWarranty);
 router.get('/:bookingWarrantyId',authenticateToken, bookingWarrantyController.getBookingWarrantyById)
+router.get('/technician', authenticateToken, bookingWarrantyController.listMyWarrantiesOfTech)
 router.patch('/accept/:bookingWarrantyId',authenticateToken,bookingWarrantyController.acceptWarranty)
 router.patch('/deny/:bookingWarrantyId',authenticateToken,bookingWarrantyController.denyWarranty)
 router.patch('/confirm/:bookingWarrantyId',authenticateToken,bookingWarrantyController.confirmWarranty)
 router.post('/propose-schedule/:bookingWarrantyId',authenticateToken, bookingWarrantyController.proposeWarrantySchedule)
 router.post('/confirm-schedule/:bookingWarrantyId',authenticateToken, bookingWarrantyController.confirmWarrantySchedule)
 router.get('/', authenticateToken, bookingWarrantyController.listMyWarranties)
+
 module.exports = router;
