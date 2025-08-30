@@ -3,6 +3,7 @@ const router = express.Router();
 const feedbackController = require('../controllers/feedbackController')
 const { handleMulter, processAndUploadToS3 } = require('../middlewares/uploadMiddleware'); 
 const { authenticateToken } = require('../middlewares/authMiddleware');
+const { upload } = require('../middlewares/upload');
 
 router.get('/', feedbackController.getAllFeedback);
 router.get('/:technicianId', feedbackController.getFeedbackList);
@@ -12,23 +13,14 @@ router.get('/:technicianId/feedbacks/stats', feedbackController.feedbackStatsFor
 router.get('/from/:userId', feedbackController.getFeedbacksByFromUser);
 router.get('/booking/:bookingId', feedbackController.fetchByBookingId);
 // thêm verifyCustomer
+
 router.post(
   '/:bookingId',
+  upload.array('files', 5), // handle up to 5 images 
+  processAndUploadToS3('feedbacks'), // upload to "feedbacks/" folder in S3
   authenticateToken,
-  (req, res, next) => {
-    next();
-  },
-  handleMulter.any(),
-  processAndUploadToS3('feedbacks'),
   feedbackController.submitFeedback
 );
-// router.post(
-//   '/:bookingId',
-//   handleMulter.array('files'), // handle up to 5 images 
-//   processAndUploadToS3('feedbacks'), // upload to "feedbacks/" folder in S3
-//   authenticateToken,
-//   feedbackController.submitFeedback
-// );
 router.put('/:feedbackId', authenticateToken, feedbackController.editFeedback);
 router.put('/:feedbackId/reply', authenticateToken, feedbackController.replyToFeedback);
 router.put('/:feedbackId/moderate', feedbackController.moderateFeedback);

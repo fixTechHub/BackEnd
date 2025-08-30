@@ -4,6 +4,7 @@ const DepositLog = require('../models/DepositLog');
 const contractService = require('./contractService');
 const notificationService = require('./notificationService');
 const HttpError = require('../utils/error');
+const User = require('../models/User');
 
 const sendContractTechnician = async (technicianId) => {
     // Start a new session for the transaction
@@ -81,43 +82,54 @@ const getWithdrawLogs = async ({ page = 1, limit = 10, status, search }) => {
   page = Number(page) || 1;
   limit = Number(limit) || 10;
 
-  // base filter: chỉ WITHDRAW
+  // chỉ lấy bản ghi rút tiền
   const filter = { type: 'WITHDRAW' };
   if (status) filter.status = status;
 
-  // Tìm theo search (fullName/email)
-  let techIds = null;
+  // --- Search theo fullName/email ---
   if (search && search.trim()) {
     const regex = new RegExp(search.trim(), 'i');
+
+    // 1) Tìm các user khớp tên/email
     const users = await User.find(
       { $or: [{ fullName: regex }, { email: regex }] },
       { _id: 1 }
     ).lean();
 
-    if (users.length) {
-      const userIds = users.map((u) => u._id);
-      const techs = await Technician.find({ userId: { $in: userIds } }, { _id: 1 }).lean();
-      techIds = techs.map((t) => t._id);
+    // 2) Nếu không ai khớp, ép filter trả về rỗng
+    if (!users.length) {
+      filter.technicianId = { $in: ['__none__'] }; // tránh $in: []
     } else {
-      techIds = []; // không ai match
+      const userIds = users.map(u => u._id);
+
+      // 3) Tìm technician theo userId (đúng với schema bạn gửi)
+      const techs = await Technician.find(
+        { userId: { $in: userIds } },
+        { _id: 1 }
+      ).lean();
+
+      const techIds = techs.map(t => t._id);
+      filter.technicianId = { $in: techIds.length ? techIds : ['__none__'] };
     }
-    if (techIds) filter.technicianId = { $in: techIds };
   }
 
-  const total = await DepositLog.countDocuments(filter);
-  const items = await DepositLog.find(filter)
-    .sort({ createdAt: -1 })
-    .skip((page - 1) * limit)
-    .limit(limit)
-    .populate({
-      path: 'technicianId',
-      select: 'userId balance bankAccount',
-      populate: { path: 'userId', select: 'fullName email' },
-    })
-    .lean();
+  // --- Query + populate ---
+  const [total, items] = await Promise.all([
+    DepositLog.countDocuments(filter),
+    DepositLog.find(filter)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .populate({
+        path: 'technicianId',
+        select: 'userId balance bankAccount',
+        populate: { path: 'userId', select: 'fullName email' },
+      })
+      .lean(),
+  ]);
 
-  // Chuẩn hoá dữ liệu cho FE
-  const normalized = items.map((x) => ({
+  // --- Chuẩn hóa cho FE ---
+  const normalized = items.map(x => ({
     _id: x._id,
     amount: x.amount,
     status: x.status,
@@ -135,7 +147,7 @@ const getWithdrawLogs = async ({ page = 1, limit = 10, status, search }) => {
                 email: x.technicianId.userId.email,
               }
             : null,
-            bankAccount: x.technicianId.bankAccount || null,
+          bankAccount: x.technicianId.bankAccount || null,
         }
       : null,
   }));

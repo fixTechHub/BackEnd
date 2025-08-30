@@ -57,9 +57,9 @@ const handleSuccessfulPayment = async (orderCode, bookingId) => {
     if (!booking) {
       throw new Error('Không tìm thấy đơn');
     }
-  
+
     booking.paymentStatus = 'PAID';
-    booking.status = 'DONE';  
+    booking.status = 'DONE';
     booking.isChatAllowed = false
     booking.isVideoCallAllowed = false
     booking.customerConfirmedDone = true
