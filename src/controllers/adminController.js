@@ -161,7 +161,7 @@ exports.sendContractTechnician = async (req, res) => {
 
 exports.listWithdraws = async (req, res) => {
   try {
-    const { page, limit, status, search } = req.query;
+    const { page, limit, status, search } = req.body;
     const result = await adminService.getWithdrawLogs({ page, limit, status, search });
     res.json(result);
   } catch (error) {

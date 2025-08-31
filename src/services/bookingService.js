@@ -12,6 +12,7 @@ const BookingTechnicianSearch = require('../models/BookingTechnicianSearch');
 const { getIo } = require('../sockets/socketManager');
 const technicianScheduleService = require('./technicianScheduleService');
 const redisService = require('./redisService');
+const TechnicianService = require('../models/TechnicianService');
 
 const MAX_TECHNICIANS = 10;
 const SEARCH_RADII = [5, 10, 15, 30];
@@ -600,27 +601,37 @@ const technicianSendQuote = async (bookingId, technicianId, quoteData, io) => {
         // Tích lũy items mới vào danh sách hiện có
         const combinedItems = [...existingItems, ...newItemsWithStatus];
 
+        // Lấy giá công và thời gian bảo hành mới nhất từ TechnicianService
+        const technicianService = await TechnicianService.findOne({
+            technicianId: technician._id,
+            serviceId: booking.serviceId,
+            isActive: true
+        });
+
+        // Sử dụng giá trị từ TechnicianService nếu có, nếu không thì dùng giá trị hiện tại
+        const laborPrice = technicianService?.price || booking.quote?.laborPrice || 0;
+        const warrantiesDuration = technicianService?.warrantyDuration || booking.quote?.warrantiesDuration || 1;
+
         // Tính totalAmount chỉ từ items có status ACCEPTED
         const acceptedItemsTotal = combinedItems
             .filter(item => item.status === 'ACCEPTED')
             .reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0);
 
-        const laborPrice = quoteData.laborPrice || booking.quote?.laborPrice || 0;
         const totalAmount = laborPrice + acceptedItemsTotal;
 
         // Debug warranty duration logic
-        console.log('--- BACKEND: Warranty duration debug ---', {
-            quoteDataWarrantiesDuration: quoteData.warrantiesDuration,
-            quoteDataWarrantiesDurationType: typeof quoteData.warrantiesDuration,
-            existingWarrantiesDuration: booking.quote?.warrantiesDuration,
-            finalWarrantiesDuration: quoteData.warrantiesDuration !== undefined ? quoteData.warrantiesDuration : (booking.quote?.warrantiesDuration || 1)
-        });
+        // console.log('--- BACKEND: Warranty duration debug ---', {
+        //     quoteDataWarrantiesDuration: quoteData.warrantiesDuration,
+        //     quoteDataWarrantiesDurationType: typeof quoteData.warrantiesDuration,
+        //     existingWarrantiesDuration: booking.quote?.warrantiesDuration,
+        //     finalWarrantiesDuration: quoteData.warrantiesDuration !== undefined ? quoteData.warrantiesDuration : (booking.quote?.warrantiesDuration || 1)
+        // });
 
         booking.quote = {
             ...booking.quote,
             laborPrice: laborPrice,
             items: combinedItems,
-            warrantiesDuration: quoteData.warrantiesDuration !== undefined ? quoteData.warrantiesDuration : (booking.quote?.warrantiesDuration || 1),
+            warrantiesDuration: warrantiesDuration,
             totalAmount: totalAmount,
             note: quoteData.note || 'Yêu cầu phát sinh thiết bị',
             quotedAt: new Date(),
@@ -1150,17 +1161,17 @@ const updateBookingAddCoupon = async (bookingId, couponCode, discountValue, fina
                 technicianId: updatedBooking.technicianId
               });
             console.log(technicianServiceModel);
-            const warrantyMonths = Number(updatedBooking.quote?.warrantiesDuration + technicianServiceModel.warrantyDuration) || 0;
-           
+            const warrantyMonths = Number(updatedBooking.quote?.warrantiesDuration) || 0;
+               
+            updatedBooking.warrantyExpiresAt.setMonth(
+                updatedBooking.warrantyExpiresAt.getMonth() + warrantyMonths
+            );
             await updatedBooking.save({ session });
             const technician = await technicianService.getTechnicianById(updatedBooking.technicianId)
             technician.availability = 'FREE'
             await technician.save({ session })
            
-           
-            updatedBooking.warrantyExpiresAt.setMonth(
-                updatedBooking.warrantyExpiresAt.getMonth() + warrantyMonths
-            );
+       
             const receiptData = {
                 bookingId: updatedBooking._id,
                 customerId: updatedBooking.customerId,

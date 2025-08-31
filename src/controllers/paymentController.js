@@ -272,7 +272,6 @@ const extendSubscription = async (req, res) => {
 
 const handleExtendPayOsSuccess = async (req, res) => {
     const { amount, userId, packageId, days } = req.query;
-    console.log('[Extend Success] amount:', amount, 'userId:', userId, 'packageId:', packageId, 'days:', days);
 
     try {
         await paymentService.handleExtendSubscription(
@@ -302,7 +301,7 @@ const handleExtendPayOsSuccess = async (req, res) => {
             console.error('Error during login on extend failure:', loginError);
         }
 
-        res.redirect(`${process.env.FRONT_END_URL}/deposit-fail?error=${error.message}`);
+        res.redirect(`${process.env.FRONT_END_URL}/deposit-fail?error=${encodeURIComponent(error.message)}`);
     }
 };
 

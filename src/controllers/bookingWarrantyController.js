@@ -1,5 +1,6 @@
 const bookingWarrantyService = require("../services/bookingWarrantyService");
 const bookingService = require('../services/bookingService')
+const Technician = require('../models/Technician')
 
 const requestBookingWarranty = async (req, res) => {
     try {
@@ -171,6 +172,39 @@ const listMyWarranties = async (req, res)=>{
     }
 };
 
+const listMyWarrantiesOfTech = async (req, res) => {
+  try {
+    console.log('[BW] listMyWarrantiesOfTech input:', {
+      user: req.user?._id,
+      techFromReq: req.technician?.technicianId,
+      query: req.query,
+    });
+    
+    let technicianId = req?.technician?.technicianId; // nếu middleware đã gán sẵn
+    let { page = 1, limit = 10 } = req.query;
+
+    // Fallback: nếu middleware chỉ gán req.user
+    if (!technicianId) {
+      const userId = req?.user?._id;
+      if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+      const tech = await Technician.findOne({ userId }, { _id: 1 }).lean();
+      if (!tech) {
+        return res.json({ items: [], page: Number(page)||1, limit: Number(limit)||10, total: 0, totalPages: 1 });
+      }
+      technicianId = tech._id;
+    }
+
+    const result = await bookingWarrantyService.getWarrantiesOfTech(technicianId, { page, limit });
+    console.log('tech',result);
+    
+    return res.json(result);
+  } catch (err) {
+    console.error('List warranties error:', err);
+    return res.status(500).json({ message: err?.message || 'Server error' });
+  }
+};
+
 
 module.exports = {
     requestBookingWarranty,
@@ -180,5 +214,6 @@ module.exports = {
     confirmWarranty,
     proposeWarrantySchedule,
     confirmWarrantySchedule
-    ,listMyWarranties
+    ,listMyWarranties,
+    listMyWarrantiesOfTech
 }; 

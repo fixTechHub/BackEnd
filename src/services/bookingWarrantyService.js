@@ -394,7 +394,8 @@ module.exports = {
     updateWarrantyById,
     requestWarrantyDate,
     confirmWarrantySchedule,
-    getWarrantiesOfUser
+    getWarrantiesOfUser,
+    getWarrantiesOfTech
 };
 
 // ===== New function =====
@@ -404,4 +405,30 @@ async function getWarrantiesOfUser(userId){
     .populate('customerId')
     .populate('technicianId.userId')
     .sort({ createdAt: -1 });
+}
+
+async function getWarrantiesOfTech(technicianId, { page = 1, limit = 10 } = {}) {
+  page = Number(page) || 1;
+  limit = Number(limit) || 10;
+
+  const filter = { technicianId };
+  const [total, items] = await Promise.all([
+    BookingWarranty.countDocuments(filter),
+    BookingWarranty.find(filter)
+      .populate('bookingId')
+      .populate('customerId')
+      .populate({ path: 'technicianId', populate: { path: 'userId' } })
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean(),
+  ]);
+
+  return {
+    items,
+    page,
+    limit,
+    total,
+    totalPages: Math.max(1, Math.ceil(total / limit)),
+  };
 }
