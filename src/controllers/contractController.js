@@ -1,5 +1,6 @@
 const contractService = require('../services/contractService');
-
+const Technician = require('../models/Technician');
+const mail = require('../utils/mail')
 const createContract = async (req, res) => {
     try {
         const { signingUrl } = await contractService.createContract(req.body);
@@ -46,9 +47,29 @@ const handleDocuSignCallback = async (req, res) => {
         switch (event) {
             case 'signing_complete':
                 status = 'SIGNED';
+                await contractService.updateContractStatus(contract._id, status);
+
+                // Retrieve technician and user details to get email and full name
+                const technician = await Technician.findById(contract.technicianId)
+                    .populate('userId')
+                    .exec();
+                if (!technician) {
+                    throw new Error('Technician not found');
+                }
+                const user = technician.userId;
+                const documentBuffer = await contractService._getSignedDocument(envelopeId);
+
+                // Send the signed contract via email
+                await mail.sendSignedContractEmail(
+                    user.email,
+                    user.fullName,
+                    documentBuffer,
+                    contract.contractCode
+                );
                 break;
             case 'declined':
                 status = 'REJECTED';
+                await contractService.updateContractStatus(contract._id, status);
                 break;
             default:
                 return res.status(200).json({ message: 'Không thực hiện được quá trình' });

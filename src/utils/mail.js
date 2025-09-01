@@ -398,6 +398,61 @@ const sendWarningEmail = async (email, warningContent, subject = 'CẢNH BÁO T�
     }
 };
 
+/**
+ * Sends a signed contract to the provided email address as an attachment.
+ * @param {string} email - The recipient's email address.
+ * @param {string} fullName - The recipient's full name.
+ * @param {Buffer} documentBuffer - The signed contract as a Buffer.
+ * @param {string} contractCode - The contract code for reference.
+ */
+const sendSignedContractEmail = async (email, fullName, documentBuffer, contractCode) => {
+    const mailOptions = {
+        from: `"FixHub" <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: `Hợp đồng đã ký - ${contractCode} | FixTech`,
+        html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #333;">Xin chào ${fullName}!</h2>
+                <p>Cảm ơn bạn đã hoàn tất việc ký hợp đồng kỹ thuật viên với FixTech.</p>
+                <p>Hợp đồng đã ký (${contractCode}) được đính kèm trong email này. Vui lòng lưu trữ tài liệu này để tham khảo.</p>
+                
+                <div style="background-color: #d1ecf1; 
+                          border: 1px solid #bee5eb; 
+                          padding: 15px; 
+                          border-radius: 8px; 
+                          margin: 20px 0;">
+                    <p style="color: #0c5460; margin: 0;">
+                        <strong>📄 Thông tin hợp đồng:</strong><br>
+                        - Mã hợp đồng: ${contractCode}<br>
+                        - Ngày ký: ${new Date().toLocaleDateString('vi-VN')}
+                    </p>
+                </div>
+                
+                <p>Nếu bạn có bất kỳ thắc mắc nào, vui lòng liên hệ với đội ngũ hỗ trợ của chúng tôi.</p>
+                
+                <hr style="border: 1px solid #eee; margin: 20px 0;">
+                
+                <div style="color: #666; font-size: 12px;">
+                    <p>Email này được gửi tự động từ hệ thống FixTech. Vui lòng không trả lời email này.</p>
+                    <p>© 2025 FixTech. Tất cả các quyền được bảo lưu.</p>
+                </div>
+            </div>
+        `,
+        attachments: [
+            {
+                filename: `HopDong_${contractCode}.pdf`,
+                content: documentBuffer,
+                contentType: 'application/pdf',
+            },
+        ],
+    };
+
+    try {
+        await transporter.sendMail(mailOptions);
+    } catch (error) {
+        throw new Error('Không thể gửi email hợp đồng đã ký');
+    }
+};
 
 module.exports = {
     sendVerificationEmail,
@@ -405,5 +460,6 @@ module.exports = {
     sendDeactivateVerificationEmail,
     sendDeleteVerificationEmail,
     sendDeletionReminderEmail,
-    sendWarningEmail
+    sendWarningEmail,
+    sendSignedContractEmail
 };
