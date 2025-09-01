@@ -70,7 +70,7 @@ const handleSuccessfulPayment = async (orderCode, bookingId) => {
       serviceId: booking.serviceId,
       technicianId: booking.technicianId
     });
-    const warrantyMonths = Number(booking.quote?.warrantiesDuration + technicianServiceModel.warrantyDuration) || 0;
+    const warrantyMonths = Number(booking.quote?.warrantiesDuration) || 0;
     booking.warrantyExpiresAt.setMonth(
       booking.warrantyExpiresAt.getMonth() + warrantyMonths
     );
