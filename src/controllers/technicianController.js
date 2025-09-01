@@ -299,8 +299,7 @@ const completeTechnicianProfile = async (req, res) => {
     // Lấy file từ req.files (multer.fields)
     const fileObj = req.files || {};
     const avatarArr = fileObj.avatar || [];
-    const frontArr = fileObj.frontIdImage || [];
-    const backArr = fileObj.backIdImage || [];
+    const cccdArr = fileObj.cccdImages || [];  // Array of CCCD images for individual accounts
     const businessLicenseArr = fileObj.businessLicenseImage || [];
     const certArr = fileObj.certificates || [];
 
@@ -335,14 +334,14 @@ const completeTechnicianProfile = async (req, res) => {
         'technicians'
       );
     } else {
-      // Individual account: require CCCD
-      if (frontArr.length === 0 || backArr.length === 0) {
-        throw new Error('Thiếu ảnh CCCD bắt buộc');
+      // Individual account: require CCCD images array
+      if (cccdArr.length !== 2) {
+        throw new Error('Cần có đúng 2 ảnh CCCD (mặt trước và mặt sau)');
       }
-      // Upload CCCD images in parallel to avoid S3 rate limiting
+      // Upload CCCD images in parallel
       const [frontResult, backResult] = await Promise.all([
-        uploadFileToS3(frontArr[0].buffer, frontArr[0].originalname, frontArr[0].mimetype, 'technicians'),
-        uploadFileToS3(backArr[0].buffer, backArr[0].originalname, backArr[0].mimetype, 'technicians')
+        uploadFileToS3(cccdArr[0].buffer, cccdArr[0].originalname, cccdArr[0].mimetype, 'technicians'),
+        uploadFileToS3(cccdArr[1].buffer, cccdArr[1].originalname, cccdArr[1].mimetype, 'technicians')
       ]);
       frontUrl = frontResult;
       backUrl = backResult;
