@@ -34,7 +34,7 @@ app.use(
         ],
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Session-Type'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
         exposedHeaders: ['set-cookie']
     })
 );
@@ -54,7 +54,7 @@ const initializeRedis = async () => {
 // Khởi tạo Redis khi app start
 initializeRedis();
 
-app.options('*', cors());
+// app.options('*', cors());
 // Routes (Định tuyến)
 app.use('/api', routes);
 
