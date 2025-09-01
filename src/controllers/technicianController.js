@@ -118,9 +118,6 @@ const viewJobDetails = async (req, res) => {
   try {
 
     const { technicianId, bookingId } = req.params;
-    console.log("bookingId:", bookingId);
-    console.log("technicianId:", technicianId);
-
     const booking = await technicianService.getJobDetails(bookingId, technicianId);
 
     res.status(200).json(booking);
