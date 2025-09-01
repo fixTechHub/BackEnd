@@ -54,7 +54,7 @@ const initializeRedis = async () => {
 // Khởi tạo Redis khi app start
 initializeRedis();
 
-app.options('*', cors());
+// app.options('*', cors());
 // Routes (Định tuyến)
 app.use('/api', routes);
 
