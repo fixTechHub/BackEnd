@@ -339,8 +339,13 @@ const completeTechnicianProfile = async (req, res) => {
       if (frontArr.length === 0 || backArr.length === 0) {
         throw new Error('Thiếu ảnh CCCD bắt buộc');
       }
-      frontUrl = await uploadFileToS3(frontArr[0].buffer, frontArr[0].originalname, frontArr[0].mimetype, 'technicians');
-      backUrl = await uploadFileToS3(backArr[0].buffer, backArr[0].originalname, backArr[0].mimetype, 'technicians');
+      // Upload CCCD images in parallel to avoid S3 rate limiting
+      const [frontResult, backResult] = await Promise.all([
+        uploadFileToS3(frontArr[0].buffer, frontArr[0].originalname, frontArr[0].mimetype, 'technicians'),
+        uploadFileToS3(backArr[0].buffer, backArr[0].originalname, backArr[0].mimetype, 'technicians')
+      ]);
+      frontUrl = frontResult;
+      backUrl = backResult;
     }
 
     // Upload certificates (common for both account types)
