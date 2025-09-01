@@ -298,10 +298,24 @@ const completeTechnicianProfile = async (req, res) => {
 
     // Lấy file từ req.files (multer.fields)
     const fileObj = req.files || {};
+    const avatarArr = fileObj.avatar || [];
     const frontArr = fileObj.frontIdImage || [];
     const backArr = fileObj.backIdImage || [];
     const businessLicenseArr = fileObj.businessLicenseImage || [];
     const certArr = fileObj.certificates || [];
+
+    // Check avatar is required
+    if (avatarArr.length === 0) {
+      throw new Error('Ảnh đại diện là bắt buộc');
+    }
+    
+    // Upload avatar (required for all account types)
+    const avatarUrl = await uploadFileToS3(
+      avatarArr[0].buffer, 
+      avatarArr[0].originalname, 
+      avatarArr[0].mimetype, 
+      'avatars'
+    );
 
     // Handle different account types
     let frontUrl = null, backUrl = null, businessLicenseUrl = null;
@@ -325,14 +339,20 @@ const completeTechnicianProfile = async (req, res) => {
       if (frontArr.length === 0 || backArr.length === 0) {
         throw new Error('Thiếu ảnh CCCD bắt buộc');
       }
-      frontUrl = await uploadFileToS3(frontArr[0].buffer, frontArr[0].originalname, frontArr[0].mimetype, 'technicians');
-      backUrl = await uploadFileToS3(backArr[0].buffer, backArr[0].originalname, backArr[0].mimetype, 'technicians');
+      // Upload CCCD images in parallel to avoid S3 rate limiting
+      const [frontResult, backResult] = await Promise.all([
+        uploadFileToS3(frontArr[0].buffer, frontArr[0].originalname, frontArr[0].mimetype, 'technicians'),
+        uploadFileToS3(backArr[0].buffer, backArr[0].originalname, backArr[0].mimetype, 'technicians')
+      ]);
+      frontUrl = frontResult;
+      backUrl = backResult;
     }
 
     // Upload certificates (common for both account types)
     const certUrls = await Promise.all(certArr.map(f => uploadFileToS3(f.buffer, f.originalname, f.mimetype, 'technicians')));
 
     // Gom url để rollback nếu cần
+    uploadedUrls.push(avatarUrl);
     if (frontUrl) uploadedUrls.push(frontUrl);
     if (backUrl) uploadedUrls.push(backUrl);
     if (businessLicenseUrl) uploadedUrls.push(businessLicenseUrl);
@@ -400,8 +420,15 @@ const completeTechnicianProfile = async (req, res) => {
       }
     }
 
-    // Update user status and address
+    // Update user status, avatar, fullName and address
     user.status = 'ACTIVE';
+    user.avatar = avatarUrl;
+    
+    // Update fullName for business accounts (tên doanh nghiệp)
+    if (req.body.fullName && req.body.fullName.trim()) {
+        user.fullName = req.body.fullName.trim();
+        console.log('Updated user fullName:', user.fullName);
+    }
     
     // Update user address if provided
     if (req.body.address && req.body.address.trim()) {
