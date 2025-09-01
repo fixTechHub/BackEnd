@@ -331,12 +331,14 @@ const handleCancelSubscription = async (amount, userId) => {
 
 const createPayOsDeposit = async (userId, amount) => {
   try {
+    const amountNumber = Number(amount);
+    
     // PayOS requires a unique integer for orderCode.
     const orderCode = await generateOrderCode();
     const paymentData = {
       orderCode: orderCode,
-      amount: amount,
-      description: `Nap tien vao tai khoan`,
+      amount: amountNumber,
+      description: `Thanh toán nợ`,
       returnUrl: `https://fixtech.id.vn/api/payments/deposit/success?userId=${userId}&amount=${amount}`,
       cancelUrl: `https://fixtech.id.vn/api/payments/deposit/cancel?userId=${userId}&amount=${amount}`
     };
@@ -345,7 +347,7 @@ const createPayOsDeposit = async (userId, amount) => {
     return paymentLink.checkoutUrl;
 
   } catch (error) {
-    console.error('Error creating PayOS payment link:', error);
+    console.error('Error creating PayOS payment link:', error.message);
     throw new Error('Failed to create payment link');
   }
 };
@@ -380,12 +382,12 @@ const handleSuccessfulDeposit = async (amount, userId) => {
     const depositLog = new DepositLog({
       technicianId: technician._id,
       type: 'DEPOSIT',
-      amount: amount,
+      amount: amountNumber,
       status: 'COMPLETED',
       paymentMethod: 'BANK', // Or dynamically set if you have it
       balanceBefore: balanceBefore,
       balanceAfter: balanceAfter,
-      note: `Trả ${amount}đ thành công`,
+      note: `Trả ${amountNumber}đ thành công`,
     });
 
     await depositLog.save({ session });

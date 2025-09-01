@@ -266,6 +266,70 @@ const updateExpiredContracts = async (session = null) => {
   }
 };
 
+const _getSignedDocument = async (envelopeId) => {
+  try {
+    // Validate envelopeId
+    if (!envelopeId || typeof envelopeId !== 'string') {
+      throw new Error('Invalid or missing envelopeId');
+    }
+
+    const { dsApiClient, accountId } = await getApiClient();
+    const envelopesApi = new docusign.EnvelopesApi(dsApiClient);
+
+    // Verify envelope status
+  
+    const envelope = await envelopesApi.getEnvelope(accountId, envelopeId);
+    
+    if (envelope.status !== 'completed') {
+      throw new Error(`Envelope ${envelopeId} is not completed. Current status: ${envelope.status}`);
+    }
+
+    // List documents in the envelope
+  
+    const documentsResult = await envelopesApi.listDocuments(accountId, envelopeId);
+    
+
+    // Validate documents response
+    if (!documentsResult?.envelopeDocuments || documentsResult.envelopeDocuments.length === 0) {
+      throw new Error(`No documents found in envelope ${envelopeId}. Check template and permissions.`);
+    }
+
+    // Find the specific document (documentId: "1", type: "content")
+    const targetDocument = documentsResult.envelopeDocuments.find(doc => 
+      doc.documentId === "1" && doc.type === "content" && doc.name === "EContract_FixHubTech.pdf"
+    );
+
+    if (!targetDocument) {
+      throw new Error(`Target document (ID: 1, name: EContract_FixHubTech.pdf, type: content) not found in envelope ${envelopeId}. Available documents: ${JSON.stringify(documentsResult.envelopeDocuments)}`);
+    }
+
+    const documentId = targetDocument.documentId;
+    
+
+    // Download the document as a Buffer
+    const document = await envelopesApi.getDocument(accountId, envelopeId, documentId, { encrypt: false });
+
+    // Validate document response
+    if (!document || document.length === 0) {
+      throw new Error(`Failed to retrieve document ${documentId} from envelope ${envelopeId}`);
+    }
+
+    // Ensure the response is a Buffer
+    const documentBuffer = Buffer.isBuffer(document) ? document : Buffer.from(document, 'binary');
+
+
+    return documentBuffer;
+  } catch (error) {
+    console.error('Error in _getSignedDocument:', {
+      envelopeId,
+      message: error.message,
+      stack: error.stack,
+      response: error.response?.data || error.response,
+      status: error.response?.status
+    });
+    throw new Error(`Failed to get signed document: ${error.message}`);
+  }
+};
 module.exports = {
   createContract,
   generateContractOnRegistration,
@@ -274,5 +338,5 @@ module.exports = {
   updateContractStatus,
   findContractByEnvelopeId,
   updateExpiredContracts,
-  
+  _getSignedDocument
 };
