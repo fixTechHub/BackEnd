@@ -153,8 +153,6 @@ const viewTechnicianBookings = async (req, res, next) => {
 const viewEarningsByBooking = async (req, res) => {
   try {
     const { technicianId } = req.params || {};
-    console.log('id cua technician',technicianId);
-    
     const earningList = await technicianService.getEarningsAndCommissionList(technicianId);
 
     res.json({
@@ -203,9 +201,7 @@ const updateAvailability = async (req, res) => {
 const getTechnicianInformation = async (req, res) => {
   try {
     const technicianId = req.params.technicianId;
-
     const technician = await technicianService.getTechnicianInformation(technicianId);
-    console.log('--- TECHNICIAN ---', technician);
 
     res.status(200).json({
       message: 'Lấy thông tin thợ thành công',
@@ -220,9 +216,7 @@ const getTechnicianDepositLogs = async (req, res) => {
   try {
     const userId = req.user.userId;
     const { limit = 20, skip = 0 } = req.query;
-    console.log('Fetching logs for userId:', userId, 'with limit:', limit, 'skip:', skip);
     const technicianDepositLogs = await technicianService.getTechnicianDepositLogs(userId, parseInt(limit), parseInt(skip));
-    console.log('Logs:', technicianDepositLogs);
     res.status(200).json({
       technicianDepositLogs
     });
