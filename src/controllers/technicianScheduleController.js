@@ -6,14 +6,10 @@ const Technician = require('../models/Technician');
  * Route: GET /api/technician-schedules/conflicts
  */
 const getConflictingSchedules = async (req, res) => {
-    try {
-        console.log('🚀 DEBUG: getConflictingSchedules controller được gọi');
-        console.log('  req.query:', req.query);
-        
+    try {   
         const { technicianId, startTime, endTime } = req.query;
         
         if (!technicianId || !startTime || !endTime) {
-            console.log('❌ DEBUG: Thiếu thông tin:', { technicianId, startTime, endTime });
             return res.status(400).json({
                 success: false,
                 message: 'Thiếu thông tin: technicianId, startTime, endTime'

@@ -118,7 +118,6 @@ const depositBalance = async (req, res) => {
 
 const handleSubscriptionPayOsSuccess = async (req, res) => {
     const { amount, userId, packageId } = req.query;
-    console.log('Redirect Success - amount:', amount, 'userId:', userId, 'packageId:', packageId);
     try {
         await paymentService.handleSuccessfulSubscription(amount, userId, packageId);
 
@@ -234,8 +233,6 @@ const handleDepositPayOsCancel = async (req, res) => {
 const extendSubscription = async (req, res) => {
     try {
         const { days, technicianId, packageId } = req.body;
-        console.log("📥 extendSubscription body:", req.body);
-
         if (!days || !technicianId || !packageId) {
             return res.status(400).json({ message: 'Thiếu thông tin!' });
         }

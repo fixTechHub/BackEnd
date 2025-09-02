@@ -268,7 +268,7 @@ const requestWarrantyDate = async (bookingWarrantyId, dateTime) => {
         const warranty = await BookingWarranty.findById(bookingWarrantyId)
             .populate({
                 path: 'technicianId',
-    
+
             });
 
         if (!warranty) {
@@ -292,7 +292,7 @@ const requestWarrantyDate = async (bookingWarrantyId, dateTime) => {
         io.to(`user:${notifyData.userId}`).emit('receiveNotification', notification);
         const customerId = warranty.customerId.toString();
         const technicianId = warranty.technicianId?.userId?.toString();
-        
+
         if (customerId) {
             io.to(`user:${customerId}`).emit('warrantyUpdated', {
                 bookingWarrantyId,
@@ -317,7 +317,7 @@ const requestWarrantyDate = async (bookingWarrantyId, dateTime) => {
     }
 };
 
-const confirmWarrantySchedule = async (bookingWarrantyId,startTime, expectedEndTime) => {
+const confirmWarrantySchedule = async (bookingWarrantyId, startTime, expectedEndTime) => {
     const io = getIo();
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -362,7 +362,7 @@ const confirmWarrantySchedule = async (bookingWarrantyId,startTime, expectedEndT
         const notification = await notificationService.createNotification(notifyData, session);
         io.to(`user:${notifyData.userId}`).emit('receiveNotification', notification);
         const customerId = warranty.customerId._id.toString();
-        
+
         const technicianId = warranty.technicianId.userId.toString();
         if (customerId) {
             io.to(`user:${customerId}`).emit('warrantyUpdated', {
@@ -388,6 +388,33 @@ const confirmWarrantySchedule = async (bookingWarrantyId,startTime, expectedEndT
     }
 };
 
+const getWarrantiesOfTech = async(technicianId, { page = 1, limit = 10 } = {}) => {
+    if (!technicianId) throw new Error('Missing technicianId');
+    page = Number(page) || 1;
+    limit = Number(limit) || 10;
+
+    const filter = { technicianId };
+    const [total, items] = await Promise.all([
+        BookingWarranty.countDocuments(filter),
+        BookingWarranty.find(filter)
+            .populate('bookingId')
+            .populate('customerId')
+            .populate({ path: 'technicianId', populate: { path: 'userId' } })
+            .sort({ createdAt: -1 })
+            .skip((page - 1) * limit)
+            .limit(limit)
+            .lean(),
+    ]);
+
+    return {
+        items,
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+    };
+}
+
 module.exports = {
     requestWarranty,
     getWarrantyById,
@@ -399,36 +426,11 @@ module.exports = {
 };
 
 // ===== New function =====
-async function getWarrantiesOfUser(userId){
-  return BookingWarranty.find({ customerId: userId })
-    .populate('bookingId')
-    .populate('customerId')
-    .populate('technicianId.userId')
-    .sort({ createdAt: -1 });
+async function getWarrantiesOfUser(userId) {
+    return BookingWarranty.find({ customerId: userId })
+        .populate('bookingId')
+        .populate('customerId')
+        .populate('technicianId.userId')
+        .sort({ createdAt: -1 });
 }
 
-async function getWarrantiesOfTech(technicianId, { page = 1, limit = 10 } = {}) {
-  page = Number(page) || 1;
-  limit = Number(limit) || 10;
-
-  const filter = { technicianId };
-  const [total, items] = await Promise.all([
-    BookingWarranty.countDocuments(filter),
-    BookingWarranty.find(filter)
-      .populate('bookingId')
-      .populate('customerId')
-      .populate({ path: 'technicianId', populate: { path: 'userId' } })
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .lean(),
-  ]);
-
-  return {
-    items,
-    page,
-    limit,
-    total,
-    totalPages: Math.max(1, Math.ceil(total / limit)),
-  };
-}
