@@ -143,11 +143,45 @@ const upsertActiveSubscription = async ({
   return sub;
 };
 
+const expireOverdueSubscriptions = async () => {
+  const now = new Date();
+
+  // Lấy danh sách sub đã quá hạn nhưng chưa EXPIRED
+  const overdue = await TechnicianSubscription.find(
+    { status: { $ne: 'EXPIRED' }, endDate: { $lte: now } },
+    { _id: 1, technician: 1 }
+  ).lean();
+
+  if (!overdue.length) {
+    return { updatedSubs: 0, updatedTechs: 0, techIds: [] };
+  }
+
+  const subIds = overdue.map(s => s._id);
+  const techIds = [...new Set(overdue.map(s => String(s.technician)))];
+
+  const [subRes, techRes] = await Promise.all([
+    TechnicianSubscription.updateMany(
+      { _id: { $in: subIds } },
+      { $set: { status: 'EXPIRED' } }
+    ),
+    Technician.updateMany(
+      { _id: { $in: techIds } },
+      { $set: { isSubscribe: false, subscriptionStatus: 'FREE' } }
+    ),
+  ]);
+
+  const updatedSubs  = subRes.modifiedCount  ?? subRes.nModified  ?? 0;
+  const updatedTechs = techRes.modifiedCount ?? techRes.nModified ?? 0;
+
+  return { updatedSubs, updatedTechs, techIds };
+};
+
 
 module.exports = {
     getAvailablePackages,
     subscribePackage,
     renewSubscription,
     getCurrentSubscription,
-    upsertActiveSubscription
+    upsertActiveSubscription,
+    expireOverdueSubscriptions
 };
